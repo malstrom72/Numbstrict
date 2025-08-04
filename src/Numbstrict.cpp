@@ -24,6 +24,7 @@
 #include <limits>
 #include <algorithm>
 #include <iostream>
+#include <cstring>
 #include <type_traits>
 #include "Numbstrict.h"
 
