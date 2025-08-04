@@ -3,8 +3,6 @@ Makaron
 
 _Makaron_ is a macro expansion language designed to simplify and streamline your code. Makaron allows you to define and use macros for text substitution in your code, making it more readable and maintainable. The language includes features for defining string macros with [`@define`](#define), parametric macros with [`@begin`](#begin) and `@end`, and conditional output macros with [`@if`](#if). These macros can be [invoked](#invocation) by prefixing the macro name with "@" in the text.
 
-See [Numbstrict Documentation](Numbstrict%20Documentation.md) for details on the Numbstrict data format.
-
 Table of Contents
 -----------------
 
