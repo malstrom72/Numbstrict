@@ -1593,13 +1593,13 @@ const char* UndefinedNamedElementError::what() const throw() {
 
 bool unitTest() {
 #if !defined(NDEBUG)
-	std::basic_string<uint16_t> emoji16;
+	std::u16string emoji16;
 	emoji16 += 0xd83d;
 	emoji16 += 0xdc19;
 	String qs = quoteString(emoji16, false, '\"');
 	assert(quoteString(emoji16, false, '\"') == "\"\\U0001f419\"");
 
-	std::basic_string<uint32_t> emoji32;
+	std::u32string emoji32;
 	emoji32 += 0x1F419;
 	assert(quoteString(emoji32, false, '\"') == "\"\\U0001f419\"");
 
