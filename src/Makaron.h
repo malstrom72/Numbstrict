@@ -84,37 +84,42 @@ class Context {
 	
 	public:		typedef std::function<bool (const WideString& fileName, String& contents)> LoaderFunction;
 	
-				Context(int depthLimiter = DEFAULT_RECURSION_DEPTH_LIMIT, Context* parentContext = 0);
-				bool defineMacro(const String& name, const std::vector<String>& parameterNames, const Span& span, Context* context);
-				bool defineString(const String& name, const String& definiton);
-				bool redefineString(const String& name, const String& definiton);
-				void process(const Span& input, String& output, std::vector<OffsetMapEntry>* offsetMap);
-				void setIncludeLoader(const LoaderFunction& loaderFunction);
+				Context(int depthLimiter = DEFAULT_RECURSION_DEPTH_LIMIT,
+						Context* parentContext = 0);		/// init with depth limit and parent
+				bool defineMacro(const String& name, const std::vector<String>& parameterNames,
+						const Span& span, Context* context);		/// register macro; false if name exists
+				bool defineString(const String& name, const String& definiton);		/// define string constant; false if name used
+				bool redefineString(const String& name, const String& definiton);		/// replace string; false if missing
+				void process(const Span& input, String& output,
+						std::vector<OffsetMapEntry>* offsetMap);		/// expand input; fill offsets if provided
+				void setIncludeLoader(const LoaderFunction& loaderFunction);		/// set loader used by @include
 	
-	protected:	static bool isWhite(const Char c);
-				static bool isLeadingIdentifierChar(const Char c);
-				static bool isIdentifierChar(const Char c);
-				void error(const std::string error);
-				bool eof() const;
-				void skipWhite();
-				void skipHorizontalWhite();
-				void optionalLineBreak();
-				void skipBracketsAndStrings(int depth);
-				bool parseToken(const char* token);
-				String parseIdentifier();
-				String parseSymbol();
-				StringIt skipNested(const char* open, const char* close, bool skipLeadingWhite);
-				Span parseNested(const char* open, const char* close, bool skipLeadingWhite);
-				String parseExpression(const char* terminators);
-				void parseArgumentList(std::vector<String>& arguments);
-				void parseParameterNames(std::vector<String>& parameterNames);
-				void stringDefinition(bool redefine);
-				void macroDefinition();
-				bool testCondition();
-				void ifStatement();
-				void invokeMacro();
-				void includeFile();
-				void produce(const StringIt& b, const StringIt& e);
+	protected:	static bool isWhite(const Char c);		/// true if `c` is whitespace
+				static bool isLeadingIdentifierChar(const Char c);		/// true if `c` can start identifier
+				static bool isIdentifierChar(const Char c);		/// true if `c` is identifier char
+				void error(const std::string error);		/// throw `Exception` at current location
+				bool eof() const;		/// true when parser reached end
+				void skipWhite();		/// skip all whitespace
+				void skipHorizontalWhite();		/// skip spaces and tabs
+				void optionalLineBreak();		/// skip optional line break
+				void skipBracketsAndStrings(int depth);		/// skip bracketed or quoted blocks
+				bool parseToken(const char* token);		/// consume token if present
+				String parseIdentifier();		/// read identifier; empty if none
+				String parseSymbol();		/// read identifier or `(expr)`
+				StringIt skipNested(const char* open, const char* close,
+						bool skipLeadingWhite);		/// skip nested pair and return end
+				Span parseNested(const char* open, const char* close,
+						bool skipLeadingWhite);		/// span inside nested pair
+				String parseExpression(const char* terminators);		/// parse expression until terminator
+				void parseArgumentList(std::vector<String>& arguments);		/// parse comma-separated args
+				void parseParameterNames(std::vector<String>& parameterNames);		/// parse comma-separated names
+				void stringDefinition(bool redefine);		/// handle string @define/@redefine
+				void macroDefinition();		/// parse and store macro
+				bool testCondition();		/// evaluate @if/@elif expression
+				void ifStatement();		/// process @if...@endif
+				void invokeMacro();		/// expand macro or string
+				void includeFile();		/// handle @include directive
+				void produce(const StringIt& b, const StringIt& e);		/// append source slice to output
 
 				Context* const parentContext;
 				int depthLimiter;
@@ -137,11 +142,12 @@ typedef std::vector< std::pair<size_t, size_t> > RangeVector;
 	Notice that you can use this routine when an error occurs to get a full "call stack" of source ranges. Just pass the
 	length of the generated output to `outputOffset`.
 */
-RangeVector findInputRanges(const std::vector<OffsetMapEntry>& offsetMap, size_t outputOffset);
+RangeVector findInputRanges(const std::vector<OffsetMapEntry>& offsetMap,
+				size_t outputOffset);	/// map output offset to input ranges
 
-std::pair<int, int> calculateLineAndColumn(const String& text, size_t offset);
-String process(const String& source, const WideString& fileName);
-bool unitTest();
+std::pair<int, int> calculateLineAndColumn(const String& text, size_t offset);	/// get line and column for `offset`
+String process(const String& source, const WideString& fileName);	/// convenience wrapper using default context
+bool unitTest();	/// run built-in tests
 
 } // namespace Makaron
 
