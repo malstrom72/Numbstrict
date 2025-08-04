@@ -22,6 +22,7 @@ The project uses a consistent folder structure. Build output is written to `outp
 - `output/` – contains only build artifacts (and any runtime dependencies), no source files.
 
 Root-level `build.sh` and `build.cmd` (mirrored implementations) should build and test both the beta and release targets.
+These builds must compile the sources using the C++11 standard (`-std=c++11` or `/std:c++14` on MSVC).
 
 ### PikaCmd directory
 The `externals/PikaCmd` folder is a separate project copied into this repository. Ignore it when applying formatting or running tests.

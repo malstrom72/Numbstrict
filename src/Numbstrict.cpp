@@ -24,6 +24,7 @@
 #include <limits>
 #include <algorithm>
 #include <iostream>
+#include <cstring>
 #include <type_traits>
 #include "Numbstrict.h"
 
@@ -1980,7 +1981,7 @@ bool unitTest() {
 		assert(structure[L"x"].to<std::string>() == "23 666");
 		assert(structure[L"  y  "].to<std::string>() == "asfd");
 		assert(structure[L"z"].to<std::string>() == "qwer");
-		assert(structure[L"\u0074\u20AC\u00E4\u0073\u0074"].to<std::string>() == "bbb");
+			assert(structure[L"t\u20AC\u00E4st"].to<std::string>() == "bbb");
 		assert(structure[L"q"].to<std::string>() == "");
 		assert(structure[L"w"].to<std::string>() == "");
 	}
