@@ -18,6 +18,36 @@ On Windows:
 build.cmd
 ```
 
+## Fuzzing
+
+The repository includes libFuzzer harnesses for the Numbstrict and Makaron parsers. The helper scripts compile the fuzz targets with address and fuzzer sanitizers.
+
+### Numbstrict
+
+```bash
+bash tools/build_numbstrict_fuzz.sh
+```
+
+The resulting binary is placed in `output/NumbstrictFuzz` and can be run with a directory containing seed inputs:
+
+```bash
+./output/NumbstrictFuzz corpus/
+```
+
+### Makaron
+
+```bash
+bash tools/build_makaron_fuzz.sh
+```
+
+The resulting binary is placed in `output/MakaronFuzz` and accepts a corpus directory like the Numbstrict target.
+
+On macOS the default clang from Xcode does not ship the libFuzzer runtime. Install the `llvm` package via Homebrew and invoke the scripts with that compiler:
+
+```bash
+CPP_COMPILER=$(brew --prefix llvm)/bin/clang++ bash tools/build_numbstrict_fuzz.sh
+```
+
 ## Usage
 
 ```cpp
