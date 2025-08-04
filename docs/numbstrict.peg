@@ -1,0 +1,47 @@
+# diff from loose numbstruck:
+#
+# . ctrl-z eof is not recognized
+# . valid space characters are [ \t\r\n] (ascii codes 32, 7, 13 and 10)
+# . valid characters in comments are space characters and ascii codes 33 to 255
+# . valid characters for unquoted keys are [a-zA-Z0-9_] (first must not be a digit)
+# . valid characters in unquoted text are [ \t] and ascii codes 33 to 126 except [{}"':,=;]
+# . valid characters in quoted strings are [ ] and ascii codes 33 to 126
+# . recognized escape sequences are: '\x' '\u' '\U' '\n' '\r' '\t' '\'' '\"' '\\'
+# . '\l' escape sequence (for 32-bit characters) has been replaced with '\U'
+# . '\x' '\u' and '\U' must have exact number of hex digits (2, 4 and 8)
+# . no escape sequence for decimal character codes
+# . [=] is not accepted as key/value separator, only [:] (and it is required)
+# . [:] after key must be on the same line (also for quoted keys)
+# . [,] or [\n] (or both) is required between each element
+# . [;] is not accepted as element separator, only [,] or [\n]
+# . trailing [,] in key/value lists is illegal (but ok in value only lists)
+# . '{ : }' may be used to declare an empty struct (to differentiate from an empty array)
+
+root 				<-	_lf (valueList_ / keyValueList_) !.
+valueList_          <-	(value _ next_ / ',' _lf)* (value _lf)?
+keyValueList_       <-  (':' / keyValue_ (next_ keyValue_)*) _lf
+next_ 				<-	([\r\n] (_lf ',')? / _lf ',') _lf
+keyValue_ 			<-	key (_ ':' _ value?) _
+key                 <-  quotedString / identifier
+value       		<-  array / struct / quotedString / real / integer / boolean / text
+array				<-	'{' _lf valueList_ '}'
+struct				<-	'{' _lf keyValueList_ '}'
+text 				<-	(_ (![{}"':,=;] !('/' '*') !('/' '/') [\41-\176])+)+
+identifier			<-	[a-zA-Z_] [a-zA-Z0-9_]*
+quotedString        <-  doubleQuotedString / singleQuotedString
+doubleQuotedString  <-  '"' (escapeCode / !["\\\r\n] [\40-\176])* '"'
+singleQuotedString	<-	"'" (escapeCode / !['\\\r\n] [\40-\176])* "'"
+real				<-	([-+]? decimal ('.' [0-9]+)? ([eE] [-+]? decimal)?) / [-+]? 'inf' / 'nan'
+integer				<-	[-+]? ('0x' hex+ / decimal)
+decimal 			<-	'0' / [1-9] [0-9]*
+boolean 			<-	'false' / 'true'
+escapeCode          <-  '\\x' hex2 / '\\u' hex4 / '\\U' hex8 / '\\' [nrt'"\\]
+hex8                <-  hex4 hex4
+hex4                <-  hex2 hex2
+hex2                <-  hex hex
+hex                 <-  [0-9A-Fa-f]
+_lf                 <-  (comment / [ \t\r\n])*
+_              		<-  (comment / [ \t])*
+comment             <-  singleLineComment / multiLineComment
+singleLineComment   <-  '/' '/' [\40-\377\t]* (!. / &[\r\n])
+multiLineComment    <-  '/' '*' (multiLineComment / !'*' '/' [\40-\377\t\r\n])* '*' '/'

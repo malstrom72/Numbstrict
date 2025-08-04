@@ -1,0 +1,54 @@
+root            <-  text
+
+text            <-  (instruction / literalText)*
+literalText     <-  !(_ '@') .
+
+instruction     <-  defMacro / defString / redefString / ifElse / include / expand / literalAt
+
+literalAt       <-  _ '@@'
+
+defString       <-  DEFINE identifier _ '=' _ valueExpr _eol?
+redefString     <-  REDEFINE identifier _ '=' _ valueExpr _eol?
+include			<-	INCLUDE _ valueExpr _eol?
+valueExpr       <-  raw / !'@<' (!_eol balanced)*
+
+defMacro        <-  BEGIN identifier (!'(' / paramsList) _eol? text END
+paramsList      <-  '(' _lf_ (identifier (_lf_ ',' _lf_ identifier)* _lf_)? ')'
+
+ifElse          <-  IF _lf_ condition text (ELIF _lf_ condition text)* (ELSE text)? ENDIF
+condition       <-  '(' _lf_ ifLeftExpr _lf_ ('==' / '!=') _lf_ ifRightExpr _lf_ ')' _eol?
+ifLeftExpr      <-  raw / !'@<' (![=!] balanced)*
+ifRightExpr     <-  raw / !'@<' (!')' balanced)*
+
+expand          <-  _ '@' (indirection / identifier) (!'(' / argumentList)
+indirection     <-  '(' _lf_ (raw / !'@<' (!')' balanced)*) _lf_ ')'
+argumentList    <-  '(' _lf_ argumentExpr (_lf_ ',' _lf_ argumentExpr)* _lf_ ')'
+argumentExpr    <-  raw / !'@<' (![,)] balanced)*
+
+identifier      <-  !reserved [a-zA-Z$_lf_] identifierChar*
+reserved        <-  ('define' / 'begin' / 'endif' / 'end' / 'if' / 'elif' / 'else' / 'redefine') !identifierChar
+identifierChar  <-  [a-zA-Z0-9$_lf_]
+
+raw             <-  '@<' (raw / '@@' / !'@>' .)* '@>'
+
+balanced        <-  instruction
+                    / '(' (!')' balanced)* ')'
+                    / '{' (!'}' balanced)* '}'
+                    / '[' (!']' balanced)* ']'
+                    / '"' ('\\' . / !'"' .)* '"'
+                    / "'" ('\\' . / !"'" .)* "'"
+                    / ![({["'] !(_ '@') .
+
+_eol            <-  [ \t\r]* '\n'
+_lf_            <-  [ \t\r\n]*
+_               <-  [ \t]*
+
+DEFINE          <-  _ '@define' !identifierChar _lf_
+REDEFINE        <-  _ '@redefine' !identifierChar _lf_
+BEGIN           <-  _ '@begin' !identifierChar _lf_
+END             <-  _ '@end' !identifierChar _eol?
+IF              <-  _ '@if' !identifierChar _lf_
+ELIF            <-  _ '@elif' !identifierChar _lf_
+ELSE            <-  _ '@else' !identifierChar _lf_
+ENDIF           <-  _ '@endif' !identifierChar _eol?
+

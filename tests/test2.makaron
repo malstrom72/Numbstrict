@@ -1,0 +1,46 @@
+
+		@begin b(x, y)
+
+			@begin a(b)
+				@if (@b == 3) @x
+				@else y
+				@endif
+			@end @a(x)
+	x	@end
+
+<@b(3, 7)>
+
+    @b(9,3)
+
+   @@  @@
+
+@define y = @if (5 == 3) 'a' @else 'b' @endif
+
+ [@y]
+
+@begin test(t)
+	@define x=hello
+	@if (@t == 1)
+		@redefine x=there
+	@endif
+	@x
+@end
+
+@test(0)
+@test(1)
+
+@define x=3     
+@if (@x==3) @redefine x=11 @endif
+@x
+
+	@begin fruitColor(fruit)
+		@if ( @fruit == apple ) red
+		@elif ( @fruit == banana ) yellow
+		@elif ( @fruit == pear ) green
+		@else unknown
+		@endif
+	@end
+	[@fruitColor(apple)]
+	[@fruitColor(banana)]
+	[@fruitColor(pear)]
+	[@fruitColor(sss)]

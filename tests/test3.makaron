@@ -1,0 +1,89 @@
+@include tests/includeTest.makaron
+
+abcd
+  abcd  
+  abcd  
+
+  abcd  
+
+
+@@abcd
+  @@abcd  
+@define abcd=
+<@abcd>
+@redefine abcd = ghij
+@abcd
+@redefine abcd = ghij
+@(abcd)
+@redefine abcd=@<
+@>
+<@abcd>
+@redefine abcd=@<
+  @>
+<@abcd>
+@begin bcde ghij @end
+_@(bcde)_
+@begin concat(a,b) @(a)@(b) @end
+@concat(mon,ster)
+@concat("mon","ster")
+@concat("mon\",",ster)
+@concat(@<cookie, the@>,@< monster@>)
+@begin   a   @begin   local x@end   @global@local   @end  @define global=y
+@a
+@begin repeat2(t) @t@t @end
+@begin repeat4(t) @repeat2(@t)@repeat2(@t) @end
+@repeat4(@<@begin r(x) __@(x)__ @end
+@r(@<@@<1,2@@>@>)
+@>)
+@begin f(a,b) @a+@b @end
+@f(@f(x,y),z)
+@f( @f( x , y ) , z)
+@f( @f( x , "y)" ) , z)
+@f(@f({[(x,'y)}]"')]},_),z)
+
+@begin
+with2params(  x   ,   y )
+@begin test(y)
+@define x=UUU
+@begin z @x @end
+@(y)@(z)
+@end
+@test("@@x")smurf@y
+@end
+@(with2params)(1," ,")bye
+
+@begin x abc @end @if ( @x == abc ) hello @endif
+<<<@if (1==1)    yes 1    @endif>>><<<@if( @<check me@>  == check me   )yes 2@endif>>>
+@begin fruitColor(fruit)
+	@if ( @fruit == apple ) @if (@preferRedApples == yes) red @else green @endif
+	@elif ( @fruit == banana ) yellow
+	@elif ( @fruit == pear ) green
+	@else unknown
+	@endif
+@end
+@define preferRedApples = yes
+[@fruitColor(apple)]
+[@fruitColor(banana)]
+[@fruitColor(pear)]
+[@fruitColor(rubberduck)]
+@redefine preferRedApples = no
+[@fruitColor(apple)]
+
+@define define123=123
+@define123
+
+@define sushi =   @<raw@>       
+@sushi
+@define zyz=3
+@define a_3=66
+@(  a_3  )
+@(a_@zyz)
+@(  @<a_3@>  )
+
+@define xyzzy=plugh
+@xyzzy
+@define xxx=3
+@if (@xxx==3) @redefine xxx=11 @endif
+@x
+
+Donkey @donkey

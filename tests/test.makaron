@@ -1,0 +1,111 @@
+@define zyz=3;
+@define a_3=66;
+@(  a_3  )
+@(a_@zyz)
+@define (a_@zyz)=99;
+@a_3
+
+@begin fruitColor(fruit);
+	@if ( @fruit == apple ); @if (@preferRedApples == yes); red@; @else; green@; @endif;
+	@elif ( @fruit == banana ); yellow@;
+	@elif ( @fruit == pear ); green@;
+	@else; unknown@;
+	@endif;
+@end;
+@define preferRedApples = yes;
+[@fruitColor(apple)]
+[@fruitColor(banana)]
+[@fruitColor(pear)]
+[@fruitColor(rubberduck)]
+@define preferRedApples = no;
+[@fruitColor(apple)]
+
+---
+@@
+@define qwert=knopp
+@define bc=bC
+
+asdf
+@qwert@@yop
+tyui
+a@(bc)def
+
+   @define   x =  zz   
+   @define  asdf =   qwer
+@x@x
+  @define apa=bertil
+
+  @define nada    =			  
+@apa@nada@apa
+
+ @begin withparam(  x
+   )   smurf@(x)smurf @end
+
+@withparam(   asdf   )
+
+@withparam(a@@sdf)
+
+ @begin blocky
+ 1234
+ 5678
+ @end
+
+ @(blocky)@(blocky)
+
+ @begin (blocky)1234
+ 5678
+ @end
+
+@(blocky)@(blocky)
+
+ @begin (blocky)1234@end
+
+@blocky@blocky
+
+ @begin
+ 	with2params(  x   ,   y ) 
+ 	@begin test(y)
+ 		@define x=UUU
+ 		@begin z; @x; @end;
+ 		@(y)@(z)
+ 	@end
+ 	 @test("@@x")smurf@y
+@end
+
+@(with2params)( 1
+		,  " ,")bye
+
+you can put @define anywhere=you like
+
+@begin abc(def); _@def@(def)_@; @end;
+
+@abc()
+@abc(def)
+@define def=ghi
+@abc(@def)
+
+@begin z
+@end
+
+@define x=23
+@if (@(x)_ == 23_) @if (23 == @x) @x @endif @endif
+
+@define abc=123
+@define def=456
+@define selector=abc
+@(@selector)
+@define selector=def
+@(@selector)
+
+@define qwerdef=hola
+
+@(qwer@selector)
+
+<<<@;  @if (1==1);    word@;    @endif;    >>>
+
+@define y=11
+@define x=@y
+@define y=23
+@x
+
+@if (0==1); @!("#(; @endif;

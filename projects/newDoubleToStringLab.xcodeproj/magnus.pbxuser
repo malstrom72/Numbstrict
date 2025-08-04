@@ -1,0 +1,502 @@
+// !$*UTF8*$!
+{
+	08FB7793FE84155DC02AAC07 /* Project object */ = {
+		activeBuildConfigurationName = Debug;
+		activeExecutable = F746993216B2AF4C009E735B /* IMPDTest */;
+		activeTarget = 8DD76F620486A84900D96B5E /* IMPDTest */;
+		addToTargets = (
+			8DD76F620486A84900D96B5E /* IMPDTest */,
+		);
+		breakpoints = (
+			F7469AFD16B4A200009E735B /* ImpD.cpp:755 */,
+			F7469B2916B4ABA6009E735B /* ImpD.cpp:799 */,
+			F7717E9116B5FBD100B6F685 /* impd.cpp:448 */,
+			F7717EA716B5FD4900B6F685 /* impd.cpp:462 */,
+			F7559F1C16B810F20085367C /* IMPD.cpp:39 */,
+			F7559F4A16B816520085367C /* IMPD.cpp:343 */,
+			F76D06BB16B9DFE900E37818 /* IMPD.cpp:841 */,
+		);
+		codeSenseManager = F746992016B2AF24009E735B /* Code sense */;
+		executables = (
+			F746993216B2AF4C009E735B /* IMPDTest */,
+		);
+		perUserDictionary = {
+			PBXConfiguration.PBXFileTableDataSource3.PBXExecutablesDataSource = {
+				PBXFileTableDataSourceColumnSortingDirectionKey = "-1";
+				PBXFileTableDataSourceColumnSortingKey = PBXExecutablesDataSource_NameID;
+				PBXFileTableDataSourceColumnWidthsKey = (
+					22,
+					300,
+					892,
+				);
+				PBXFileTableDataSourceColumnsKey = (
+					PBXExecutablesDataSource_ActiveFlagID,
+					PBXExecutablesDataSource_NameID,
+					PBXExecutablesDataSource_CommentsID,
+				);
+			};
+			PBXConfiguration.PBXFileTableDataSource3.PBXFileTableDataSource = {
+				PBXFileTableDataSourceColumnSortingDirectionKey = "-1";
+				PBXFileTableDataSourceColumnSortingKey = PBXFileDataSource_Filename_ColumnID;
+				PBXFileTableDataSourceColumnWidthsKey = (
+					20,
+					989,
+					20,
+					48,
+					43,
+					43,
+					20,
+				);
+				PBXFileTableDataSourceColumnsKey = (
+					PBXFileDataSource_FiletypeID,
+					PBXFileDataSource_Filename_ColumnID,
+					PBXFileDataSource_Built_ColumnID,
+					PBXFileDataSource_ObjectSize_ColumnID,
+					PBXFileDataSource_Errors_ColumnID,
+					PBXFileDataSource_Warnings_ColumnID,
+					PBXFileDataSource_Target_ColumnID,
+				);
+			};
+			PBXConfiguration.PBXTargetDataSource.PBXTargetDataSource = {
+				PBXFileTableDataSourceColumnSortingDirectionKey = "-1";
+				PBXFileTableDataSourceColumnSortingKey = PBXFileDataSource_Filename_ColumnID;
+				PBXFileTableDataSourceColumnWidthsKey = (
+					20,
+					964,
+					60,
+					20,
+					48,
+					43,
+					43,
+				);
+				PBXFileTableDataSourceColumnsKey = (
+					PBXFileDataSource_FiletypeID,
+					PBXFileDataSource_Filename_ColumnID,
+					PBXTargetDataSource_PrimaryAttribute,
+					PBXFileDataSource_Built_ColumnID,
+					PBXFileDataSource_ObjectSize_ColumnID,
+					PBXFileDataSource_Errors_ColumnID,
+					PBXFileDataSource_Warnings_ColumnID,
+				);
+			};
+			PBXPerProjectTemplateStateSaveDate = 499899248;
+			PBXWorkspaceStateSaveDate = 499899248;
+		};
+		perUserProjectItems = {
+			F727342516E266C100AC7191 = F727342516E266C100AC7191 /* PBXTextBookmark */;
+			F736D57C16BB275B00C86568 = F736D57C16BB275B00C86568 /* PBXTextBookmark */;
+			F76D0A3B16BAA03400E37818 = F76D0A3B16BAA03400E37818 /* PBXTextBookmark */;
+			F76D0A5016BAAFB200E37818 = F76D0A5016BAAFB200E37818 /* PBXTextBookmark */;
+			F79F55C617859CFB00735A5B = F79F55C617859CFB00735A5B /* PBXTextBookmark */;
+			F79F55D417859FF500735A5B = F79F55D417859FF500735A5B /* PBXTextBookmark */;
+			F7C2B45A1DCBDB73002FE5DD /* PBXTextBookmark */ = F7C2B45A1DCBDB73002FE5DD /* PBXTextBookmark */;
+			F7E9363C16D4409C00C7AEC3 = F7E9363C16D4409C00C7AEC3 /* PBXTextBookmark */;
+			F7FB39D516C3F22D00DB4411 = F7FB39D516C3F22D00DB4411 /* PBXTextBookmark */;
+			F7FE9A3D1CA52F5F00B476CE = F7FE9A3D1CA52F5F00B476CE /* PBXTextBookmark */;
+			F7FE9A3E1CA52F5F00B476CE = F7FE9A3E1CA52F5F00B476CE /* PBXBookmark */;
+			F7FE9A431CA6946B00B476CE = F7FE9A431CA6946B00B476CE /* PBXTextBookmark */;
+		};
+		sourceControlManager = F746991F16B2AF24009E735B /* Source Control */;
+		userBuildSettings = {
+		};
+	};
+	8DD76F620486A84900D96B5E /* IMPDTest */ = {
+		activeExec = 0;
+		executables = (
+			F746993216B2AF4C009E735B /* IMPDTest */,
+		);
+	};
+	F727342516E266C100AC7191 /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = F727342616E266C100AC7191 /* goodtests.txt */;
+		name = "goodtests.txt: 1";
+		rLen = 0;
+		rLoc = 0;
+		rType = 0;
+		vrLen = 1021;
+		vrLoc = 1728;
+	};
+	F727342616E266C100AC7191 /* goodtests.txt */ = {
+		isa = PBXFileReference;
+		lastKnownFileType = text;
+		name = goodtests.txt;
+		path = /Users/magnus/projects/IVG/goodtests.txt;
+		sourceTree = "<absolute>";
+	};
+	F736D57C16BB275B00C86568 /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = F76D0A9A16BB125B00E37818 /* QuickHashMaker.pika */;
+		name = "QuickHashMaker.pika: 62";
+		rLen = 0;
+		rLoc = 2224;
+		rType = 0;
+		vrLen = 2546;
+		vrLoc = 986;
+	};
+	F746991F16B2AF24009E735B /* Source Control */ = {
+		isa = PBXSourceControlManager;
+		fallbackIsa = XCSourceControlManager;
+		isSCMEnabled = 0;
+		scmConfiguration = {
+			repositoryNamesForRoots = {
+				"" = "";
+			};
+		};
+	};
+	F746992016B2AF24009E735B /* Code sense */ = {
+		isa = PBXCodeSenseManager;
+		indexTemplatePath = "";
+	};
+	F746992D16B2AF4C009E735B /* ImpD.cpp */ = {
+		isa = PBXFileReference;
+		fileEncoding = 4;
+		lastKnownFileType = sourcecode.cpp.cpp;
+		name = ImpD.cpp;
+		path = /Users/magnus/projects/lab/GraphicsLab/NuXPixelsLab/IVG/ImpD.cpp;
+		sourceTree = "<absolute>";
+	};
+	F746993216B2AF4C009E735B /* IMPDTest */ = {
+		isa = PBXExecutable;
+		activeArgIndices = (
+		);
+		argumentStrings = (
+		);
+		autoAttachOnCrash = 1;
+		breakpointsEnabled = 0;
+		configStateDict = {
+			"PBXLSLaunchAction-0" = {
+				PBXLSLaunchAction = 0;
+				PBXLSLaunchStartAction = 1;
+				PBXLSLaunchStdioStyle = 2;
+				PBXLSLaunchStyle = 0;
+				class = PBXLSRunLaunchConfig;
+				commandLineArgs = (
+				);
+				displayName = "Executable Runner";
+				environment = {
+				};
+				identifier = com.apple.Xcode.launch.runConfig;
+				remoteHostInfo = "";
+				startActionInfo = "";
+			};
+		};
+		customDataFormattersEnabled = 1;
+		dataTipCustomDataFormattersEnabled = 1;
+		dataTipShowTypeColumn = 1;
+		dataTipSortType = 0;
+		debuggerPlugin = GDBDebugging;
+		disassemblyDisplayState = 0;
+		dylibVariantSuffix = "";
+		enableDebugStr = 1;
+		environmentEntries = (
+		);
+		executableSystemSymbolLevel = 0;
+		executableUserSymbolLevel = 0;
+		libgmallocEnabled = 0;
+		name = IMPDTest;
+		savedGlobals = {
+		};
+		showTypeColumn = 0;
+		sourceDirectories = (
+		);
+		startupPath = "<<ProjectDirectory>>";
+		variableFormatDictionary = {
+		};
+	};
+	F7469AFD16B4A200009E735B /* ImpD.cpp:755 */ = {
+		isa = PBXFileBreakpoint;
+		actions = (
+		);
+		breakpointStyle = 0;
+		continueAfterActions = 0;
+		countType = 0;
+		delayBeforeContinue = 0;
+		fileReference = F746992D16B2AF4C009E735B /* ImpD.cpp */;
+		functionName = "Frame::unescape(StringIt p, const StringIt& e, Char& c)";
+		hitCount = 0;
+		ignoreCount = 0;
+		lineNumber = 755;
+		location = ImpDTest;
+		modificationTime = 394679540.5405461;
+		originalNumberOfMultipleMatches = 1;
+		state = 2;
+	};
+	F7469B2916B4ABA6009E735B /* ImpD.cpp:799 */ = {
+		isa = PBXFileBreakpoint;
+		actions = (
+		);
+		breakpointStyle = 0;
+		continueAfterActions = 0;
+		countType = 0;
+		delayBeforeContinue = 0;
+		fileReference = F746992D16B2AF4C009E735B /* ImpD.cpp */;
+		functionName = "Frame::preprocess(StringIt b, const StringIt& e, bool unescape, bool reduceSpaces)";
+		hitCount = 0;
+		ignoreCount = 0;
+		lineNumber = 799;
+		location = ImpDTest;
+		modificationTime = 394679540.5405909;
+		originalNumberOfMultipleMatches = 1;
+		state = 2;
+	};
+	F7559F1C16B810F20085367C /* IMPD.cpp:39 */ = {
+		isa = PBXFileBreakpoint;
+		actions = (
+		);
+		breakpointStyle = 0;
+		continueAfterActions = 0;
+		countType = 0;
+		delayBeforeContinue = 0;
+		fileReference = F7F2F72016B801460089CB2C /* IMPD.cpp */;
+		hitCount = 0;
+		ignoreCount = 0;
+		lineNumber = 39;
+		modificationTime = 394679540.5407271;
+		originalNumberOfMultipleMatches = 0;
+		state = 2;
+	};
+	F7559F4A16B816520085367C /* IMPD.cpp:343 */ = {
+		isa = PBXFileBreakpoint;
+		actions = (
+		);
+		breakpointStyle = 0;
+		continueAfterActions = 0;
+		countType = 0;
+		delayBeforeContinue = 0;
+		fileReference = F7F2F72016B801460089CB2C /* IMPD.cpp */;
+		functionName = "Interpreter::runInstruction(const String& instructionString, const StringRange& argumentsRange)";
+		hitCount = 0;
+		ignoreCount = 0;
+		lineNumber = 343;
+		modificationTime = 394679808.179785;
+		originalNumberOfMultipleMatches = 1;
+		state = 1;
+	};
+	F76D06BB16B9DFE900E37818 /* IMPD.cpp:841 */ = {
+		isa = PBXFileBreakpoint;
+		actions = (
+		);
+		breakpointStyle = 0;
+		continueAfterActions = 0;
+		countType = 0;
+		delayBeforeContinue = 0;
+		fileReference = F7F2F72016B801460089CB2C /* IMPD.cpp */;
+		functionName = "Interpreter::evaluateOuter(StringIt b, const StringIt& e, EvaluationValue& v)";
+		hitCount = 0;
+		ignoreCount = 0;
+		lineNumber = 841;
+		location = IMPDTest;
+		modificationTime = 394679540.540809;
+		originalNumberOfMultipleMatches = 1;
+		state = 2;
+	};
+	F76D09B016BA94B800E37818 /* systools.pika */ = {
+		isa = PBXFileReference;
+		lastKnownFileType = text;
+		name = systools.pika;
+		path = "/Users/magnus/projects/PikaScript Local/PikaCmd/systools.pika";
+		sourceTree = "<absolute>";
+	};
+	F76D0A3B16BAA03400E37818 /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = F76D0A3C16BAA03400E37818 /* PikaScript.h */;
+		name = "PikaScript.h: 91";
+		rLen = 240;
+		rLoc = 6113;
+		rType = 0;
+		vrLen = 6129;
+		vrLoc = 2846;
+	};
+	F76D0A3C16BAA03400E37818 /* PikaScript.h */ = {
+		isa = PBXFileReference;
+		lastKnownFileType = sourcecode.c.h;
+		name = PikaScript.h;
+		path = "/Users/magnus/projects/PikaScript Local/src/PikaScript.h";
+		sourceTree = "<absolute>";
+	};
+	F76D0A5016BAAFB200E37818 /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = F76D09B016BA94B800E37818 /* systools.pika */;
+		name = "systools.pika: 400";
+		rLen = 21;
+		rLoc = 13979;
+		rType = 0;
+		vrLen = 1778;
+		vrLoc = 12392;
+	};
+	F76D0A9A16BB125B00E37818 /* QuickHashMaker.pika */ = {
+		isa = PBXFileReference;
+		lastKnownFileType = text;
+		name = QuickHashMaker.pika;
+		path = "/Users/magnus/projects/PikaScript Local/lab/QuickHashMaker.pika";
+		sourceTree = "<absolute>";
+	};
+	F7717E5516B5D2B800B6F685 /* impd.cpp */ = {
+		isa = PBXFileReference;
+		fileEncoding = 4;
+		lastKnownFileType = sourcecode.cpp.cpp;
+		name = impd.cpp;
+		path = /Users/magnus/projects/lab/GraphicsLab/NuXPixelsLab/IVG/impd.cpp;
+		sourceTree = "<absolute>";
+	};
+	F7717E9116B5FBD100B6F685 /* impd.cpp:448 */ = {
+		isa = PBXFileBreakpoint;
+		actions = (
+		);
+		breakpointStyle = 0;
+		continueAfterActions = 0;
+		countType = 0;
+		delayBeforeContinue = 0;
+		fileReference = F7717E5516B5D2B800B6F685 /* impd.cpp */;
+		functionName = "Interpreter::run(const StringRange& r)";
+		hitCount = 0;
+		ignoreCount = 0;
+		lineNumber = 448;
+		modificationTime = 394679540.540639;
+		originalNumberOfMultipleMatches = 1;
+		state = 0;
+	};
+	F7717EA716B5FD4900B6F685 /* impd.cpp:462 */ = {
+		isa = PBXFileBreakpoint;
+		actions = (
+		);
+		breakpointStyle = 0;
+		continueAfterActions = 0;
+		countType = 0;
+		delayBeforeContinue = 0;
+		fileReference = F7717E5516B5D2B800B6F685 /* impd.cpp */;
+		functionName = "Interpreter::run(const StringRange& r)";
+		hitCount = 0;
+		ignoreCount = 0;
+		lineNumber = 462;
+		modificationTime = 394679540.540684;
+		originalNumberOfMultipleMatches = 1;
+		state = 0;
+	};
+	F7902B7F16D2FD7200FA5B07 /* zlibTool.cpp */ = {
+		isa = PBXFileReference;
+		lastKnownFileType = sourcecode.cpp.cpp;
+		name = zlibTool.cpp;
+		path = /Users/magnus/projects/Tools/zlibTool/zlibTool.cpp;
+		sourceTree = "<absolute>";
+	};
+	F79F55C617859CFB00735A5B /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = F7F2F72216B801460089CB2C /* IMPDTest.cpp */;
+		name = "IMPDTest.cpp: 21";
+		rLen = 0;
+		rLoc = 765;
+		rType = 0;
+		vrLen = 1699;
+		vrLoc = 991;
+	};
+	F79F55D417859FF500735A5B /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = F79F55D517859FF500735A5B /* ivg spec.txt */;
+		name = "ivg spec.txt: 43";
+		rLen = 0;
+		rLoc = 2815;
+		rType = 0;
+		vrLen = 3211;
+		vrLoc = 0;
+	};
+	F79F55D517859FF500735A5B /* ivg spec.txt */ = {
+		isa = PBXFileReference;
+		lastKnownFileType = text;
+		name = "ivg spec.txt";
+		path = "/Users/magnus/projects/IVG/ivg spec.txt";
+		sourceTree = "<absolute>";
+	};
+	F79F56D717866FFB00735A5B /* goodTests.txt */ = {
+		isa = PBXFileReference;
+		lastKnownFileType = text;
+		name = goodTests.txt;
+		path = /Users/magnus/projects/IVG/goodTests.txt;
+		sourceTree = "<absolute>";
+	};
+	F7C2B45A1DCBDB73002FE5DD /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = F7F2F72016B801460089CB2C /* IMPD.cpp */;
+		name = "IMPD.cpp: 1075";
+		rLen = 0;
+		rLoc = 36989;
+		rType = 0;
+		vrLen = 2016;
+		vrLoc = 551;
+	};
+	F7E9363C16D4409C00C7AEC3 /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = F7902B7F16D2FD7200FA5B07 /* zlibTool.cpp */;
+		name = "zlibTool.cpp: 71";
+		rLen = 47;
+		rLoc = 2289;
+		rType = 0;
+		vrLen = 2137;
+		vrLoc = 1607;
+	};
+	F7EF2B5E16C1CD4600704C4F /* badtests.txt */ = {
+		isa = PBXFileReference;
+		lastKnownFileType = text;
+		name = badtests.txt;
+		path = /Users/magnus/projects/IVG/badtests.txt;
+		sourceTree = "<absolute>";
+	};
+	F7F2F72016B801460089CB2C /* IMPD.cpp */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1179, 14105}}";
+			sepNavSelRange = "{36989, 0}";
+			sepNavVisRange = "{551, 2016}";
+			sepNavWindowFrame = "{{19, 58}, {1421, 815}}";
+		};
+	};
+	F7F2F72116B801460089CB2C /* IMPD.h */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {2231, 3172}}";
+			sepNavSelRange = "{1732, 6}";
+			sepNavVisRange = "{0, 2342}";
+			sepNavWindowFrame = "{{19, 58}, {1421, 815}}";
+		};
+	};
+	F7F2F72216B801460089CB2C /* IMPDTest.cpp */ = {
+		uiCtxt = {
+			sepNavIntBoundsRect = "{{0, 0}, {1179, 1053}}";
+			sepNavSelRange = "{765, 0}";
+			sepNavVisRange = "{991, 1699}";
+			sepNavWindowFrame = "{{19, 58}, {1421, 815}}";
+		};
+	};
+	F7FB39D516C3F22D00DB4411 /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = F7EF2B5E16C1CD4600704C4F /* badtests.txt */;
+		name = "badtests.txt: 61";
+		rLen = 0;
+		rLoc = 1154;
+		rType = 0;
+		vrLen = 883;
+		vrLoc = 819;
+	};
+	F7FE9A3D1CA52F5F00B476CE /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = F79F56D717866FFB00735A5B /* goodTests.txt */;
+		name = "goodTests.txt: 282";
+		rLen = 0;
+		rLoc = 6431;
+		rType = 0;
+		vrLen = 1524;
+		vrLoc = 5877;
+	};
+	F7FE9A3E1CA52F5F00B476CE /* PBXBookmark */ = {
+		isa = PBXBookmark;
+		fRef = F7F2F72016B801460089CB2C /* IMPD.cpp */;
+	};
+	F7FE9A431CA6946B00B476CE /* PBXTextBookmark */ = {
+		isa = PBXTextBookmark;
+		fRef = F7F2F72016B801460089CB2C /* IMPD.cpp */;
+		name = "IMPD.cpp: 1076";
+		rLen = 0;
+		rLoc = 36989;
+		rType = 0;
+		vrLen = 2037;
+		vrLoc = 530;
+	};
+}

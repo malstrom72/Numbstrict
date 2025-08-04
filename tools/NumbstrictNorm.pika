@@ -1,0 +1,169 @@
+#! /usr/local/bin/PikaCmd
+
+// include('debug.pika');
+include('systools.pika');
+include('stdlib.pika');
+include('initPPEG.pika');
+include('objects.pika');
+
+calcLineAndColumn = function {
+	args(@source, @offset, @line, @column);
+	l = 0;
+	lb = 0;
+	for (i = 0; i <= offset; i += find(source{i:}, "\n") + 1) {
+		lb = i;
+		++l;
+	};
+	[line] = l;
+	[column] = (offset - lb) + 1;
+};
+
+printExcerpt = function {
+	args(@source, @offset, @zoom);
+	print("--------");
+	s = (if (offset - zoom > 0) '...' else '')
+		# source{offset - zoom:zoom}
+		# ' <!!!!> '
+		# source{offset:zoom}
+		# (if (offset + zoom < length(source)) '...' else '');
+	print(s);
+	print("--------");
+};
+
+keyToNumbstrict = function {
+	args(@key);
+	if (wildmatch(key, "[a-zA-Z_]?[a-zA-Z_0-9]*")) {
+		( key )
+	} else {
+		( chop(escape(key # "'"), 2) # '"' )
+	}
+};
+
+keyValueListToNumbstrict = function {
+	args(@value, @indent);
+	tabs = repeat(TAB, indent);
+	s = '';
+	foreach(value, >s #= tabs # keyToNumbstrict($1) # ': ' # toNumbstrict($2, indent) # LF);
+	( s )
+};
+
+structToNumbstrict = function {
+	args(@value, @indent);
+	if (indent === void) {
+		s = '{ ';
+		foreach(value, >s #= (if (s !== '{ ') ', ') # keyToNumbstrict($1) # ': ' # toNumbstrict($2, void));
+		s #= ' }';
+		if (s == '{  }') s = '{ : }';
+	} else {
+		s = '{' # LF # keyValueListToNumbstrict(value, indent + 1) # repeat(TAB, indent) # '}';
+	};
+	( s )
+};
+
+arrayToNumbstrict = function {
+	args(@value, @indent);
+	if ([value].n === 0) {
+		s = '{ }'
+	} else if (indent === void) {
+		s = '{ ';
+		iterate(value, >s #= (if ($1 != 0) ', ') # (lv = toNumbstrict($2, void)));
+		if (lv === void) s #= ',';
+		s #= ' }';
+	} else {
+		nl = LF # repeat(TAB, indent + 1);
+		s = '{';
+		iterate(value, >s #= (if ($1 != 0) ',') # nl # (lv = toNumbstrict($2, indent + 1)));
+		if (lv === void) s #= ',';
+		s #= LF # repeat(TAB, indent) # '}';
+	};
+	( s )
+};
+
+stringToNumbstrict = function {
+	args(@value, @indent);
+	( chop(escape(value # "'"), 2) # '"' )
+};
+
+textToNumbstrict = function {
+	args(@value, @indent);
+	if (value{:2} == '0x' && parse(value, true) == length(value)) {
+		( '0x' # upper(radix(evaluate(value), 16)) )
+	} else if (value{0} >= '0' && value{0} <= '9' && parse(value, true) == length(value)) {
+		v = +value;
+		// Do we have . e or E in source string and not in converted string, then append .0 to force it into a float
+		if (find('.eE', value) < 3 && find('.eE', v) == 3) {
+			( v # '.0' )
+		} else {
+			( v )
+		}
+	} else {
+		( value )
+	}
+};
+
+map(@NUMBSTRICTIFIERS
+		, 'struct', structToNumbstrict
+		, 'array', arrayToNumbstrict
+		, 'string', stringToNumbstrict
+		, 'text', textToNumbstrict);
+
+toNumbstrict = function {
+	args(@node, @indent);
+	if (exists(@[node].norm[indent])) {
+		( [node].norm[indent] )
+	} else {
+		s = NUMBSTRICTIFIERS[[node].type]([node].value, void);
+		if (indent != void && length(s) > 40) {
+			s = NUMBSTRICTIFIERS[[node].type]([node].value, indent);
+		};
+		[node].norm[indent] = s;
+		( s )
+	}
+};
+
+args(@exe, @sourcePath);
+
+numbstrictParserSource = load(::run.root # 'numbstrictMeta.ppeg');
+ok = ppeg.compileFunction(numbstrictParserSource, @numbstrictParser, @offset);
+if (!ok) {
+	throw("Error compiling Numbstrict parser");
+};
+
+loadEntireInput = function {
+	s = '';
+	error = try(>for (; ($i = input('')) != ''; ) s #= $i # LF);
+	if (error != void && error != 'Unexpected end of input file') throw(error);
+	( s )
+};
+
+if (sourcePath == '-') {
+	sourceCode = loadEntireInput();
+	filename = 'stdin';
+} else {
+	sourceCode = load(sourcePath);
+	filename = filenameOfPath(sourcePath);
+};
+
+errorOffset = void;
+x = try(>ok = numbstrictParser(sourceCode, @parsedCushy, @offset));
+if (x !== void) {
+	if (!wildmatch(x, "({[0-9]?*}) {*}", @errorOffset, @errorString)) {
+		errorString = x;
+		errorOffset = 0;
+	};
+	print(bake("!!!! {errorString}"));
+} else if (!ok) {
+	print(bake("!!!! Failed parsing Numbstrict"));
+	errorOffset = offset;
+};
+
+if (errorOffset != void) {
+	calcLineAndColumn(sourceCode, errorOffset, @line, @column);
+	print(bake("File: {filename}, line: {line}, column: {column} (@{offset})"));
+	printExcerpt(sourceCode, errorOffset, 25);
+	::exitCode = 255
+} else {
+	gc();
+	s = chop(keyValueListToNumbstrict([parsedCushy].value, 0), 1);	// drop last LF... print adds it
+	print(s);
+};

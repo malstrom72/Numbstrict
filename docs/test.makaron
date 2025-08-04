@@ -1,0 +1,49 @@
+@begin macro1
+expand
+to
+many
+lines
+@end
+
+@define macro2=@<expand
+to
+many
+lines
+@>
+
+@begin myMacro() contents of the macro here @end
+
+macro1: @macro1
+macro2: @macro2
+myMacro: @myMacro
+---
+@begin captionView(bounds, text)
+		{
+			type: "caption"
+			bounds: @bounds
+			text: @text
+		}
+	@end
+@define color=red
+@captionView({ 40,20,100, 50 }, "The color is @color")
+
+@define index=3
+@if (@index != 0)
+		@if (@color == red)
+			pen: #FF2244
+		@elif (@color == green)
+			pen: #22FF44
+		@else
+			pen: #888888
+		@endif
+	@endif
+
+@captionView({ 40,20,100,50 }, @<[@>)
+
+@captionView({ 40,20,100,50 }, @< y @>)
+
+
+@define rgb_red=#FF0000
+@define rgb_green=#00FF00
+@define rgb_blue=#0000FF
+pen: @(rgb_@color)
