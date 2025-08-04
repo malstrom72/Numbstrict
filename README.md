@@ -35,5 +35,3 @@ See the [documentation](docs/) for more details and advanced examples.
 ## License
 
 This project is licensed under the [BSD 2-Clause License](LICENSE).
-
-
