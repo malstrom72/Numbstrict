@@ -11,9 +11,9 @@
 #include "Makaron.h"
 
 #ifdef _WIN32
-	const char SEPARATOR_CHARACTER = '\\';
+const char SEPARATOR_CHARACTER = '\\';
 #else
-	const char SEPARATOR_CHARACTER = '/';
+const char SEPARATOR_CHARACTER = '/';
 #endif
 
 std::vector<std::string> includePaths;
@@ -29,14 +29,14 @@ static bool myIncludeLoader(const Makaron::WideString& fileName, Makaron::String
 	std::string narrowFileName(fileName.begin(), fileName.end());
 	for (std::vector<std::string>::const_iterator it = includePaths.begin(); it != includePaths.end(); ++it) {
 		std::ifstream fileStream(*it + narrowFileName);
-				if (fileStream.good()) {
-						fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
-						contents = loadEntireStream(fileStream);
-						return true;
-				} else if (!fileName.empty() && fileName.front() == SEPARATOR_CHARACTER) { // only use empty path if leading /
-						assert(it->empty());
-						return false;
-				}
+		if (fileStream.good()) {
+			fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
+			contents = loadEntireStream(fileStream);
+			return true;
+		} else if (!fileName.empty() && fileName.front() == SEPARATOR_CHARACTER) { // only use empty path if leading /
+			assert(it->empty());
+			return false;
+		}
 		}
 	return false;
 }
@@ -46,7 +46,7 @@ static bool myIncludeLoader(const Makaron::WideString& fileName, Makaron::String
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t *Data, size_t Size) {
 	std::vector<Makaron::OffsetMapEntry> offsetMap;
 	Makaron::String processed;
-    try {
+	try {
 		Makaron::String source = Makaron::String(reinterpret_cast<const char*>(Data)
 				, reinterpret_cast<const char*>(Data) + Size);
 		Makaron::Context context;
@@ -152,9 +152,9 @@ int main(int argc, const char* argv[]) {
 		}
 		catch (const Makaron::Exception& x) {
 			std::cerr << "!!!! Makaron error: " << x.getError() << std::endl
-				<< "File: " << std::string(x.getFile().begin(), x.getFile().end())
-				<< ", line: " << x.getLineNumber() << ", column: " << x.getColumnNumber()
-				<< " (@" << x.getOffset() << ")" << std::endl
+					<< "File: " << std::string(x.getFile().begin(), x.getFile().end())
+					<< ", line: " << x.getLineNumber() << ", column: " << x.getColumnNumber()
+					<< " (@" << x.getOffset() << ")" << std::endl
 					<< std::endl
 					<< "Trace:" << std::endl;
 			Makaron::RangeVector inputRanges = findInputRanges(offsetMap, processed.size());
