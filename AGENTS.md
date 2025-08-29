@@ -49,6 +49,10 @@ Key style points:
 	void blahblah(int blah);	/// brief description of `blahblah`
 - Inside comment text, wrap any variable, parameter, class or function names in back-ticks, e.g. `blah` is the temporary buffer.
 
+When handling files with command-line tools (which may break tab characters):
+- Always run `expand -t 4` on the file before processing.
+- Always run `unexpand -t 4` on the file after processing.
+
 ## Script portability
 All user-facing `.sh` and `.cmd` files must work when launched from any directory. They should start by changing to their own folder (or the repository root) so that relative paths resolve correctly.
 
