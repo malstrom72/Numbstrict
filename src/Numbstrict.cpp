@@ -690,42 +690,55 @@ BoundsHelper<T>::compute(absValue, factor, normalized, lowerN, upperN);
 const bool lowerClosed = mantissa_is_even(absValue);
 const bool upperClosed = !lowerClosed;
 typename Traits<T>::Hires accumulator = 0.0;
-	do {
-		// if we've exactly reached the target, stop now.
-		if (hires_eq(accumulator, normalized)) {
-			break;
-		}
-		if (p == periodPosition) {
-			*p++ = '.';
-		}
-		
-		// Incrementally find the max digit that keeps accumulator < normalized target (instead of using division).
-		typename Traits<T>::Hires next = accumulator + magnitude;
-		int digit = 0;
-		while ((next < normalized || hires_eq(next, normalized)) && digit < 9) {
-			accumulator = next;
-			next = next + magnitude;
-			++digit;
-		}
+int sig = 0;
+do {
+// bail if we hit exact value
+if (hires_eq(accumulator, normalized)) {
+break;
+}
+if (p == periodPosition) {
+*p++ = '.';
+}
 
-		// Correct behavior is to never reach higher than digit 9.
-		assert(next >= normalized);
-		
-		bool left_ok  = (accumulator > lowerN) || (lowerClosed && hires_eq(accumulator, lowerN));
-		bool right_ok = (next < upperN) || (upperClosed && hires_eq(next, upperN));
+// Incrementally find the max digit that keeps accumulator < normalized target (instead of using division).
+typename Traits<T>::Hires next = accumulator + magnitude;
+int digit = 0;
+while (next < normalized && digit < 9) {
+accumulator = next;
+next = next + magnitude;
+++digit;
+}
 
-		if (left_ok && right_ok) {
-			*p++ = (Char)('0' + digit);
-			magnitude = magnitude / 10;
-			break;
-		}
+// Correct behavior is to never reach higher than digit 9.
+assert(next >= normalized);
 
-		*p++ = (Char)('0' + digit);
-		magnitude = magnitude / 10;
+bool left_ok  = (accumulator > lowerN) || (lowerClosed && hires_eq(accumulator, lowerN));
+bool right_ok = (next < upperN) || (upperClosed && hires_eq(next, upperN));
 
-		// p < buffer + 27 is an extra precaution if the correct value is never reached (e.g. because of too aggressive
-		// optimizations). 27 leaves room for longest exponent.
-	} while (p < buffer + 27);
+*p++ = (Char)('0' + digit);
+++sig;
+magnitude = magnitude / 10;
+
+// 17/9 sig-digit termination with final rounding
+const int MAX_SIG = (sizeof(T) == 8 ? 17 : 9);
+if (sig >= MAX_SIG || (left_ok && right_ok)) {
+auto mid = accumulator + magnitude / 2;
+Char* d = p - 1;
+if (mid < normalized) {
+if (*d < '9') {
+++*d;
+}
+} else if (hires_eq(mid, normalized)) {
+if (((*d - '0') & 1) != 0 && *d < '9') {
+++*d;
+}
+}
+break;
+}
+
+// p < buffer + 27 is an extra precaution if the correct value is never reached (e.g. because of too aggressive
+// optimizations). 27 leaves room for longest exponent.
+} while (p < buffer + 27);
 	
 	while (p < periodPosition) {
 		*p++ = '0';
