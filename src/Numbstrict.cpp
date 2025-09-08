@@ -26,6 +26,7 @@
 #include <iostream>
 #include <cstring>
 #include <type_traits>
+#include <cstdint>
 #include "Numbstrict.h"
 
 namespace Numbstrict {
@@ -50,34 +51,34 @@ namespace Numbstrict {
 	# . trailing [,] in key/value lists is illegal (but ok in value only lists)
 	# . '{ : }' may be used to declare an empty struct (to differentiate from an empty array)
 
-	root 				<-	_lf (valueList_ / keyValueList_) !.
-	valueList_          <-	(value _ next_ / ',' _lf)* (value _lf)?
-	keyValueList_       <-  (':' / keyValue_ (next_ keyValue_)*) _lf
-	next_ 				<-	([\r\n] (_lf ',')? / _lf ',') _lf
-	keyValue_ 			<-	key (_ ':' _ value?) _
-	key                 <-  quotedString / identifier
-	value       		<-  array / struct / quotedString / real / integer / boolean / text
+	root				<-	_lf (valueList_ / keyValueList_) !.
+	valueList_			<-	(value _ next_ / ',' _lf)* (value _lf)?
+	keyValueList_		<-	(':' / keyValue_ (next_ keyValue_)*) _lf
+	next_				<-	([\r\n] (_lf ',')? / _lf ',') _lf
+	keyValue_			<-	key (_ ':' _ value?) _
+	key					<-	quotedString / identifier
+	value				<-	array / struct / quotedString / real / integer / boolean / text
 	array				<-	'{' _lf valueList_ '}'
 	struct				<-	'{' _lf keyValueList_ '}'
-	text 				<-	(_ (![{}"':,=;] !('/' '*') !('/' '/') [\41-\176])+)+
+	text				<-	(_ (![{}"':,=;] !('/' '*') !('/' '/') [\41-\176])+)+
 	identifier			<-	[a-zA-Z_] [a-zA-Z0-9_]*
-	quotedString        <-  doubleQuotedString / singleQuotedString
-	doubleQuotedString  <-  '"' (escapeCode / !["\\\r\n] [\40-\176])* '"'
+	quotedString		<-	doubleQuotedString / singleQuotedString
+	doubleQuotedString	<-	'"' (escapeCode / !["\\\r\n] [\40-\176])* '"'
 	singleQuotedString	<-	"'" (escapeCode / !['\\\r\n] [\40-\176])* "'"
 	real				<-	([-+]? decimal ('.' [0-9]+)? ([eE] [-+]? decimal)?) / [-+]? 'inf' / 'nan'
 	integer				<-	[-+]? ('0x' hex+ / decimal)
-	decimal 			<-	'0' / [1-9] [0-9]*
-	boolean 			<-	'false' / 'true'
-	escapeCode          <-  '\\x' hex2 / '\\u' hex4 / '\\U' hex8 / '\\' [nrt'"\\]
-	hex8                <-  hex4 hex4
-	hex4                <-  hex2 hex2
-	hex2                <-  hex hex
-	hex                 <-  [0-9A-Fa-f]
-	_lf                 <-  (comment / [ \t\r\n])*
-	_              		<-  (comment / [ \t])*
-	comment             <-  singleLineComment / multiLineComment
-	singleLineComment   <-  '/' '/' [\40-\377\t]* (!. / &[\r\n])
-	multiLineComment    <-  '/' '*' (multiLineComment / !'*' '/' [\40-\377\t\r\n])* '*' '/'
+	decimal				<-	'0' / [1-9] [0-9]*
+	boolean				<-	'false' / 'true'
+	escapeCode			<-	'\\x' hex2 / '\\u' hex4 / '\\U' hex8 / '\\' [nrt'"\\]
+	hex8				<-	hex4 hex4
+	hex4				<-	hex2 hex2
+	hex2				<-	hex hex
+	hex					<-	[0-9A-Fa-f]
+	_lf					<-	(comment / [ \t\r\n])*
+	_					<-	(comment / [ \t])*
+	comment				<-	singleLineComment / multiLineComment
+	singleLineComment	<-	'/' '/' [\40-\377\t]* (!. / &[\r\n])
+	multiLineComment	<-	'/' '*' (multiLineComment / !'*' '/' [\40-\377\t\r\n])* '*' '/'
 */
 
 template<typename T> bool isNaN(const T v) { return v != v; }
@@ -586,7 +587,23 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 	}
 	value *= sign;
 	return numberEnd;
-}
+	}
+
+	template<typename T> static inline bool mantissa_is_even(T x) {
+		if (sizeof(T) == 8) {
+			uint64_t u;
+			std::memcpy(&u, &x, 8);
+			return (u & 0xFFFFFFFFFFFFFull) % 2 == 0;
+		} else {
+			uint32_t u;
+			std::memcpy(&u, &x, 4);
+			return (u & 0x7FFFFFu) % 2 == 0;
+		}
+	}
+
+	template<typename H>
+	static inline bool hires_eq(const H& a, const H& b) { return !(a < b) && !(b < a); }
+
 
 template<typename T> Char* realToString(Char buffer[32], const T value) {
 	StandardFPEnvScope standardFPEnv;
@@ -642,8 +659,12 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 	const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
 	typename Traits<T>::Hires magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
 	const typename Traits<T>::Hires normalized = absValue / factor;
+	const T ulp = std::nextafter(absValue, std::numeric_limits<T>::infinity()) - absValue;
+	const typename Traits<T>::Hires lowerN = (absValue - ulp * (T)0.5) / factor;
+	const typename Traits<T>::Hires upperN = (absValue + ulp * (T)0.5) / factor;
+	const bool lowerClosed = mantissa_is_even(absValue);
+	const bool upperClosed = !lowerClosed;
 	typename Traits<T>::Hires accumulator = 0.0;
-	T reconstructed;
 	do {
 		if (p == periodPosition) {
 			*p++ = '.';
@@ -652,7 +673,7 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 		// Incrementally find the max digit that keeps accumulator < normalized target (instead of using division).
 		typename Traits<T>::Hires next = accumulator + magnitude;
 		int digit = 0;
-		while (next < normalized && digit < 9) {
+		while ((next < normalized || hires_eq(next, normalized)) && digit < 9) {
 			accumulator = next;
 			next = next + magnitude;
 			++digit;
@@ -661,30 +682,21 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 		// Correct behavior is to never reach higher than digit 9.
 		assert(next >= normalized);
 		
-		// Do we hit goal with digit or digit + 1?
-		reconstructed = static_cast<T>(static_cast<double>(accumulator) * factor);
-		if (reconstructed != absValue) {
-			reconstructed = static_cast<T>(static_cast<double>(accumulator + magnitude) * factor);
+		bool left_ok  = (accumulator > lowerN) || (lowerClosed && hires_eq(accumulator, lowerN));
+		bool right_ok = (next < upperN) || (upperClosed && hires_eq(next, upperN));
+
+		if (left_ok && right_ok) {
+			*p++ = (Char)('0' + digit);
+			magnitude = magnitude / 10;
+			break;
 		}
 
-		// Finally, is next digit >= 5 (magnitude / 2) then increment it (unless we are at max, just to play nicely with
-		// poorer parsers).
-		if (reconstructed == absValue && accumulator + magnitude / 2 < normalized && absValue != std::numeric_limits<T>::max()) {
-			++digit;
-
-			// If this happens we have failed to calculate the correct exponent above.
-			assert(digit < 10);
-		} else {
-			// If this happens we have failed to calculate the correct exponent above.
-			assert(accumulator > 0.0);
-		}
-		
-		*p++ = '0' + digit;
+		*p++ = (Char)('0' + digit);
 		magnitude = magnitude / 10;
-		
+
 		// p < buffer + 27 is an extra precaution if the correct value is never reached (e.g. because of too aggressive
 		// optimizations). 27 leaves room for longest exponent.
-	} while (p < buffer + 27 && reconstructed != absValue);
+	} while (p < buffer + 27);
 	
 	while (p < periodPosition) {
 		*p++ = '0';
@@ -1620,29 +1632,29 @@ bool unitTest() {
 	assert(reindent("{\n\t\t\t\t1\n\t\t\t\t2\n\t\t\t}", 0) == "{\n\t1\n\t2\n}");
 	assert(reindent("{\n\t\t\t\t1\n\t\t\t\t2\n\t\t\t}", 1) == "{\n\t\t1\n\t\t2\n\t}");
 
-    assert((rewrap<int8_t, uint32_t>(13) == 13));
-    assert((rewrap<int8_t, uint32_t>(4294967285) == -11));
-    assert((rewrap<uint8_t, uint32_t>(13) == 13));
-    assert((rewrap<uint8_t, uint32_t>(4294967285) == 245));
-    assert((rewrap<int16_t, uint32_t>(13) == 13));
-    assert((rewrap<int16_t, uint32_t>(4294967285) == -11));
-    assert((rewrap<uint16_t, uint32_t>(13) == 13));
-    assert((rewrap<uint16_t, uint32_t>(4294967285) == 65525));
-    assert((rewrap<int32_t, uint32_t>(13) == 13));
-    assert((rewrap<int32_t, uint32_t>(4294967285) == -11));
-    assert((rewrap<uint32_t, uint32_t>(13) == 13));
-    assert((rewrap<uint32_t, uint32_t>(4294967285) == 4294967285));
-    assert((rewrap<uint32_t, uint16_t>(65525) == 65525));
-    assert((rewrap<int32_t, uint16_t>(65525) == 65525));
-    assert((rewrap<uint16_t, uint16_t>(65525) == 65525));
-    assert((rewrap<int16_t, uint16_t>(65525) == -11));
+	assert((rewrap<int8_t, uint32_t>(13) == 13));
+	assert((rewrap<int8_t, uint32_t>(4294967285) == -11));
+	assert((rewrap<uint8_t, uint32_t>(13) == 13));
+	assert((rewrap<uint8_t, uint32_t>(4294967285) == 245));
+	assert((rewrap<int16_t, uint32_t>(13) == 13));
+	assert((rewrap<int16_t, uint32_t>(4294967285) == -11));
+	assert((rewrap<uint16_t, uint32_t>(13) == 13));
+	assert((rewrap<uint16_t, uint32_t>(4294967285) == 65525));
+	assert((rewrap<int32_t, uint32_t>(13) == 13));
+	assert((rewrap<int32_t, uint32_t>(4294967285) == -11));
+	assert((rewrap<uint32_t, uint32_t>(13) == 13));
+	assert((rewrap<uint32_t, uint32_t>(4294967285) == 4294967285));
+	assert((rewrap<uint32_t, uint16_t>(65525) == 65525));
+	assert((rewrap<int32_t, uint16_t>(65525) == 65525));
+	assert((rewrap<uint16_t, uint16_t>(65525) == 65525));
+	assert((rewrap<int16_t, uint16_t>(65525) == -11));
 
-    assert((rewrap<uint32_t, int8_t>(-11) == 245));
-    assert((rewrap<uint32_t, uint8_t>(245) == 245));
-    assert((rewrap<uint32_t, int16_t>(-11) == 65525));
-    assert((rewrap<uint32_t, uint16_t>(65525) == 65525));
-    assert((rewrap<uint32_t, int32_t>(-11) == 4294967285));
-    assert((rewrap<uint32_t, uint32_t>(4294967285) == 4294967285));
+	assert((rewrap<uint32_t, int8_t>(-11) == 245));
+	assert((rewrap<uint32_t, uint8_t>(245) == 245));
+	assert((rewrap<uint32_t, int16_t>(-11) == 65525));
+	assert((rewrap<uint32_t, uint16_t>(65525) == 65525));
+	assert((rewrap<uint32_t, int32_t>(-11) == 4294967285));
+	assert((rewrap<uint32_t, uint32_t>(4294967285) == 4294967285));
 
 	assert(Numbstrict::quoteString("") == "\"\"");
 	assert(Numbstrict::unquoteString("\"\"") == "");
@@ -1651,9 +1663,9 @@ bool unitTest() {
 	assert(Numbstrict::unquoteString("\"abcd\"") == "abcd");
 	assert(Numbstrict::unquoteString("abcd") == "abcd");
 	assert(Numbstrict::quoteString("abcd") == "\"abcd\"");
-	assert(Numbstrict::unquoteString("  \t \r \n   \"abcd\" \t \r \n  ") == "abcd");
+	assert(Numbstrict::unquoteString("	\t \r \n   \"abcd\" \t \r \n  ") == "abcd");
 	assert(Numbstrict::quoteString("\"") == "\"\\\"\"");
-	const char SINGLE_QUOTE = '\'';	// bug in MSVC2022 gives errors on the following lines unless I do like this
+	const char SINGLE_QUOTE = '\''; // bug in MSVC2022 gives errors on the following lines unless I do like this
 	assert(Numbstrict::quoteString("\"", SINGLE_QUOTE) == "'\"'");
 	assert(Numbstrict::quoteString("\'", SINGLE_QUOTE) == "'\\''");
 	assert(Numbstrict::unquoteString("\"\\\"\"") == "\"");
@@ -1786,7 +1798,7 @@ bool unitTest() {
 		assert(parsed == "");
 	}
 	{
-		Parser charParser(Element("    /*   */asdf    /*****/qwpeoi"));
+		Parser charParser(Element("	   /*	*/asdf	  /*****/qwpeoi"));
 		std::string parsed;
 		assert(charParser.tryToParse(parsed));
 		assert(parsed == "asdf qwpeoi");
@@ -1928,14 +1940,14 @@ bool unitTest() {
 	}
 	
 	{
-		const std::string structString("   \n \t  /* /*   */ */ \n   // /*  \n { /* /* \n */ */ }    /* // */ //");
+		const std::string structString("   \n \t  /* /*	  */ */ \n	 // /*	\n { /* /* \n */ */ }	 /* // */ //");
 		Parser structParser(structString);
 		Struct structure;
 		assert(structParser.tryToParse(structure));
 		assert(structure.empty());
 	}
 	{
-		const std::string structString("   \n \t  /* /*   */ */ \n   // /*  \n { /* /* \n */ */ }    /* // */ //");
+		const std::string structString("   \n \t  /* /*	  */ */ \n	 // /*	\n { /* /* \n */ */ }	 /* // */ //");
 		Parser structParser(structString);
 		WideStruct structure;
 		assert(structParser.tryToParse(structure));
@@ -1943,7 +1955,7 @@ bool unitTest() {
 	}
 
 	{
-		const std::string structString("   \n \t  /* /*   */ */ \n   // /*  \n { /* /* \n */ */  x /**/ :  23/*  */ 666 }    /* // */ //");
+		const std::string structString("   \n \t  /* /*	  */ */ \n	 // /*	\n { /* /* \n */ */	 x /**/ :  23/*	 */ 666 }	 /* // */ //");
 		Parser structParser(structString);
 		Struct structure;
 		assert(structParser.tryToParse(structure));
@@ -1951,7 +1963,7 @@ bool unitTest() {
 		assert(structure["x"].to<std::string>() == "23 666");
 	}
 	{
-		const std::string structString("   \n \t  /* /*   */ */ \n   // /*  \n { /* /* \n */ */  x /**/ :  23/*  */ 666 }    /* // */ //");
+		const std::string structString("   \n \t  /* /*	  */ */ \n	 // /*	\n { /* /* \n */ */	 x /**/ :  23/*	 */ 666 }	 /* // */ //");
 		Parser structParser(structString);
 		WideStruct structure;
 		assert(structParser.tryToParse(structure));
@@ -1960,26 +1972,26 @@ bool unitTest() {
 	}
 
 	{
-		const std::string structString("   \n \t  /* /*   */ */ \n   // /*  \n { /* /* \n */ */  x /**/ :  23/*  */ 666   ,  '  y  ' : 'asfd' \n\n,\nz:'qwer'\naaa:bbb\nq:\nw: }    /* // */ //");
+		const std::string structString("   \n \t  /* /*	  */ */ \n	 // /*	\n { /* /* \n */ */	 x /**/ :  23/*	 */ 666	  ,	 '	y  ' : 'asfd' \n\n,\nz:'qwer'\naaa:bbb\nq:\nw: }	/* // */ //");
 		Parser structParser(structString);
 		Struct structure;
 		assert(structParser.tryToParse(structure));
 		assert(structure.size() == 6);
 		assert(structure["x"].to<std::string>() == "23 666");
-		assert(structure["  y  "].to<std::string>() == "asfd");
+		assert(structure["	y  "].to<std::string>() == "asfd");
 		assert(structure["z"].to<std::string>() == "qwer");
 		assert(structure["aaa"].to<std::string>() == "bbb");
 		assert(structure["q"].to<std::string>() == "");
 		assert(structure["w"].to<std::string>() == "");
 	}
 	{
-		const std::string structString("   \n \t  /* /*   */ */ \n   // /*  \n { /* /* \n */ */  x /**/ :  23/*  */ 666   ,  '  y  ' : 'asfd' \n\n,\nz:'qwer'\n\"\\u0074\\u20AC\\u00E4\\u0073\\u0074\":bbb\nq:\nw: }    /* // */ //");
+		const std::string structString("   \n \t  /* /*	  */ */ \n	 // /*	\n { /* /* \n */ */	 x /**/ :  23/*	 */ 666	  ,	 '	y  ' : 'asfd' \n\n,\nz:'qwer'\n\"\\u0074\\u20AC\\u00E4\\u0073\\u0074\":bbb\nq:\nw: }	/* // */ //");
 		Parser structParser(structString);
 		WideStruct structure;
 		assert(structParser.tryToParse(structure));
 		assert(structure.size() == 6);
 		assert(structure[L"x"].to<std::string>() == "23 666");
-		assert(structure[L"  y  "].to<std::string>() == "asfd");
+		assert(structure[L"	 y	"].to<std::string>() == "asfd");
 		assert(structure[L"z"].to<std::string>() == "qwer");
 			assert(structure[L"t\u20AC\u00E4st"].to<std::string>() == "bbb");
 		assert(structure[L"q"].to<std::string>() == "");
@@ -1987,7 +1999,7 @@ bool unitTest() {
 	}
 
 	{
-		const Element structString("   \n \t  /* /*   */ */ \n   // /*  \n { /* /* \n */ */  x  : /* 23/*  */ 666   ,  '  y  ' : 'asfd' \n\n,\nz:'qwer'\naaa:bbb }    /* // */ //");
+		const Element structString("   \n \t  /* /*	  */ */ \n	 // /*	\n { /* /* \n */ */	 x	: /* 23/*  */ 666	,  '  y	 ' : 'asfd' \n\n,\nz:'qwer'\naaa:bbb }	  /* // */ //");
 		Parser structParser(structString);
 		Struct structure;
 		assert(!structParser.tryToParse(structure));
@@ -2027,23 +2039,23 @@ bool unitTest() {
 	}
 
 	{
-		const std::string structString("x: { /* }}    */ // asdf } \n 'asdf}\\'}': , qwe:{   } }");
+		const std::string structString("x: { /* }}	  */ // asdf } \n 'asdf}\\'}': , qwe:{	 } }");
 		Parser structParser(structString);
 		Struct structure;
 		assert(structParser.tryToParse(structure));
 		assert(structure.size() == 1);
-		assert(structure["x"].code() == "{ /* }}    */ // asdf } \n 'asdf}\\'}': , qwe:{   } }");
+		assert(structure["x"].code() == "{ /* }}	*/ // asdf } \n 'asdf}\\'}': , qwe:{   } }");
 
 		Parser structParser2(structure["x"]);
 		Struct structure2;
 		assert(structParser2.tryToParse(structure2));
 		assert(structure2.size() == 2);
 		assert(structure2["asdf}'}"].to<std::string>() == "");
-		assert(structure2["qwe"].code() == "{   }");
+		assert(structure2["qwe"].code() == "{	}");
 	}
 	
 	{
-		const std::string arrayString("  {  one  ,  two,three  , , five\nsix,\nseven\n\n,\n\n\teight\n\n,\n\n}   ");
+		const std::string arrayString("	 {	one	 ,	two,three  , , five\nsix,\nseven\n\n,\n\n\teight\n\n,\n\n}	 ");
 		Parser arrayParser(arrayString);
 		Array array;
 		assert(arrayParser.tryToParse(array));
