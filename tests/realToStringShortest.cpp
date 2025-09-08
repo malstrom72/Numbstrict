@@ -81,22 +81,22 @@ template<typename T> static bool isShortest(const String& s, T value) {
 }
 
 template<typename T, typename Rng> static void testType(Rng& rng) {
-	for (int i = 0; i != 10000; ++i) {
-	typename std::conditional<sizeof(T) == 4, uint32_t, uint64_t>::type bits = rng();
-	T value;
-	std::memcpy(&value, &bits, sizeof value);
-	if (!std::isfinite(value)) {
-	continue;
-}
-	const String s = toString<T>(value);
-	const T round = fromString<T>(s);
-	assert(bitsEqual<T>(round, value));
-	static_cast<void>(round);
-	if (s.find(".0") != String::npos && s.find('e') == String::npos && s.find('E') == String::npos) {
-	continue;
-}
-	assert(isShortest<T>(s, value));
-}
+	for (int i = 0; i != 1000000; ++i) {
+		typename std::conditional<sizeof(T) == 4, uint32_t, uint64_t>::type bits = rng();
+		T value;
+		std::memcpy(&value, &bits, sizeof value);
+		if (!std::isfinite(value)) {
+			continue;
+		}
+		const String s = toString<T>(value);
+		const T round = fromString<T>(s);
+		assert(bitsEqual<T>(round, value));
+		static_cast<void>(round);
+		if (s.find(".0") != String::npos && s.find('e') == String::npos && s.find('E') == String::npos) {
+			continue;
+		}
+		assert(isShortest<T>(s, value));
+	}
 }
 
 int main() {
@@ -105,4 +105,3 @@ int main() {
 	testType<float>(rng);
 	return 0;
 }
-
