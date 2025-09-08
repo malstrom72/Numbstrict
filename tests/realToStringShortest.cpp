@@ -37,35 +37,45 @@ template<typename T> static bool isShortest(const String& s, T value) {
 	if (expPos == String::npos) expPos = s.find('E');
 	const String exponent = (expPos == String::npos ? String() : s.substr(expPos));
 	String mantissa = (expPos == String::npos ? s : s.substr(0, expPos));
+	size_t dotPos = mantissa.find('.');
 
 	const size_t signOffset = (mantissa[0] == '-' || mantissa[0] == '+' ? 1 : 0);
 
 	// 1) Try removing a trailing ".0" entirely (e.g., "123.0" -> "123")
-	if (mantissa.size() >= signOffset + 2 && mantissa.back() == '0' && mantissa[mantissa.size() - 2] == '.') {
-	String shortened = mantissa.substr(0, mantissa.size() - 2) + exponent;
-	T r = fromString<T>(shortened);
-	if (bitsEqual<T>(r, value)) return false;
-}
+	if (dotPos != String::npos && mantissa.back() == '0' && mantissa[mantissa.size() - 2] == '.') {
+		if (expPos == String::npos || mantissa.size() - dotPos > 2) {
+			String shortened = mantissa.substr(0, mantissa.size() - 2) + exponent;
+			T r = fromString<T>(shortened);
+			if (bitsEqual<T>(r, value)) return false;
+		}
+	}
 
-	// 2) Your original digit-trim loop, but if a '.' is left dangling, also try removing it
+	// 2) Trim digits but keep at least one fractional digit when exponent is present
 	String work = mantissa;
 	while (work.size() > signOffset + 1) {
-	// drop last char (a digit)
-	work.erase(work.size() - 1);
+		if (expPos != String::npos && dotPos != String::npos) {
+			if (work.size() - dotPos <= 2) {
+				break;
+			}
+		}
+		// drop last char (a digit)
+		work.erase(work.size() - 1);
 
-	// if we ended on '.', try without the dot as well
-	if (!work.empty() && work.back() == '.') {
-	String shortened = work.substr(0, work.size() - 1) + exponent;
-	T r = fromString<T>(shortened);
-	if (bitsEqual<T>(r, value)) return false;
-	// stop further trimming when dot reached (no more fractional digits to drop safely here)
-	break;
-} else {
-	String shortened = work + exponent;
-	T r = fromString<T>(shortened);
-	if (bitsEqual<T>(r, value)) return false;
-}
-}
+		// if we ended on '.', try without the dot as well
+		if (!work.empty() && work.back() == '.') {
+			if (expPos == String::npos) {
+				String shortened = work.substr(0, work.size() - 1) + exponent;
+				T r = fromString<T>(shortened);
+				if (bitsEqual<T>(r, value)) return false;
+			}
+			// stop further trimming when dot reached (no more fractional digits to drop safely here)
+			break;
+		} else {
+			String shortened = work + exponent;
+			T r = fromString<T>(shortened);
+			if (bitsEqual<T>(r, value)) return false;
+		}
+	}
 
 	return true;
 }
