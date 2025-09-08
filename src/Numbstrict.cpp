@@ -660,12 +660,11 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 	typename Traits<T>::Hires magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
 	const typename Traits<T>::Hires normalized = absValue / factor;
 	const T ulp = std::nextafter(absValue, std::numeric_limits<T>::infinity()) - absValue;
-       const typename Traits<T>::Hires lowerN = (absValue - ulp * (T)0.5) / factor;
-       const typename Traits<T>::Hires upperN = (absValue + ulp * (T)0.5) / factor;
-       const bool lowerClosed = mantissa_is_even(absValue);
-       const bool upperClosed = !lowerClosed;
-       const bool intervalCollapses = hires_eq(upperN, normalized);
-       typename Traits<T>::Hires accumulator = 0.0;
+	const typename Traits<T>::Hires lowerN = (absValue - ulp * (T)0.5) / factor;
+	const typename Traits<T>::Hires upperN = (absValue + ulp * (T)0.5) / factor;
+	const bool lowerClosed = mantissa_is_even(absValue);
+	const bool upperClosed = !lowerClosed;
+	typename Traits<T>::Hires accumulator = 0.0;
 	do {
 		if (p == periodPosition) {
 			*p++ = '.';
@@ -685,14 +684,8 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 		
 		bool left_ok  = (accumulator > lowerN) || (lowerClosed && hires_eq(accumulator, lowerN));
 		bool right_ok = (next < upperN) || (upperClosed && hires_eq(next, upperN));
-		bool exact_ok = intervalCollapses && hires_eq(accumulator, normalized);
 
 		if (left_ok && right_ok) {
-			*p++ = (Char)('0' + digit);
-			magnitude = magnitude / 10;
-			break;
-		}
-		if (exact_ok) {
 			*p++ = (Char)('0' + digit);
 			magnitude = magnitude / 10;
 			break;
