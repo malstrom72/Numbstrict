@@ -384,6 +384,31 @@ static double multiplyAndAdd(double term, double factorA, double factorB) {
 	return term + factorA * factorB;
 }
 
+template<typename T> struct BoundsHelper { };
+
+template<> struct BoundsHelper<double> {
+	static void compute(double absValue, double factor, DoubleDouble& normalized, DoubleDouble& lowerN, DoubleDouble& upperN) {
+		DoubleDouble absN(absValue);
+		normalized = multiplyAndAdd(DoubleDouble(0.0), absN, 1.0 / factor);
+		double ulp = std::nextafter(absValue, std::numeric_limits<double>::infinity()) - absValue;
+		DoubleDouble halfUlp(ulp);
+		halfUlp = halfUlp / 2;
+		DoubleDouble lowerBound = absN + (halfUlp * -1);
+		DoubleDouble upperBound = absN + halfUlp;
+		lowerN = multiplyAndAdd(DoubleDouble(0.0), lowerBound, 1.0 / factor);
+		upperN = multiplyAndAdd(DoubleDouble(0.0), upperBound, 1.0 / factor);
+	}
+};
+
+template<> struct BoundsHelper<float> {
+	static void compute(float absValue, double factor, double& normalized, double& lowerN, double& upperN) {
+		normalized = absValue / factor;
+		float ulp = std::nextafter(absValue, std::numeric_limits<float>::infinity()) - absValue;
+		lowerN = (absValue - ulp * (float)0.5) / factor;
+		upperN = (absValue + ulp * (float)0.5) / factor;
+	}
+};
+
 template<typename T> struct Traits { };
 
 template<> struct Traits<double> {
@@ -656,16 +681,20 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 	}
 
 	assert(Traits<double>::MIN_EXPONENT <= exponent && exponent <= Traits<double>::MAX_EXPONENT);
-	const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
-	typename Traits<T>::Hires magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
-	const typename Traits<T>::Hires normalized = absValue / factor;
-	const T ulp = std::nextafter(absValue, std::numeric_limits<T>::infinity()) - absValue;
-	const typename Traits<T>::Hires lowerN = (absValue - ulp * (T)0.5) / factor;
-	const typename Traits<T>::Hires upperN = (absValue + ulp * (T)0.5) / factor;
-	const bool lowerClosed = mantissa_is_even(absValue);
-	const bool upperClosed = !lowerClosed;
-	typename Traits<T>::Hires accumulator = 0.0;
+const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
+typename Traits<T>::Hires magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
+typename Traits<T>::Hires normalized;
+typename Traits<T>::Hires lowerN;
+typename Traits<T>::Hires upperN;
+BoundsHelper<T>::compute(absValue, factor, normalized, lowerN, upperN);
+const bool lowerClosed = mantissa_is_even(absValue);
+const bool upperClosed = !lowerClosed;
+typename Traits<T>::Hires accumulator = 0.0;
 	do {
+		// if we've exactly reached the target, stop now.
+		if (hires_eq(accumulator, normalized)) {
+			break;
+		}
 		if (p == periodPosition) {
 			*p++ = '.';
 		}
