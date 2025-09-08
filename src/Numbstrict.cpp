@@ -683,14 +683,9 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 		assert(next >= normalized);
 		
 		bool left_ok  = (accumulator > lowerN) || (lowerClosed && hires_eq(accumulator, lowerN));
-		bool right_ok = (next < upperN)		|| (upperClosed && hires_eq(next, upperN));
-		bool exact_ok = hires_eq(accumulator, normalized) && (next > upperN);
+		bool right_ok = (next < upperN)	|| (upperClosed && hires_eq(next, upperN));
+
 		if (left_ok && right_ok) {
-			*p++ = (Char)('0' + digit);
-			magnitude = magnitude / 10;
-			break;
-		}
-		if (exact_ok) {
 			*p++ = (Char)('0' + digit);
 			magnitude = magnitude / 10;
 			break;
