@@ -12,6 +12,9 @@ for target in beta release; do
 	CPP_OPTIONS="-std=c++11" bash tools/BuildCpp.sh "$target" native "$out_dir/doubleFloatToString" \
 		-I src tests/doubleFloatToString.cpp src/Numbstrict.cpp src/Makaron.cpp
 	"$out_dir/doubleFloatToString" > /dev/null
+	CPP_OPTIONS="-std=c++11" bash tools/BuildCpp.sh "$target" native "$out_dir/realToStringShortest" \
+		-I src tests/realToStringShortest.cpp src/Numbstrict.cpp src/Makaron.cpp
+	"$out_dir/realToStringShortest" > /dev/null
 	CPP_OPTIONS="-std=c++11" bash tools/BuildCpp.sh "$target" native "$out_dir/MakaronCmd" \
 		-I src tools/MakaronCmd.cpp src/Makaron.cpp
 done
