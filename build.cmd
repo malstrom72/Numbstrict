@@ -15,6 +15,10 @@ FOR %%t IN (beta release) DO (
 	CALL tools\BuildCpp.cmd %%t native "%%outDir%%\MakaronCmd.exe" -I src ^
 		tools\MakaronCmd.cpp src\Makaron.cpp || GOTO error
 	SET "CPP_OPTIONS="
+	SET "CPP_OPTIONS=/std:c++14"
+	CALL tools\BuildCpp.cmd %%t native "%%outDir%%\HexDoubleToDecimal.exe" -I externals\ryu ^
+		tools\HexDoubleToDecimal.cpp externals\ryu\ryu\d2s.c || GOTO error
+	SET "CPP_OPTIONS="
 )
 ECHO Build and tests completed
 EXIT /b 0
