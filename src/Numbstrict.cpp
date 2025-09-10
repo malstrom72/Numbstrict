@@ -395,9 +395,6 @@ template<> struct Traits<float> {
 	typedef double Hires;
 };
 
-const int BREAK_EXP = -310;	// split point for negative exponents
-const int BOOST_K = 51;
-
 /*
 	Generate a table of `DoubleDoubles` for all powers of 10 from -324 to 308. The `DoubleDoubles` are normalized to
 	take up as many bits as possible while leaving enough headroom to allow multiplications of up to 10 without
@@ -424,25 +421,10 @@ struct Exp10Table {
 		
 		normal = DoubleDouble(WIDTH, 0.0);
 		factor = 1.0 / WIDTH;
-
-		// (a) -1 down to BREAK_EXP+1
-		for (int i = -1; i > BREAK_EXP; --i) {
-			if (normal.high < WIDTH) {
+		for (int i = -1; i >= Traits<double>::MIN_EXPONENT; --i) {
+			// Check factor / 16.0 > 0.0 to avoid normalizing denormal exponents.
+			if (normal.high < WIDTH && factor / 16.0 > 0.0) {
 				factor /= 16.0;
-				assert(factor > 0.0);			// NEW: assert the renorm never underflows
-				normal = normal * 16;
-			}
-			normal = normal / 10;
-			normals[i - Traits<double>::MIN_EXPONENT] = normal;
-			factors[i - Traits<double>::MIN_EXPONENT] = factor;
-		}
-
-		// (b) tail ≤ BREAK_EXP: boost once by 2^BOOST_K, then continue
-		factor = std::ldexp(factor, BOOST_K);
-		for (int i = BREAK_EXP; i >= Traits<double>::MIN_EXPONENT; --i) {
-			if (normal.high < WIDTH) {
-				factor /= 16.0;
-				assert(factor > 0.0);			// NEW: same assert here
 				normal = normal * 16;
 			}
 			normal = normal / 10;
@@ -599,11 +581,7 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 				++p;
 			}
 			const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
-			T tmp = static_cast<T>(static_cast<double>(accumulator) * factor);
-			if (exponent <= BREAK_EXP) {
-				tmp = static_cast<T>(std::ldexp(static_cast<double>(tmp), -BOOST_K));
-			}
-			value = tmp;
+			value = static_cast<T>(static_cast<double>(accumulator) * factor);
 		}
 	}
 	value *= sign;
@@ -661,12 +639,9 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 	}
 
 	assert(Traits<double>::MIN_EXPONENT <= exponent && exponent <= Traits<double>::MAX_EXPONENT);
-	const bool boosted = (exponent <= BREAK_EXP);
 	const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
 	typename Traits<T>::Hires magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
-	const double scaledAbs = boosted ? std::ldexp((double)absValue, BOOST_K) : (double)absValue;
-	const typename Traits<T>::Hires normalized = typename Traits<T>::Hires(scaledAbs / factor);
-	
+	const typename Traits<T>::Hires normalized = absValue / factor;
 	typename Traits<T>::Hires accumulator = 0.0;
 	T reconstructed;
 	do {
@@ -688,64 +663,21 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 		
 		// Do we hit goal with digit or digit + 1?
 		reconstructed = static_cast<T>(static_cast<double>(accumulator) * factor);
-		if (boosted) {
-			reconstructed = static_cast<T>(std::ldexp((double)reconstructed, -BOOST_K));
-		}
 		if (reconstructed != absValue) {
 			reconstructed = static_cast<T>(static_cast<double>(accumulator + magnitude) * factor);
-			if (boosted) {
-				reconstructed = static_cast<T>(std::ldexp((double)reconstructed, -BOOST_K));
-			}
 		}
-		
-			// Finally, is next digit >= 5 (magnitude / 2) then increment it (unless we are at max, just to play nicely with
-			// poorer parsers).
-			if (reconstructed == absValue && accumulator + magnitude / 2 < normalized && absValue != std::numeric_limits<T>::max()) {
-				++digit;
-				if (digit >= 10) {
-					// Carry to the left when rounding would push 9 -> 10.
-					// Walk back over previously written digits (skipping the decimal point), turning trailing 9s into 0s
-					// and incrementing the first non-9 digit we find. If we carry past the most significant digit, adjust
-					// formatting state accordingly.
-					Char* q = p - 1;
-					bool carriedPastFront = true;
-					while (q >= buffer) {
-						if (*q == '.') {
-							--q;
-							continue;
-						}
-						if (*q >= '0' && *q <= '8') {
-							++(*q);
-							carriedPastFront = false;
-							break;
-						}
-						if (*q == '9') {
-							*q = '0';
-							--q;
-							continue;
-						}
-						// Reached something that's not a digit (e.g., '-' or start), cannot carry further.
-						break;
-					}
-					if (carriedPastFront) {
-						// We need to increase the effective most-significant digit.
-						// For scientific notation we bump the exponent; for plain notation we shift the period position right.
-						if (eNotation) {
-							++exponent;
-						} else {
-							++periodPosition;
-						}
-						// Current digit becomes 1 in the new leading position.
-						digit = 1;
-					} else {
-						// Current place becomes 0 after carrying into the previous digit(s).
-						digit = 0;
-					}
-				}
-			} else {
-				// If this happens we have failed to calculate the correct exponent above.
-				assert(accumulator > 0.0);
-			}
+
+		// Finally, is next digit >= 5 (magnitude / 2) then increment it (unless we are at max, just to play nicely with
+		// poorer parsers).
+		if (reconstructed == absValue && accumulator + magnitude / 2 < normalized && absValue != std::numeric_limits<T>::max()) {
+			++digit;
+
+			// If this happens we have failed to calculate the correct exponent above.
+			assert(digit < 10);
+		} else {
+			// If this happens we have failed to calculate the correct exponent above.
+			assert(accumulator > 0.0);
+		}
 		
 		*p++ = '0' + digit;
 		magnitude = magnitude / 10;
@@ -2263,3 +2195,4 @@ REGISTER_UNIT_TEST(Numbstrict::unitTest)
 	#pragma GCC pop_options
 #endif
 #endif
+

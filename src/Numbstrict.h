@@ -11,7 +11,6 @@
 
 namespace Numbstrict {
 
-class Element;
 class Parser;
 typedef char Char;
 typedef unsigned char UChar;
@@ -20,9 +19,8 @@ typedef std::basic_string<Char> String;	// notice: not utf8, assumed ISO-8859-1!
 typedef std::basic_string<WideChar> WideString;
 typedef std::basic_string<Char>::const_iterator StringIt;
 typedef std::basic_string<WideChar>::const_iterator WideStringIt;
-typedef std::vector<Element> Array;
-typedef std::map<String, Element> Struct;	// standard struct handles only iso-8859-1 keys
-typedef std::map<WideString, Element> WideStruct;	// a wide struct can handle any unicode keys
+typedef std::pair<String, String> SourceAndFile;
+typedef std::pair<int, int> LineAndColumn;
 
 struct Exception : public std::exception { virtual ~Exception() throw() { } };
 
@@ -63,39 +61,8 @@ class ParsingError : public Exception {
 		const size_t offset;
 		const int line;
 		const int column;
-		mutable std::string errorString;
+	mutable std::string errorString;
 };
-
-/**
-	Notice that type is deduced from text contents and there may be ambiguities, e.g. an empty struct might be
-	identified as an empty array. Implementation does not depend on C++11 non-trival class unions and stores structures
-	and arrays separately for simplicity. If we based this on C++17 we could have used std::variant instead.
-**/
-struct Variant {
-	enum Type {
-		INVALID
-		, STRUCT 			// { : }
-		, ARRAY 			// { }
-		, TEXT 				// "" '' and generic text (including unparsable { } elements)
-		, REAL 				// #.#
-		, UNSIGNED_INTEGER	// [+]# (only overflowing 64-bit integers)
-		, INTEGER 			// [+-]#
-		, BOOLEAN 			// true | false
-	} type;
-	Variant() : type(INVALID) { }
-	WideStruct structure;
-	Array array;
-	WideString text;
-	union {
-		double real;
-		int64_t integer;
-		uint64_t unsignedInteger;
-		bool boolean;
-	};
-};
-
-typedef std::pair<String, String> SourceAndFile;
-typedef std::pair<int, int> LineAndColumn;
 
 /**
 	An Element represents the entire source code text or a partially parsed or composed piece of it. It maintains a
@@ -127,14 +94,48 @@ class Element {
 		String code() const { if (!exists()) { throw UndefinedElementError(); }; return String(b, e); }
 		String optionalCode(const String& defaultCode = String()) const { return (!exists() ? defaultCode : code()); }
 		String filename() const { assert(exists()); return s->second; }
-		size_t offset(const StringIt p) const { assert(exists()); return p - s->first.begin(); }    // `p` = source iterator
-		LineAndColumn lineAndColumn(StringIt p) const;                // `p` = source iterator
+		size_t offset(const StringIt p) const { assert(exists()); return p - s->first.begin(); }	// `p` = source iterator
+		LineAndColumn lineAndColumn(StringIt p) const;				// `p` = source iterator
 	
 	protected:
 		std::shared_ptr<SourceAndFile> s;
 		StringIt b;
 		StringIt e;
 };
+
+// Now that Element is a complete type, containers of Element are well-formed.
+typedef std::vector<Element> Array;
+typedef std::map<String, Element> Struct;	// standard struct handles only iso-8859-1 keys
+typedef std::map<WideString, Element> WideStruct;	// a wide struct can handle any unicode keys
+
+/**
+	Notice that type is deduced from text contents and there may be ambiguities, e.g. an empty struct might be
+	identified as an empty array. Implementation does not depend on C++11 non-trival class unions and stores structures
+	and arrays separately for simplicity. If we based this on C++17 we could have used std::variant instead.
+**/
+struct Variant {
+	enum Type {
+		INVALID
+		, STRUCT 			// { : }
+		, ARRAY 			// { }
+		, TEXT 				// "" '' and generic text (including unparsable { } elements)
+		, REAL 				// #.#
+		, UNSIGNED_INTEGER	// [+]# (only overflowing 64-bit integers)
+		, INTEGER 			// [+-]#
+		, BOOLEAN 			// true | false
+	} type;
+	Variant() : type(INVALID) { }
+	WideStruct structure;
+	Array array;
+	WideString text;
+	union {
+		double real;
+		int64_t integer;
+		uint64_t unsignedInteger;
+		bool boolean;
+	};
+};
+
 
 class Parser {
 	friend bool unitTest();
