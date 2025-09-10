@@ -9,8 +9,8 @@ BOOST_V      = math.ldexp(1.0, BOOST_K)
 BOOST_V_RCP  = 1.0 / BOOST_V
 
 # Switches
-ENABLE_BOOST       = True     # use the boosted two-phase tail (<= BREAK_EXP)
-USE_ORIGINAL_TAIL  = False    # when True, IGNORE boost and use the original C++ tail loop exactly
+ENABLE_BOOST       = False     # use the boosted two-phase tail (<= BREAK_EXP)
+USE_ORIGINAL_TAIL  = True    # when True, IGNORE boost and use the original C++ tail loop exactly
 
 class DoubleDouble:
 	def __init__(self, high: float = 0.0, low: float = 0.0):
@@ -24,10 +24,29 @@ class DoubleDouble:
 		low_times_factor = self.low * factor
 		overflow = math.floor(low_times_factor)
 		return DoubleDouble((self.high * factor) + overflow, low_times_factor - overflow)
+
+	'''
 	def __truediv__(self, divisor: int):
 		floored = math.floor(self.high / divisor)
 		remainder = self.high - floored * divisor
 		return DoubleDouble(floored, (self.low + remainder) / divisor)
+	'''
+
+	def  __truediv__(self, divisor):
+		d = float(divisor)
+		assert d != 0.0
+
+		# high is an integer < 2^53, so this quotient and floor are exact in double.
+		q_int = math.floor(self.high / d)
+		rem   = self.high - q_int * d
+
+		# Fractional part of the quotient lives here.
+		low_div = (self.low + rem) / d
+
+		# Renormalize so 0 ≤ low < 1
+		carry = math.floor(low_div)
+		return DoubleDouble(q_int + carry, low_div - carry)
+	
 	def __lt__(self, other):
 		return self.high < other.high or (self.high == other.high and self.low < other.low)
 	def __float__(self):
@@ -65,12 +84,18 @@ class Exp10Table:
 		if USE_ORIGINAL_TAIL:
 			# Exact port of your original C++ negative loop
 			for i in range(-1, MIN_EXPONENT - 1, -1):
-				if normal.high < WIDTH and (factor / 16.0) > 0.0:
+				if ENABLE_BOOST and i == BREAK_EXP:
+					factor *= BOOST_V
+				if normal.high < WIDTH and (factor / 16.0) > 0:
 					factor /= 16.0
 					normal = normal * 16
 				normal = normal / 10
 				self.normals[i - MIN_EXPONENT] = normal
 				self.factors[i - MIN_EXPONENT] = factor
+
+				if i < BREAK_EXP:
+					# debug print the normal and factor for every iteration in hex format
+					print(f"exp10={i}, normal=(0x{double_bits(float(normal.high)):016x},0x{double_bits(float(normal.low)):016x}), factor=0x{double_bits(factor):016x}")
 		else:
 			# Two-phase scheme with optional boost (your later experiment)
 			# (a) -1 down to BREAK_EXP+1: keep 16x normalization
@@ -98,6 +123,9 @@ class Exp10Table:
 				print(f"exp10={i}, normal=(0x{double_bits(float(normal.high)):016x},0x{double_bits(float(normal.low)):016x}), factor=0x{double_bits(factor):016x}")
 
 EXP10_TABLE = Exp10Table()
+
+def scaleAndConvert(factorA: DoubleDouble, factorB: float) -> float:
+	return factorA.high * factorB + factorA.low * factorB
 
 def parseReal(s: str) -> float:
 	p = 0; e = len(s)
@@ -152,6 +180,7 @@ def parseReal(s: str) -> float:
 
 	factor = EXP10_TABLE.factors[idx]
 	value_abs = float(accumulator) * factor
+	# value_abs = scaleAndConvert(accumulator, factor)
 	if (not USE_ORIGINAL_TAIL) and ENABLE_BOOST and exponent <= BREAK_EXP:
 		value_abs *= BOOST_V_RCP
 	return math.copysign(value_abs, sign)

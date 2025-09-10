@@ -29,11 +29,11 @@ inline double bitsToDouble(const uint64_t i) {
 int main(int argc, const char* argv[]) {
 	const std::string source = "1.945478849582046e-308";
 	const double d = Numbstrict::stringToDouble(source);
-	const std::string back = Numbstrict::doubleToString(d);
+//	const std::string back = Numbstrict::doubleToString(d);
 	const uint64_t i64 = doubleToBits(d);
-	std::cout << source << " = " << std::hex << i64 << " = " << back << std::endl;
+	std::cout << source << " = " << std::hex << i64 << std::endl; // << " = " << back << std::endl;
 	for (uint64_t i = i64 - 1; i <= i64 + 1; ++i) {
-		std::cout << std::hex << i << " = " << std::setprecision(std::numeric_limits<double>::max_digits10) << bitsToDouble(i) << std::endl;
+		std::cout << std::hex << i << " = " << std::setprecision(20) << bitsToDouble(i) << std::endl;
 	}
 	return 0;
 }
