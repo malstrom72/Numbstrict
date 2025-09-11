@@ -14,8 +14,12 @@ USE_ORIGINAL_TAIL = True
 DECIMAL_PREC = 42  # 21 works in practice; 42 gives headroom
 
 SUITE_PATH = "dd_suite.json"
-TARGET_SUITE_DIFF = 50
-TARGET_SUITE_SAME = 50
+
+# Scaler-suite quotas
+# - for each scaler, collect this many failure rows
+TARGET_FAIL_PER_SCALER = 50
+# - and also collect this many rows that work with all scalers
+TARGET_WORKS_ALL = 50
 
 # ---------------------- helpers -------------------------
 
@@ -174,33 +178,64 @@ def scale_float(acc: DoubleDouble, factor: float) -> float:
     # legacy: (float64 + float64) * float64, single rounding per multiply
     return float(acc) * factor
 
+def scale_float_2(acc: DoubleDouble, factor: float) -> float:
+    # legacy: (float64 + float64) * float64, single rounding per multiply
+    return (acc.high * factor + acc.low * factor)
+
 def scale_decimal(acc: DoubleDouble, factor: float) -> float:
     # “oracle”: higher-precision sum then scale then round once
     return float((Decimal(acc.high) + Decimal(acc.low)) * Decimal(factor))
+
+# Register scalers here to compare. Order defines report order.
+SCALERS = [
+    ("floatScale", scale_float),
+    ("floatScale2", scale_float_2),
+]
 
 # ---------------- suite builder & runner ----------------
 
 def build_suite():
     random.seed(2025)
-    diff_rows, same_rows = [], []
 
-    def maybe_add(row, differ: bool):
-        nonlocal diff_rows, same_rows
-        if differ and len(diff_rows) < TARGET_SUITE_DIFF:
-            diff_rows.append(row); return True
-        if (not differ) and len(same_rows) < TARGET_SUITE_SAME:
-            same_rows.append(row); return True
-        return False
+    per_scaler_target = TARGET_FAIL_PER_SCALER
+    works_all_target = TARGET_WORKS_ALL
+
+    assigned_fail_rows = {name: [] for name, _ in SCALERS}
+    works_all_rows = []
+    seen_bits = set()
+
+    def all_targets_met():
+        if len(works_all_rows) < works_all_target:
+            return False
+        for name in assigned_fail_rows:
+            if len(assigned_fail_rows[name]) < per_scaler_target:
+                return False
+        return True
 
     def row_from_x(x: float):
         s = repr(x)
         sign, exponent, idx, acc, factor, _ = parse_components(s)
-        if acc is None: return None
-        y_f = scale_float(acc, factor)   # float scaling
-        y_d = scale_decimal(acc, factor) # Decimal scaling
-        differ = (double_bits(y_f) != double_bits(y_d))
-        return {
-            "orig_bits": f"0x{double_bits(x):016x}",
+        if acc is None:
+            return None
+        oracle_bits = double_bits(x)
+        algo_results = {}
+        any_fail = False
+        all_pass = True
+        for name, fn in SCALERS:
+            y = sign * fn(acc, factor)
+            bits = double_bits(y)
+            fails = (bits != oracle_bits)
+            any_fail = any_fail or fails
+            all_pass = all_pass and (not fails)
+            algo_results[name] = {
+                "bits": f"0x{bits:016x}",
+                "value_17e": f"{y:.17e}",
+                "fails_oracle": fails,
+            }
+        # optional: decimal-based reconstruction for debug
+        y_dec = sign * scale_decimal(acc, factor)
+        row = {
+            "orig_bits": f"0x{oracle_bits:016x}",
             "str": s,
             "exp10": exp10_of_str(s),
             "exponent": exponent,
@@ -208,69 +243,116 @@ def build_suite():
             "acc_high": acc.high,
             "acc_low": acc.low,
             "acc_high_hex": as_hex(acc.high),
-            "acc_low_hex":  as_hex(acc.low),
+            "acc_low_hex": as_hex(acc.low),
             "factor": factor,
             "factor_hex": dbl_hex(factor),
-            "float_bits": f"0x{double_bits(y_f):016x}",
-            "decimal_bits": f"0x{double_bits(y_d):016x}",
-            "float_17e": f"{y_f:.17e}",
-            "decimal_17e": f"{y_d:.17e}",
             "oracle_17e": f"{x:.17e}",
-            "differ": differ
+            "decimal_bits": f"0x{double_bits(y_dec):016x}",
+            "decimal_17e": f"{y_dec:.17e}",
+            "algo_results": algo_results,
+            "assigned": None,
         }
+        return row, any_fail, all_pass
+
+    def try_assign(row, any_fail, all_pass):
+        key = row["orig_bits"]
+        if key in seen_bits:
+            return False
+        if all_pass:
+            if len(works_all_rows) < works_all_target:
+                row["assigned"] = "works_all"
+                works_all_rows.append(row)
+                seen_bits.add(key)
+                return True
+            return False
+        failing = [name for name, _ in SCALERS if row["algo_results"][name]["fails_oracle"]]
+        candidate = None
+        best_count = 1 << 60
+        for name in failing:
+            cnt = len(assigned_fail_rows[name])
+            if cnt < per_scaler_target and cnt < best_count:
+                best_count = cnt
+                candidate = name
+        if candidate is None:
+            return False
+        row["assigned"] = candidate
+        assigned_fail_rows[candidate].append(row)
+        seen_bits.add(key)
+        return True
 
     # Strategy 1: sweep many subnormals (exponent field == 0)
-    # Iterate through a wide sample but bail once we hit quotas.
-    step = 97_3  # odd stride to decorrelate patterns
-    for u in range(1, 1<<20, step):  # ~1M window, we sample ~10k
-        if len(diff_rows) >= TARGET_SUITE_DIFF and len(same_rows) >= TARGET_SUITE_SAME:
+    step = 97_3
+    for u in range(1, 1<<20, step):
+        if all_targets_met():
             break
         x = bits_to_double(u)
-        if not math.isfinite(x): continue
-        row = row_from_x(x)
-        if row is None: continue
-        if maybe_add(row, row["differ"]): continue
+        if not math.isfinite(x):
+            continue
+        out = row_from_x(x)
+        if out is None:
+            continue
+        row, any_fail, all_pass = out
+        try_assign(row, any_fail, all_pass)
 
-    # Strategy 2: around the smallest *normal* and its neighborhood
-    base = 0x0010000000000000  # smallest normal
+    # Strategy 2: around the smallest normal and its neighborhood
+    base = 0x0010000000000000
     for off in range(0, 1<<18, 1019):
-        if len(diff_rows) >= TARGET_SUITE_DIFF and len(same_rows) >= TARGET_SUITE_SAME:
+        if all_targets_met():
             break
         for signbit in (0, 1<<63):
             u = base + off + signbit
             x = bits_to_double(u)
-            if not math.isfinite(x): continue
-            row = row_from_x(x)
-            if row is None: continue
-            if maybe_add(row, row["differ"]): continue
+            if not math.isfinite(x):
+                continue
+            out = row_from_x(x)
+            if out is None:
+                continue
+            row, any_fail, all_pass = out
+            try_assign(row, any_fail, all_pass)
 
-    # Strategy 3: random fallbacks (just in case we still need to fill)
+    # Strategy 3: random fallbacks
     tries = 0
-    while len(diff_rows) < TARGET_SUITE_DIFF or len(same_rows) < TARGET_SUITE_SAME:
+    while not all_targets_met():
         if tries > 5_000_000:
-            break  # sanity
+            break
         tries += 1
         u = random.getrandbits(64)
         x = bits_to_double(u)
-        if not math.isfinite(x): continue
-        row = row_from_x(x)
-        if row is None: continue
-        if maybe_add(row, row["differ"]): continue
+        if not math.isfinite(x):
+            continue
+        out = row_from_x(x)
+        if out is None:
+            continue
+        row, any_fail, all_pass = out
+        try_assign(row, any_fail, all_pass)
 
-    suite = diff_rows + same_rows
+    # Build final suite: interleave per-scaler groups then append works-all, then randomize
+    suite = []
+    buckets = [assigned_fail_rows[name] for name, _ in SCALERS]
+    max_len = max((len(b) for b in buckets), default=0)
+    for i in range(max_len):
+        for b in buckets:
+            if i < len(b):
+                suite.append(b[i])
+    suite.extend(works_all_rows)
     random.shuffle(suite)
+
     with open(SUITE_PATH, "w") as f:
         json.dump(suite, f, indent=2)
-    print(f"Built suite: {len(suite)} rows "
-          f"(DIFF={len(diff_rows)}, SAME={len(same_rows)}). Saved to {SUITE_PATH}")
+
+    print(f"Built suite: {len(suite)} rows. Saved to {SUITE_PATH}")
+    for name, _ in SCALERS:
+        print(f"  assigned failures for {name}: {len(assigned_fail_rows[name])}")
+    print(f"  assigned works_all: {len(works_all_rows)}")
 
 def run_suite():
     with open(SUITE_PATH, "r") as f:
         suite = json.load(f)
     print(f"Loaded {len(suite)} rows from {SUITE_PATH}")
-    mismatches_float_vs_decimal = 0
-    mismatches_decimal_vs_oracle = 0
-    mismatches_float_vs_oracle = 0
+
+    per_scaler_mismatches = {name: 0 for name, _ in SCALERS}
+    decimal_vs_oracle = 0
+    assigned_group_breakdown = {"works_all": 0, **{name: 0 for name, _ in SCALERS}}
 
     for i, row in enumerate(suite):
         s = row["str"]
@@ -279,23 +361,33 @@ def run_suite():
             print(f"[{i}] SKIP (non-finite or empty)")
             continue
 
-        y_f = scale_float(acc, factor)
-        y_d = scale_decimal(acc, factor)
         x = bits_to_double(int(row["orig_bits"], 16))
 
-        if double_bits(y_f) != double_bits(y_d):
-            mismatches_float_vs_decimal += 1
-        if double_bits(y_d) != double_bits(x):
-            mismatches_decimal_vs_oracle += 1
+        # Optional: sanity check on decimal reconstruction
+        y_dec = sign * scale_decimal(acc, factor)
+        if double_bits(y_dec) != double_bits(x):
+            decimal_vs_oracle += 1
             print(f"[{i}] Decimal != Oracle? BUG")
-            print(row); break
-        if double_bits(y_f) != double_bits(x):
-            mismatches_float_vs_oracle += 1
+            print(row)
+            break
+
+        for name, fn in SCALERS:
+            y = sign * fn(acc, factor)
+            if double_bits(y) != double_bits(x):
+                per_scaler_mismatches[name] += 1
+
+        assigned = row.get("assigned")
+        if assigned in assigned_group_breakdown:
+            assigned_group_breakdown[assigned] += 1
 
     print("Summary on suite:")
-    print(f"  floatScale vs decimalScale DIFF: {mismatches_float_vs_decimal}/{len(suite)}")
-    print(f"  decimalScale vs oracle (repr(x)): {mismatches_decimal_vs_oracle}/{len(suite)}")
-    print(f"  floatScale vs oracle (repr(x)):   {mismatches_float_vs_oracle}/{len(suite)}")
+    for name, _ in SCALERS:
+        print(f"  {name} vs oracle mismatches: {per_scaler_mismatches[name]}/{len(suite)}")
+    print(f"  decimalScale vs oracle:        {decimal_vs_oracle}/{len(suite)}")
+    if any(v > 0 for v in assigned_group_breakdown.values()):
+        print("  assigned groups:")
+        for key, val in assigned_group_breakdown.items():
+            print(f"    {key}: {val}")
 
 def fuzz(n=200000, seed=1234):
     random.seed(seed)
@@ -342,8 +434,8 @@ def fuzz(n=200000, seed=1234):
 def main():
     if len(sys.argv) < 2:
         print("Usage:")
-        print("  python dd_parser_suite.py build          # build 100-row suite (50 DIFF / 50 SAME)")
-        print("  python dd_parser_suite.py run            # run current scaler on stored suite")
+        print("  python dd_parser_suite.py build          # build suite: equal per-scaler failures + works_all")
+        print("  python dd_parser_suite.py run            # run current scalers on stored suite")
         print("  python dd_parser_suite.py fuzz [N] [SEED]# random fuzz comparison")
         sys.exit(1)
     cmd = sys.argv[1]
