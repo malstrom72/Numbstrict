@@ -1,5 +1,5 @@
-
 import math, random, struct, sys, time
+from decimal import Decimal, getcontext
 
 MIN_EXPONENT = -324
 MAX_EXPONENT = 308
@@ -10,7 +10,11 @@ BOOST_V_RCP  = 1.0 / BOOST_V
 
 # Switches
 ENABLE_BOOST       = False     # use the boosted two-phase tail (<= BREAK_EXP)
-USE_ORIGINAL_TAIL  = True    # when True, IGNORE boost and use the original C++ tail loop exactly
+USE_ORIGINAL_TAIL  = True      # when True, IGNORE boost and use the original C++ tail loop exactly
+EXPERIMENT_DECIMAL_SCALE = True  # use Decimal(precision=120) for the final scaling (accumulator * factor)
+
+if EXPERIMENT_DECIMAL_SCALE:
+	getcontext().prec = 21
 
 class DoubleDouble:
 	def __init__(self, high: float = 0.0, low: float = 0.0):
@@ -179,7 +183,10 @@ def parseReal(s: str) -> float:
 		j += 1
 
 	factor = EXP10_TABLE.factors[idx]
-	value_abs = float(accumulator) * factor
+	if EXPERIMENT_DECIMAL_SCALE:
+		value_abs = float((Decimal(accumulator.high) + Decimal(accumulator.low)) * Decimal(factor))
+	else:
+		value_abs = float(accumulator) * factor
 	# value_abs = scaleAndConvert(accumulator, factor)
 	if (not USE_ORIGINAL_TAIL) and ENABLE_BOOST and exponent <= BREAK_EXP:
 		value_abs *= BOOST_V_RCP
@@ -225,7 +232,7 @@ def run_test(n=200000, seed=1234, use_repr=True):
 				examples.append((f"0x{u:016x}", s, exp10, f"0x{double_bits(y):016x}", f"{y:.17e}", f"{x:.17e}"))
 		count += 1
 	t1 = time.time()
-	print(f"[USE_ORIGINAL_TAIL={USE_ORIGINAL_TAIL}, ENABLE_BOOST={ENABLE_BOOST}] total tested: {n}, mismatches: {mismatches}, highest_exp10: {highest}, time_s: {round(t1-t0,2)}")
+	print(f"[USE_ORIGINAL_TAIL={USE_ORIGINAL_TAIL}, ENABLE_BOOST={ENABLE_BOOST}, EXPERIMENT_DECIMAL_SCALE={EXPERIMENT_DECIMAL_SCALE}] total tested: {n}, mismatches: {mismatches}, highest_exp10: {highest}, time_s: {round(t1-t0,2)}")
 	if examples:
 		for row in examples:
 			print('bits:', row[0])
