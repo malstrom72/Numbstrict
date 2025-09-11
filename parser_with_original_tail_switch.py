@@ -14,7 +14,7 @@ USE_ORIGINAL_TAIL  = True      # when True, IGNORE boost and use the original C+
 EXPERIMENT_DECIMAL_SCALE = True  # use Decimal(precision=120) for the final scaling (accumulator * factor)
 
 if EXPERIMENT_DECIMAL_SCALE:
-	getcontext().prec = 21
+	getcontext().prec = 42
 
 class DoubleDouble:
 	def __init__(self, high: float = 0.0, low: float = 0.0):
@@ -185,6 +185,7 @@ def parseReal(s: str) -> float:
 	factor = EXP10_TABLE.factors[idx]
 	if EXPERIMENT_DECIMAL_SCALE:
 		value_abs = float((Decimal(accumulator.high) + Decimal(accumulator.low)) * Decimal(factor))
+		# value_abs = float((Decimal(accumulator.high + accumulator.low)) * Decimal(factor))
 	else:
 		value_abs = float(accumulator) * factor
 	# value_abs = scaleAndConvert(accumulator, factor)
