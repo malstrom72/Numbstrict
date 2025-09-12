@@ -92,12 +92,12 @@ double scaleDDPow2Exact(const DoubleDouble& acc, double factor) {
 			++N;
 		}
 		if (N <= 0) {
-			return 0.0;
+			return 0.0;		// rounds all the way to zero
 		}
 		if (N >= (uint64_t(1) << 52)) {
-			return bitsToDouble(0x0010000000000000ULL);
+			return bitsToDouble(0x0010000000000000ULL); // rounded up into smallest normal
 		}
-		return bitsToDouble(N);
+		return bitsToDouble(N);		// subnormal result
 	}
 	int s = 52 - exph;			   // align high and low
 	double frac;
@@ -171,7 +171,7 @@ int main() {
 		double raw_h = bitsToDouble(t.hbits);
 		double raw_l = bitsToDouble(t.lbits);
 		double sign = (raw_h < 0.0 || (raw_h == 0.0 && raw_l < 0.0)) ? -1.0 : 1.0;
-		DoubleDouble acc(std::fabs(raw_h), std::fabs(raw_l));
+		DoubleDouble acc{std::fabs(raw_h), std::fabs(raw_l)};
 		double factor = bitsToDouble(t.fbits);
 		for (size_t i = 0; i < scalers.size(); ++i) {
 			double y = sign * scalers[i].fn(acc, factor);
