@@ -148,74 +148,94 @@ static bool is_decimal_tie_equivalent(const std::string& a, const std::string& b
 		return std::abs(da - db) == 1;
 }
 
-int main() {
-	double dEdge[] = {0.0, 1.0, 1000.0, 1e20, 1e-5, 1e-7};
-	for (double v : dEdge) {
-		std::string ours = Numbstrict::doubleToString(v);
-		std::string oracle = ryuDouble(v);
-		assert(ours == oracle);
-		double round = std::strtod(ours.c_str(), nullptr);
-		assert(bits(round) == bits(v));
-		static_cast<void>(round);
-	}
+int main(int argc, char** argv) {
+		bool testDouble = false;
+		bool testFloat = false;
+		int testCount = 1000000; /// default random-test count
+		for (int i = 1; i < argc; ++i) {
+				if (!std::strcmp(argv[i], "double")) { testDouble = true; continue; }
+				if (!std::strcmp(argv[i], "float")) { testFloat = true; continue; }
+				char* end = nullptr;
+				long long v = std::strtoll(argv[i], &end, 10);
+				if (end && *end == '\0' && v > 0) { testCount = (int)v; continue; }
+		}
+		if (!testDouble && !testFloat) { testDouble = true; testFloat = true; }
 
-	float fEdge[] = {0.0f, 1.0f, 1000.0f, 1e20f, 1e-5f, 1e-7f};
-	for (float v : fEdge) {
-		std::string ours = Numbstrict::floatToString(v);
-		std::string oracle = ryuFloat(v);
-		assert(ours == oracle);
-		float round = std::strtof(ours.c_str(), nullptr);
-		assert(bits(round) == bits(v));
-		static_cast<void>(round);
-	}
-
-		std::mt19937_64 drng(123456);
-		std::uniform_int_distribution<uint64_t> ddist;
-		for (int i = 0; i < 1000000; ++i) {
-				uint64_t u = ddist(drng);
-				double v;
-				std::memcpy(&v, &u, sizeof v);
-				if (!std::isfinite(v)) continue;
-				std::string ours = Numbstrict::doubleToString(v);
-				std::string oracle = ryuDouble(v);
-				if (ours != oracle) {
-						double ra = std::strtod(ours.c_str(), nullptr);
-						double rb = std::strtod(oracle.c_str(), nullptr);
-						if (bits(ra) == bits(v) && bits(rb) == bits(v) && is_decimal_tie_equivalent(ours, oracle)) {
-								// accept tie canonicalization difference
-						} else {
-								std::printf("double mismatch\nbits: %016llx\n ours: %s\n ryu:  %s\n", (unsigned long long)bits(v), ours.c_str(), oracle.c_str());
-								return 1;
-						}
+		if (testDouble) {
+				double dEdge[] = {0.0, 1.0, 1000.0, 1e20, 1e-5, 1e-7};
+				for (double v : dEdge) {
+						std::string ours = Numbstrict::doubleToString(v);
+						std::string oracle = ryuDouble(v);
+						assert(ours == oracle);
+						double round = std::strtod(ours.c_str(), nullptr);
+						assert(bits(round) == bits(v));
+						static_cast<void>(round);
 				}
-				double round = std::strtod(ours.c_str(), nullptr);
-				assert(bits(round) == bits(v));
-				static_cast<void>(round);
 		}
 
-		std::mt19937 frng(654321);
-		std::uniform_int_distribution<uint32_t> fdist;
-		for (int i = 0; i < 1000000; ++i) {
-				uint32_t u = fdist(frng);
-				float v;
-				std::memcpy(&v, &u, sizeof v);
-				if (!std::isfinite(v)) continue;
-				std::string ours = Numbstrict::floatToString(v);
-				std::string oracle = ryuFloat(v);
-				if (ours != oracle) {
-						float ra = std::strtof(ours.c_str(), nullptr);
-						float rb = std::strtof(oracle.c_str(), nullptr);
-						if (bits(ra) == bits(v) && bits(rb) == bits(v) && is_decimal_tie_equivalent(ours, oracle)) {
-								// accept tie canonicalization difference
-						} else {
-								std::printf("float mismatch\nbits: %08x\n ours: %s\n ryu:  %s\n", bits(v), ours.c_str(), oracle.c_str());
-								return 1;
-						}
+		if (testFloat) {
+				float fEdge[] = {0.0f, 1.0f, 1000.0f, 1e20f, 1e-5f, 1e-7f};
+				for (float v : fEdge) {
+						std::string ours = Numbstrict::floatToString(v);
+						std::string oracle = ryuFloat(v);
+						assert(ours == oracle);
+						float round = std::strtof(ours.c_str(), nullptr);
+						assert(bits(round) == bits(v));
+						static_cast<void>(round);
 				}
-				float round = std::strtof(ours.c_str(), nullptr);
-				assert(bits(round) == bits(v));
-				static_cast<void>(round);
 		}
 
-	return 0;
+		if (testDouble) {
+				std::mt19937_64 drng(123456);
+				std::uniform_int_distribution<uint64_t> ddist;
+				for (int i = 0; i < testCount; ++i) {
+						uint64_t u = ddist(drng);
+						double v;
+						std::memcpy(&v, &u, sizeof v);
+						if (!std::isfinite(v)) continue;
+						std::string ours = Numbstrict::doubleToString(v);
+						std::string oracle = ryuDouble(v);
+						if (ours != oracle) {
+								double ra = std::strtod(ours.c_str(), nullptr);
+								double rb = std::strtod(oracle.c_str(), nullptr);
+								if (bits(ra) == bits(v) && bits(rb) == bits(v) && is_decimal_tie_equivalent(ours, oracle)) {
+										// accept tie canonicalization difference
+								} else {
+										std::printf("double mismatch\nbits: %016llx\n ours: %s\n ryu:  %s\n", (unsigned long long)bits(v), ours.c_str(), oracle.c_str());
+										return 1;
+								}
+						}
+						double round = std::strtod(ours.c_str(), nullptr);
+						assert(bits(round) == bits(v));
+						static_cast<void>(round);
+				}
+		}
+
+		if (testFloat) {
+				std::mt19937 frng(654321);
+				std::uniform_int_distribution<uint32_t> fdist;
+				for (int i = 0; i < testCount; ++i) {
+						uint32_t u = fdist(frng);
+						float v;
+						std::memcpy(&v, &u, sizeof v);
+						if (!std::isfinite(v)) continue;
+						std::string ours = Numbstrict::floatToString(v);
+						std::string oracle = ryuFloat(v);
+						if (ours != oracle) {
+								float ra = std::strtof(ours.c_str(), nullptr);
+								float rb = std::strtof(oracle.c_str(), nullptr);
+								if (bits(ra) == bits(v) && bits(rb) == bits(v) && is_decimal_tie_equivalent(ours, oracle)) {
+										// accept tie canonicalization difference
+								} else {
+										std::printf("float mismatch\nbits: %08x\n ours: %s\n ryu:  %s\n", bits(v), ours.c_str(), oracle.c_str());
+										return 1;
+								}
+						}
+						float round = std::strtof(ours.c_str(), nullptr);
+						assert(bits(round) == bits(v));
+						static_cast<void>(round);
+				}
+		}
+
+		return 0;
 }
