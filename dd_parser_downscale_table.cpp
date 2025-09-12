@@ -8,7 +8,7 @@
 #include <array>
 #include <fstream>
 #include <string>
-#include <quadmath.h>
+// #include <quadmath.h>
 
 static uint64_t doubleBits(double x) {
 	uint64_t u;
@@ -78,12 +78,12 @@ double scaleFloat(const DoubleDouble& acc, double factor) {
 	return acc.toDouble() * factor;
 }
 
-double scaleDecimal(const DoubleDouble& acc, double factor) {
+/*double scaleDecimal(const DoubleDouble& acc, double factor) {
 	__float128 a = static_cast<__float128>(acc.high);
 	a += static_cast<__float128>(acc.low);
 	a *= static_cast<__float128>(factor);
 	return static_cast<double>(a);
-}
+}*/
 
 double scaleDDPow2Exact(const DoubleDouble& acc, double factor) {
 	assert(factor > 0.0);
@@ -210,7 +210,7 @@ int main() {
 	struct Scaler { const char* name; double (*fn)(const DoubleDouble&, double); };
 	Scaler scalers[] = {
 		{"scale_float", scaleFloat},
-		{"scale_decimal", scaleDecimal},
+//		{"scale_decimal", scaleDecimal},
 		{"scale_dd_pow2_exact", scaleDDPow2Exact},
 	};
 	size_t counts[sizeof(scalers)/sizeof(scalers[0])] = {0};
