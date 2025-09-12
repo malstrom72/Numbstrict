@@ -149,16 +149,17 @@ static bool is_decimal_tie_equivalent(const std::string& a, const std::string& b
 }
 
 int main(int argc, char** argv) {
-		bool testDouble = true;
-		bool testFloat = true;
-		if (argc > 1) {
-				testDouble = false;
-				testFloat = false;
-				for (int i = 1; i < argc; ++i) {
-						if (!std::strcmp(argv[i], "double")) testDouble = true;
-						if (!std::strcmp(argv[i], "float")) testFloat = true;
-				}
+		bool testDouble = false;
+		bool testFloat = false;
+		int testCount = 1000000; /// default random-test count
+		for (int i = 1; i < argc; ++i) {
+				if (!std::strcmp(argv[i], "double")) { testDouble = true; continue; }
+				if (!std::strcmp(argv[i], "float")) { testFloat = true; continue; }
+				char* end = nullptr;
+				long long v = std::strtoll(argv[i], &end, 10);
+				if (end && *end == '\0' && v > 0) { testCount = (int)v; continue; }
 		}
+		if (!testDouble && !testFloat) { testDouble = true; testFloat = true; }
 
 		if (testDouble) {
 				double dEdge[] = {0.0, 1.0, 1000.0, 1e20, 1e-5, 1e-7};
@@ -187,7 +188,7 @@ int main(int argc, char** argv) {
 		if (testDouble) {
 				std::mt19937_64 drng(123456);
 				std::uniform_int_distribution<uint64_t> ddist;
-				for (int i = 0; i < 1000000; ++i) {
+				for (int i = 0; i < testCount; ++i) {
 						uint64_t u = ddist(drng);
 						double v;
 						std::memcpy(&v, &u, sizeof v);
@@ -213,7 +214,7 @@ int main(int argc, char** argv) {
 		if (testFloat) {
 				std::mt19937 frng(654321);
 				std::uniform_int_distribution<uint32_t> fdist;
-				for (int i = 0; i < 1000000; ++i) {
+				for (int i = 0; i < testCount; ++i) {
 						uint32_t u = fdist(frng);
 						float v;
 						std::memcpy(&v, &u, sizeof v);
