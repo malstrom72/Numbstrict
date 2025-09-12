@@ -169,6 +169,10 @@ int main(int argc, char** argv) {
 						assert(ours == oracle);
 						double round = std::strtod(ours.c_str(), nullptr);
 						assert(bits(round) == bits(v));
+						double na = Numbstrict::stringToDouble(ours);
+						double nb = Numbstrict::stringToDouble(oracle);
+						assert(bits(na) == bits(v) || (v == 0.0 && na == 0.0));
+						assert(bits(nb) == bits(v) || (v == 0.0 && nb == 0.0));
 						static_cast<void>(round);
 				}
 		}
@@ -181,6 +185,10 @@ int main(int argc, char** argv) {
 						assert(ours == oracle);
 						float round = std::strtof(ours.c_str(), nullptr);
 						assert(bits(round) == bits(v));
+						float na = Numbstrict::stringToFloat(ours);
+						float nb = Numbstrict::stringToFloat(oracle);
+						assert(bits(na) == bits(v) || (v == 0.0f && na == 0.0f));
+						assert(bits(nb) == bits(v) || (v == 0.0f && nb == 0.0f));
 						static_cast<void>(round);
 				}
 		}
@@ -207,6 +215,16 @@ int main(int argc, char** argv) {
 						}
 						double round = std::strtod(ours.c_str(), nullptr);
 						assert(bits(round) == bits(v));
+						double na = Numbstrict::stringToDouble(ours);
+						double nb = Numbstrict::stringToDouble(oracle);
+						if (!(bits(na) == bits(v) || (v == 0.0 && na == 0.0))) {
+								std::printf("stringToDouble(ours) mismatch\nbits: %016llx\n ours: %s\n", (unsigned long long)bits(v), ours.c_str());
+								return 1;
+						}
+						if (!(bits(nb) == bits(v) || (v == 0.0 && nb == 0.0))) {
+								std::printf("stringToDouble(ryu) mismatch\nbits: %016llx\n ryu:  %s\n", (unsigned long long)bits(v), oracle.c_str());
+								return 1;
+						}
 						static_cast<void>(round);
 				}
 		}
@@ -233,6 +251,16 @@ int main(int argc, char** argv) {
 						}
 						float round = std::strtof(ours.c_str(), nullptr);
 						assert(bits(round) == bits(v));
+						float na = Numbstrict::stringToFloat(ours);
+						float nb = Numbstrict::stringToFloat(oracle);
+						if (!(bits(na) == bits(v) || (v == 0.0f && na == 0.0f))) {
+								std::printf("stringToFloat(ours) mismatch\nbits: %08x\n ours: %s\n", bits(v), ours.c_str());
+								return 1;
+						}
+						if (!(bits(nb) == bits(v) || (v == 0.0f && nb == 0.0f))) {
+								std::printf("stringToFloat(ryu) mismatch\nbits: %08x\n ryu:  %s\n", bits(v), oracle.c_str());
+								return 1;
+						}
 						static_cast<void>(round);
 				}
 		}
