@@ -149,6 +149,19 @@ static bool is_decimal_tie_equivalent(const std::string& a, const std::string& b
 }
 
 int main(int argc, char** argv) {
+	{
+		// convert the string "-7.038531e-26" with ryu and output hex bits
+		const char* s = "-7.038531e-26";
+		char* end = nullptr;
+		float v = std::strtof(s, &end);
+		if (end != s + std::strlen(s)) {
+			std::printf("strtof failed\n");
+			return 1;
+		}
+		std::string ryu = ryuFloat(v);
+		float vr = std::strtof(ryu.c_str(), nullptr);
+		std::printf("bits: %08lx\n ryu:  %s\n", (unsigned long)bits(v), ryu.c_str());
+	}
 		bool testDouble = false;
 		bool testFloat = false;
 		int testCount = 1000000; /// default random-test count
