@@ -623,6 +623,20 @@ static double trySomething(const DoubleDouble& accumulator, const double factor)
 	return std::ldexp(t, k2);
 }
 
+// Why we need scaleDDPow2Exact():
+//
+// If we just do (high + low) first, that sum is rounded to 53 bits once,
+// possibly nudging the result slightly upward. Then when we scale down into
+// the subnormal range (right-shift the mantissa) we hit what looks like an
+// exact halfway case — and since the current mantissa is odd, IEEE-754
+// rounds up again. In reality, the exact (high+low) value was just below
+// that halfway point, so it should have rounded down to the even mantissa.
+// This is a classic "double rounding" problem.
+//
+// scaleDDPow2Exact avoids this by combining high and low at full precision
+// under the final exponent window and performing a *single* correct
+// round-to-nearest-even step. This matches the Decimal oracle and fixes
+// all denormal boundary mismatches.
 
 static inline uint64_t doubleBits(double x) {
 	uint64_t u;
@@ -748,8 +762,33 @@ double scaleDDPow2Exact(const DoubleDouble& acc, double factor) {
 	return bitsToDouble(bits);
 }
 
+static inline int pow2exp_from_bits(double pow2) {
+    // Assumes pow2 is an exact power of two (normal or subnormal)
+    int e;
+    std::frexp(pow2, &e);   // pow2 = 0.5 * 2^e for normals; still works for subnormals
+    return e - 1;           // exact k such that pow2 == 2^k
+}
+
+static inline int ilogb_nonzero(double x) {
+    // x > 0, integer < 2^53, so this is exact and portable
+    return std::ilogb(x);   // unbiased exponent of x
+}
+
 static double scaleAndConvert(const DoubleDouble& a, double factor) {
-    return scaleDDPow2Exact(a, factor);
+    if (a.high == 0.0 && a.low == 0.0) return 0.0;
+
+    const int k    = pow2exp_from_bits(factor);     // factor == 2^k
+    const int exph = ilogb_nonzero(a.high);       // unbiased exponent of high
+    const int e    = exph + k;                      // unbiased exponent after scaling
+
+    if (e >= -1022) {
+        // Safely normal → cheap path (your legacy combine)
+        return (a.high + a.low) * factor;
+        // or: return (double)a * factor;
+    } else {
+        // Borderline normal or subnormal → exact path that avoids double rounding
+        return scaleDDPow2Exact(a, factor);
+    }
 }
 
 template<typename T> const Char* parseReal(const Char* const b, const Char* const e, T& value) {
