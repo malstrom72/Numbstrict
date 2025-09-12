@@ -923,9 +923,9 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 		assert(next >= normalized);
 		
 		// Do we hit goal with digit or digit + 1?
-		reconstructed = static_cast<T>(static_cast<double>(accumulator) * factor);
+		reconstructed = static_cast<T>(scaleAndConvert(accumulator, factor));
 		if (reconstructed != absValue) {
-			reconstructed = static_cast<T>(static_cast<double>(accumulator + magnitude) * factor);
+			reconstructed = static_cast<T>(scaleAndConvert(accumulator + magnitude, factor));
 		}
 
 		// Finally, is next digit >= 5 (magnitude / 2) then increment it (unless we are at max, just to play nicely with
@@ -2456,4 +2456,3 @@ REGISTER_UNIT_TEST(Numbstrict::unitTest)
 	#pragma GCC pop_options
 #endif
 #endif
-

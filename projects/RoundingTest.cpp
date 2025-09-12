@@ -52,11 +52,11 @@ int main(int argc, const char* argv[]) {
 		std::cout << std::hex << i << " = " << std::setprecision(20) << bitsToFloat(i) << std::endl;
 	}
 */
-	const std::string source = "-1.365649281442437e-308";
+	const std::string source = "-1.3656492814424367e-308";
 	const double d = Numbstrict::stringToDouble(source);
-//	const std::string back = Numbstrict::doubleToString(d);
+	const std::string back = Numbstrict::doubleToString(d);
 	const uint64_t i64 = doubleToBits(d);
-	std::cout << source << " = " << std::hex << i64 << std::endl; // << " = " << back << std::endl;
+	std::cout << source << " = " << std::hex << i64 << std::endl << " = " << back << std::endl;
 	for (uint64_t i = i64 - 1; i <= i64 + 1; ++i) {
 		std::cout << std::hex << i << " = " << std::setprecision(20) << bitsToDouble(i) << std::endl;
 	}
