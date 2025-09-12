@@ -19,6 +19,10 @@ FOR %%t IN (beta release) DO (
 	CALL tools\BuildCpp.cmd %%t native "%%outDir%%\HexDoubleToDecimal.exe" -I externals\ryu ^
 		tools\HexDoubleToDecimal.cpp externals\ryu\ryu\d2s.c || GOTO error
 	SET "CPP_OPTIONS="
+	SET "CPP_OPTIONS=/std:c++14"
+	CALL tools\BuildCpp.cmd %%t native "%%outDir%%\dd_parser_downscale_table.exe" dd_parser_downscale_table.cpp || GOTO error
+	SET "CPP_OPTIONS="
+	"%%outDir%%\dd_parser_downscale_table.exe" >NUL || GOTO error
 )
 ECHO Build and tests completed
 EXIT /b 0

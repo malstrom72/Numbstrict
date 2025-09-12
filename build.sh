@@ -20,6 +20,9 @@ for target in beta release; do
 		-I src -I externals/ryu tests/compareWithRyu.cpp src/Numbstrict.cpp src/Makaron.cpp \
 		externals/ryu/ryu/d2s.c externals/ryu/ryu/f2s.c
 		"$out_dir/compareWithRyu" float
+	bash tools/BuildCpp.sh "$target" native "$out_dir/dd_parser_downscale_table" \
+		dd_parser_downscale_table.cpp
+	"$out_dir/dd_parser_downscale_table" > /dev/null
 done
 
 echo "Build and tests completed"
