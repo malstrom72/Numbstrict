@@ -43,7 +43,7 @@ inline float bitsToFloat(const uint32_t i) {
 }
 
 int main(int argc, const char* argv[]) {
-	const std::string source = "-7.038531e-26";
+/*	const std::string source = "-7.038531e-26";
 	const float f = Numbstrict::stringToFloat(source);
 	const uint32_t ui32 = floatToBits(f);
 	const std::string back = Numbstrict::floatToString(f);
@@ -51,8 +51,8 @@ int main(int argc, const char* argv[]) {
 	for (uint32_t i = ui32 - 2; i <= ui32 + 2; ++i) {
 		std::cout << std::hex << i << " = " << std::setprecision(20) << bitsToFloat(i) << std::endl;
 	}
-/*
-	const std::string source = "1.945478849582046e-308";
+*/
+	const std::string source = "-1.365649281442437e-308";
 	const double d = Numbstrict::stringToDouble(source);
 //	const std::string back = Numbstrict::doubleToString(d);
 	const uint64_t i64 = doubleToBits(d);
@@ -60,6 +60,6 @@ int main(int argc, const char* argv[]) {
 	for (uint64_t i = i64 - 1; i <= i64 + 1; ++i) {
 		std::cout << std::hex << i << " = " << std::setprecision(20) << bitsToDouble(i) << std::endl;
 	}
-*/
+
 	return 0;
 }
