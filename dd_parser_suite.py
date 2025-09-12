@@ -265,7 +265,174 @@ def scale_decimal(acc: DoubleDouble, factor: float) -> float:
     # “oracle”: higher-precision sum then scale then round once
     return float((Decimal(acc.high) + Decimal(acc.low)) * Decimal(factor))
 
+def double_bits(x: float) -> int:
+    return struct.unpack('>Q', struct.pack('>d', x))[0]
 
+def bits_to_double(u: int) -> float:
+    return struct.unpack('>d', struct.pack('>Q', u))[0]
+
+def scale_decimal(acc: DoubleDouble, factor: float) -> float:
+    return float((Decimal(acc.high) + Decimal(acc.low)) * Decimal(factor))
+
+def scale_with_grs(acc: DoubleDouble, factor: float) -> float:
+    # Assume factor is power of two, possibly subnormal
+    k = math.frexp(factor)[1] - 1
+    ah = math.ldexp(acc.high, k)
+    al = math.ldexp(acc.low,  k)
+    s = ah + al
+    e = (ah - s) + al  # error term from naive summation
+
+    mant, exp = math.frexp(s)
+    mant *= 2.0
+    exp -= 1
+
+    grs_bit = 1 if abs(e) > (0.5 * math.ldexp(1.0, exp - 52)) else 0
+    mantissa = int(mant * (1 << 52))
+    if grs_bit:
+        mantissa += 1
+    return math.ldexp(mantissa, exp - 52)
+
+def round_to_even_from_parts(int_part: int, frac_part: float) -> int:
+    """Round int_part + frac_part to nearest-even integer without forming huge floats."""
+    if frac_part < 0.5:
+        return int_part
+    if frac_part > 0.5:
+        return int_part + 1
+    # tie: round to even
+    return int_part if (int_part & 1) == 0 else (int_part + 1)
+
+def round_shift_right_to_even(N: int, r: int) -> int:
+    """Return round_to_nearest_even(N / 2**r) assuming r >= 0."""
+    if r <= 0:
+        return N << (-r)
+    q = N >> r
+    rem = N & ((1 << r) - 1)
+    half = 1 << (r - 1)
+    if rem > half:
+        return q + 1
+    if rem < half:
+        return q
+    # exactly half: tie to even
+    return q + (q & 1)
+
+def ilog2_from_double(x: float) -> int:
+    """Exact floor(log2(x)) for finite positive double x <= 2**53 using frexp."""
+    m, e2 = math.frexp(x)  # x = m * 2**e2, m in [0.5,1)
+    return e2 - 1
+
+def scale_dd_pow2_exact(acc: DoubleDouble, factor: float) -> float:
+    """
+    Correctly round (acc.high + acc.low) * factor for factor = exact power-of-two.
+    - NORMAL results: build a 53-bit significand N and pack once.
+    - SUBNORMAL results: round the payload (mantissa) directly once (no prior 53-bit rounding).
+    """
+    assert factor > 0.0
+    k = pow2_exponent_from_bits(factor)  # factor == 2**k (normal or subnormal)
+
+    H = int(acc.high)     # exact integer (< 2**53)
+    L = float(acc.low)    # 0 <= L < 1
+
+    # Fast zero
+    if H == 0 and L == 0.0:
+        return 0.0
+
+    # If result will be subnormal, do payload rounding directly (single rounding).
+    # Unbiased exponent of (H+L) is ~ilog2(H). Final unbiased exponent e = ilog2(H) + k.
+    # If e < -1022 => subnormal.
+    if H == 0:
+        # L-only path: e = (eL-1) + k
+        mL, eL = math.frexp(L)           # L = mL * 2**eL , mL in [0.5,1)
+        e = (eL - 1) + k
+    else:
+        e = ilog2_from_double(acc.high) + k
+
+    if e < -1022:
+        # --- SUBNORMAL: round payload at 2**(-1074) (one rounding, ties-to-even) ---
+        E = k
+        T = E + 1074                      # payload scaling exponent
+
+        if T >= 0:
+            A  = H << T                   # integer contribution from high
+            Bf = math.ldexp(L, T)         # exact scale by power of two
+            Bi = int(Bf)
+            frac = Bf - Bi
+            N = A + Bi
+        else:
+            kk  = -T
+            q   = H >> kk
+            r   = H & ((1 << kk) - 1)
+            Bf  = (r + math.ldexp(L, kk)) / float(1 << kk)  # in [0,1)
+            frac = Bf
+            N    = q
+
+        # ties-to-even on payload
+        if frac > 0.5:
+            N += 1
+        elif frac == 0.5 and (N & 1) == 1:
+            N += 1
+
+        if N <= 0:
+            return 0.0
+        if N >= (1 << 52):
+            # rounded into smallest normal
+            return bits_to_double(0x0010000000000000)
+
+        return bits_to_double(N)          # pack subnormal mantissa
+
+    # --- NORMAL: build 53-bit significand N (one rounding), then pack ---
+    if H == 0:
+        # value is L * 2**k ; build 53-bit N from L
+        mL, eL = math.frexp(L)            # L = mL * 2**eL
+        e = (eL - 1) + k
+        # mL * 2**53 is exact integer in double
+        t = math.ldexp(mL, 53)
+        Ni = int(t)
+        frac = t - Ni
+        N = round_to_even_from_parts(Ni, frac)
+        if N == (1 << 53):
+            N = (1 << 52)
+            e += 1
+    else:
+        exph = ilog2_from_double(acc.high)
+        s = 52 - exph                     # scale so that H contributes ~2^52
+        if s >= 0:
+            A  = H << s                   # exact
+            Bf = math.ldexp(L, s)         # exact
+            Bi = int(Bf)
+            frac = Bf - Bi
+            N = round_to_even_from_parts(A + Bi, frac)
+        else:
+            k2 = -s
+            q  = H >> k2
+            r  = H & ((1 << k2) - 1)
+            Bf = (r + math.ldexp(L, k2)) / float(1 << k2)  # exact in [0,1)
+            N  = round_to_even_from_parts(q, Bf)
+
+        e = exph + k
+        if N == (1 << 53):                # carry into next binade
+            N = (1 << 52)
+            e += 1
+
+    # Pack normal: N in [2^52, 2^53), value = N * 2**(e-52)
+    expfield = e + 1023
+    if expfield <= 0:
+        # If we ever land here, the branch above misclassified; fall back to subnormal pack.
+        rshift = 1 - expfield            # how much we’d need to shift to reach exp=1
+        payload = round_shift_right_to_even(N, rshift)
+        if payload <= 0:
+            return 0.0
+        if payload >= (1 << 52):
+            return bits_to_double(0x0010000000000000)
+        return bits_to_double(payload)
+
+    if expfield >= 0x7FF:
+        return float('inf')
+
+    mant = N - (1 << 52)                 # drop the hidden 1
+    bits = (expfield << 52) | mant
+    return bits_to_double(bits)
+  
+  
 # -------------------------
 # helpers
 # -------------------------
@@ -628,6 +795,7 @@ SCALERS = [
     ("scale_float_prescale", scale_float_prescale),
     ("scale_power2", scale_power2),
     ("scale_decimal_denormal", scale_decimal_denormal),
+    ("scale_dd_pow2_exact", scale_dd_pow2_exact),
 ]
 
 # ---------------- suite builder & runner ----------------
