@@ -338,56 +338,82 @@ SCALERS = [
 
 
 
-def fuzz(n=200000, seed=1234):
-	random.seed(seed)
-	t0 = time.time()
+def fuzz(n=200000, seed=1234, sample=0):
+        random.seed(seed)
+        t0 = time.time()
 
-	per_scaler_mismatches = {name: 0 for name, _ in SCALERS}
-	decimal_vs_oracle = 0
-	highest = -999
+        per_scaler_mismatches = {name: 0 for name, _ in SCALERS}
+        decimal_vs_oracle = 0
+        highest = -999
 
-	count = 0
-	while count < n:
-		u = random.getrandbits(64)
-		x = bits_to_double(u)
-		if not math.isfinite(x):
-			continue
-		s = repr(x)
-		parsed = parse_components(s)
-		if parsed is None:
-			  continue
-		sign, acc, factor = parsed
+        mismatch_samples = []
+        match_samples = []
+        match_count = 0
 
-		oracle_bits = double_bits(x)
+        count = 0
+        while count < n:
+                u = random.getrandbits(64)
+                x = bits_to_double(u)
+                if not math.isfinite(x):
+                        continue
+                s = repr(x)
+                parsed = parse_components(s)
+                if parsed is None:
+                        continue
+                sign, acc, factor = parsed
 
-		y_dec = sign * scale_decimal(acc, factor)
-		if double_bits(y_dec) != oracle_bits:
-			decimal_vs_oracle += 1
+                oracle_bits = double_bits(x)
 
-		ex10 = exp10_of_str(s)
-		for name, fn in SCALERS:
-			y = sign * fn(acc, factor)
-			if double_bits(y) != oracle_bits:
-				per_scaler_mismatches[name] += 1
-				highest = max(highest, ex10)
+                y_dec = sign * scale_decimal(acc, factor)
+                if double_bits(y_dec) != oracle_bits:
+                        decimal_vs_oracle += 1
 
-		count += 1
+                ex10 = exp10_of_str(s)
+                for name, fn in SCALERS:
+                        y = sign * fn(acc, factor)
+                        bits = double_bits(y)
+                        if bits != oracle_bits:
+                                per_scaler_mismatches[name] += 1
+                                highest = max(highest, ex10)
+                                if name == "floatScale" and len(mismatch_samples) < sample:
+                                        mismatch_samples.append((double_bits(sign * acc.high), double_bits(sign * acc.low), double_bits(factor), oracle_bits))
+                        elif name == "floatScale" and sample > 0:
+                                match_count += 1
+                                entry = (double_bits(sign * acc.high), double_bits(sign * acc.low), double_bits(factor), oracle_bits)
+                                if len(match_samples) < sample:
+                                        match_samples.append(entry)
+                                else:
+                                        r = random.randrange(match_count)
+                                        if r < sample:
+                                                match_samples[r] = entry
 
-	t1 = time.time()
-	print(f"[FUZZ] total: {n}, time_s: {round(t1 - t0, 2)}")
-	for name, _ in SCALERS:
-		print(f"  {name} vs oracle mismatches: {per_scaler_mismatches[name]}")
-	print(f"  decimalScale vs oracle mismatches: {decimal_vs_oracle}")
-	print(f"  highest_exp10_among_mismatches: {highest}")
+                count += 1
+
+        t1 = time.time()
+        print(f"[FUZZ] total: {n}, time_s: {round(t1 - t0, 2)}")
+        for name, _ in SCALERS:
+                print(f"  {name} vs oracle mismatches: {per_scaler_mismatches[name]}")
+        print(f"  decimalScale vs oracle mismatches: {decimal_vs_oracle}")
+        print(f"  highest_exp10_among_mismatches: {highest}")
+
+        if sample > 0:
+                def dump(arr, name):
+                        print(f"{name} = [")
+                        for h, l, fbits, obits in arr:
+                                print(f"        [0x{h:016x}, 0x{l:016x}, 0x{fbits:016x}, 0x{obits:016x}],")
+                        print("]")
+                dump(mismatch_samples, "mismatches")
+                dump(match_samples, "matches")
 
 
 # ------------------------- main -------------------------
 
 
 def main():
-	n = int(sys.argv[1]) if len(sys.argv) > 1 else 200000
-	seed = int(sys.argv[2]) if len(sys.argv) > 2 else 1234
-	fuzz(n, seed)
+        n = int(sys.argv[1]) if len(sys.argv) > 1 else 200000
+        seed = int(sys.argv[2]) if len(sys.argv) > 2 else 1234
+        sample = int(sys.argv[3]) if len(sys.argv) > 3 else 0
+        fuzz(n, seed, sample)
 
 
 if __name__ == "__main__":

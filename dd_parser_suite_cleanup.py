@@ -7,9 +7,6 @@ from decimal import Decimal, getcontext
 MIN_EXPONENT = -324
 MAX_EXPONENT = 308
 
-# Use the exact original negative-tail logic (no "boost" experiments here)
-USE_ORIGINAL_TAIL = True
-
 # Decimal precision for the "oracle" scale
 DECIMAL_PREC = 100	# 21 works in practice; 42 gives headroom
 
@@ -73,11 +70,6 @@ class DoubleDouble:
 		self.high = float(high)
 		self.low = float(low)
 
-	def __add__(self, other):
-		low_sum = self.low + other.low
-		overflow = math.floor(low_sum)
-		return DoubleDouble((self.high + other.high) + overflow, low_sum - overflow)
-
 	def __mul__(self, factor: int):
 		low_times_factor = self.low * factor
 		overflow = math.floor(low_times_factor)
@@ -91,9 +83,6 @@ class DoubleDouble:
 		low_div = (self.low + rem) / d
 		carry = math.floor(low_div)
 		return DoubleDouble(q_int + carry, low_div - carry)
-
-	def __lt__(self, other):
-		return self.high < other.high or (self.high == other.high and self.low < other.low)
 
 	def __float__(self):
 		return self.high + self.low
