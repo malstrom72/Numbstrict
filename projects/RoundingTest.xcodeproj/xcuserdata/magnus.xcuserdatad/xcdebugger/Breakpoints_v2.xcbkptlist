@@ -14,8 +14,8 @@
             filePath = "RoundingTest.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "31"
-            endingLineNumber = "31"
+            startingLineNumber = "56"
+            endingLineNumber = "56"
             landmarkName = "main(argc, argv)"
             landmarkType = "9">
          </BreakpointContent>
@@ -40,7 +40,7 @@
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "F6946C2F-170C-4209-A114-2783827346CE"
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "../src/Numbstrict.cpp"
@@ -50,36 +50,6 @@
             endingLineNumber = "715"
             landmarkName = "parseReal(b, e, value)"
             landmarkType = "9">
-            <Locations>
-               <Location
-                  uuid = "F6946C2F-170C-4209-A114-2783827346CE - 1b04e80b80fcf007"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "char const* Numbstrict::parseReal&lt;double&gt;(char const*, char const*, double&amp;)"
-                  moduleName = "RoundingTest"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/magnus/git/Numbstrict/src/Numbstrict.cpp"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "715"
-                  endingLineNumber = "715">
-               </Location>
-               <Location
-                  uuid = "F6946C2F-170C-4209-A114-2783827346CE - 25c81810314503db"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "char const* Numbstrict::parseReal&lt;float&gt;(char const*, char const*, float&amp;)"
-                  moduleName = "RoundingTest"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/magnus/git/Numbstrict/src/Numbstrict.cpp"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "715"
-                  endingLineNumber = "715">
-               </Location>
-            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy

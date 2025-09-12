@@ -18,6 +18,14 @@ inline uint64_t doubleToBits(const double d) {
 	return v;
 }
 
+inline uint32_t floatToBits(const float f) {
+	char buffer[4];
+	memcpy(buffer, &f, sizeof (buffer));
+	uint32_t v;
+	memcpy(&v, buffer, sizeof (buffer));
+	return v;
+}
+
 inline double bitsToDouble(const uint64_t i) {
 	char buffer[8];
 	memcpy(buffer, &i, sizeof (buffer));
@@ -26,7 +34,24 @@ inline double bitsToDouble(const uint64_t i) {
 	return d;
 }
 
+inline float bitsToFloat(const uint32_t i) {
+	char buffer[4];
+	memcpy(buffer, &i, sizeof (buffer));
+	float f;
+	memcpy(&f, buffer, sizeof (buffer));
+	return f;
+}
+
 int main(int argc, const char* argv[]) {
+	const std::string source = "-7.03853131e-26";
+	const float f = Numbstrict::stringToFloat(source);
+	const uint32_t ui32 = floatToBits(f);
+	const std::string back = Numbstrict::floatToString(f);
+	std::cout << source << " = " << f << " = " << std::hex << ui32 << " -> " << back << std::endl;
+	for (uint32_t i = ui32 - 2; i <= ui32 + 2; ++i) {
+		std::cout << std::hex << i << " = " << std::setprecision(20) << bitsToFloat(i) << std::endl;
+	}
+/*
 	const std::string source = "1.945478849582046e-308";
 	const double d = Numbstrict::stringToDouble(source);
 //	const std::string back = Numbstrict::doubleToString(d);
@@ -35,5 +60,6 @@ int main(int argc, const char* argv[]) {
 	for (uint64_t i = i64 - 1; i <= i64 + 1; ++i) {
 		std::cout << std::hex << i << " = " << std::setprecision(20) << bitsToDouble(i) << std::endl;
 	}
+*/
 	return 0;
 }
