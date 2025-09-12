@@ -47,18 +47,6 @@ static uint64_t roundShiftRightToEven(uint64_t N, int r) {
 	return q + (q & 1);
 }
 
-static int ilog2FromDouble(double x) {
-	int e2;
-	std::frexp(x, &e2);
-	return e2 - 1;
-}
-
-static inline int pow2ExponentFromBits(double f) {
-	int e;
-	double m = std::frexp(f, &e);
-	assert(m == 0.5);
-	return e - 1;
-}
 
 struct DoubleDouble {
 	double high;
@@ -72,23 +60,17 @@ static inline double scaleFloat(const DoubleDouble& acc, double factor) {
 
 double scaleDDPow2Exact(const DoubleDouble& acc, double factor) {
 	assert(factor > 0.0);
-	int k = pow2ExponentFromBits(factor);
-	uint64_t H = static_cast<uint64_t>(acc.high);
+	int tmp;
+	std::frexp(factor, &tmp);
+	int k = tmp - 1;				// factor = 2^k
+	uint64_t H = static_cast<uint64_t>(acc.high);	   // integer part of high, nonzero
 	double L = acc.low;
-	if (H == 0 && L == 0.0) {
-		return 0.0;
-	}
-	int e;
-	if (H == 0) {
-		std::frexp(L, &e);
-		e = (e - 1) + k;
-	} else {
-		e = ilog2FromDouble(acc.high) + k;
-	}
+	std::frexp(acc.high, &tmp);
+	int exph = tmp - 1;				// exponent of high
+	int e = exph + k;
 	uint64_t N = 0;
-	if (e < -1022) {
-		int E = k;
-		int T = E + 1074;
+	if (e < -1022) {		// underflow to subnormal
+		int T = k + 1074;
 		double frac;
 		if (T >= 0) {
 			uint64_t A = H << T;
@@ -117,39 +99,24 @@ double scaleDDPow2Exact(const DoubleDouble& acc, double factor) {
 		}
 		return bitsToDouble(N);
 	}
-	if (H == 0) {
-		double mL = std::frexp(L, &e);
-		e = (e - 1) + k;
-		double t = std::ldexp(mL, 53);
-		uint64_t Ni = static_cast<uint64_t>(t);
-		double frac = t - static_cast<double>(Ni);
-		N = roundToEvenFromParts(Ni, frac);
-		if (N == (uint64_t(1) << 53)) {
-			N = uint64_t(1) << 52;
-			++e;
-		}
+	int s = 52 - exph;			   // align high and low
+	double frac;
+	if (s >= 0) {
+		uint64_t A = H << s;
+		double Bf = std::ldexp(L, s);
+		uint64_t Bi = static_cast<uint64_t>(Bf);
+		frac = Bf - static_cast<double>(Bi);
+		N = roundToEvenFromParts(A + Bi, frac);
 	} else {
-		int exph = ilog2FromDouble(acc.high);
-		int s = 52 - exph;
-		double frac;
-		if (s >= 0) {
-			uint64_t A = H << s;
-			double Bf = std::ldexp(L, s);
-			uint64_t Bi = static_cast<uint64_t>(Bf);
-			frac = Bf - static_cast<double>(Bi);
-			N = roundToEvenFromParts(A + Bi, frac);
-		} else {
-			int k2 = -s;
-			uint64_t q = H >> k2;
-			uint64_t r = H & ((uint64_t(1) << k2) - 1);
-			double Bf = (r + std::ldexp(L, k2)) / static_cast<double>(uint64_t(1) << k2);
-			N = roundToEvenFromParts(q, Bf);
-		}
-		e = exph + k;
-		if (N == (uint64_t(1) << 53)) {
-			N = uint64_t(1) << 52;
-			++e;
-		}
+		int k2 = -s;
+		uint64_t q = H >> k2;
+		uint64_t r = H & ((uint64_t(1) << k2) - 1);
+		double Bf = (r + std::ldexp(L, k2)) / static_cast<double>(uint64_t(1) << k2);
+		N = roundToEvenFromParts(q, Bf);
+	}
+	if (N == (uint64_t(1) << 53)) {
+		N = uint64_t(1) << 52;
+		++e;
 	}
 	int expfield = e + 1023;
 	if (expfield <= 0) {
@@ -163,7 +130,7 @@ double scaleDDPow2Exact(const DoubleDouble& acc, double factor) {
 		}
 		return bitsToDouble(payload);
 	}
-	if (expfield >= 0x7ff) {
+	if (expfield >= 0x7ff) {		// overflow
 		return INFINITY;
 	}
 	uint64_t mant = N - (uint64_t(1) << 52);
