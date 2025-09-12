@@ -347,8 +347,8 @@ def fuzz(n=200000, seed=1234, sample=0):
         highest = -999
 
         mismatch_samples = []
-        match_samples = []
-        match_count = 0
+        match_buckets = {}
+        bucket_counts = {}
 
         count = 0
         while count < n:
@@ -378,14 +378,16 @@ def fuzz(n=200000, seed=1234, sample=0):
                                 if name == "floatScale" and len(mismatch_samples) < sample:
                                         mismatch_samples.append((double_bits(sign * acc.high), double_bits(sign * acc.low), double_bits(factor), oracle_bits))
                         elif name == "floatScale" and sample > 0:
-                                match_count += 1
                                 entry = (double_bits(sign * acc.high), double_bits(sign * acc.low), double_bits(factor), oracle_bits)
-                                if len(match_samples) < sample:
-                                        match_samples.append(entry)
+                                k = pow2_exponent_from_bits(factor)
+                                bucket_counts[k] = bucket_counts.get(k, 0) + 1
+                                bucket = match_buckets.setdefault(k, [])
+                                if len(bucket) < sample:
+                                        bucket.append(entry)
                                 else:
-                                        r = random.randrange(match_count)
+                                        r = random.randrange(bucket_counts[k])
                                         if r < sample:
-                                                match_samples[r] = entry
+                                                bucket[r] = entry
 
                 count += 1
 
@@ -397,6 +399,17 @@ def fuzz(n=200000, seed=1234, sample=0):
         print(f"  highest_exp10_among_mismatches: {highest}")
 
         if sample > 0:
+                match_samples = []
+                exps = sorted(match_buckets.keys())
+                if exps:
+                        step = max(1, len(exps) // sample)
+                        for i in range(0, len(exps), step):
+                                k = exps[i]
+                                bucket = match_buckets[k]
+                                match_samples.append(random.choice(bucket))
+                                if len(match_samples) >= sample:
+                                        break
+
                 def dump(arr, name):
                         print(f"{name} = [")
                         for h, l, fbits, obits in arr:
