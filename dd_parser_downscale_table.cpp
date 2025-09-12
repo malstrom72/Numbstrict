@@ -1,22 +1,21 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib>
 #include <cmath>
 #include <cstring>
 #include <vector>
 #include <array>
 #include <fstream>
 #include <string>
-// #include <quadmath.h>
+#include <inttypes.h>
 
-static uint64_t doubleBits(double x) {
+static inline uint64_t doubleBits(double x) {
 	uint64_t u;
 	std::memcpy(&u, &x, sizeof(u));
 	return u;
 }
 
-static double bitsToDouble(uint64_t u) {
+static inline double bitsToDouble(uint64_t u) {
 	double x;
 	std::memcpy(&x, &u, sizeof(x));
 	return x;
@@ -54,36 +53,22 @@ static int ilog2FromDouble(double x) {
 	return e2 - 1;
 }
 
-static int pow2ExponentFromBits(double f) {
-	uint64_t u = doubleBits(f);
-	int exp = int((u >> 52) & 0x7ff);
-	uint64_t frac = u & ((uint64_t(1) << 52) - 1);
-	if (exp == 0) {
-		assert(frac != 0 && (frac & (frac - 1)) == 0);
-		int pos = 63 - __builtin_clzll(frac);
-		return -1074 + pos;
-	}
-	assert(frac == 0);
-	return exp - 1023;
+static inline int pow2ExponentFromBits(double f) {
+	int e;
+	double m = std::frexp(f, &e);
+	assert(m == 0.5);
+	return e - 1;
 }
 
 struct DoubleDouble {
 	double high;
 	double low;
-	DoubleDouble(double h = 0.0, double l = 0.0) : high(h), low(l) {}
 	double toDouble() const { return high + low; }
 };
 
-double scaleFloat(const DoubleDouble& acc, double factor) {
+static inline double scaleFloat(const DoubleDouble& acc, double factor) {
 	return acc.toDouble() * factor;
 }
-
-/*double scaleDecimal(const DoubleDouble& acc, double factor) {
-	__float128 a = static_cast<__float128>(acc.high);
-	a += static_cast<__float128>(acc.low);
-	a *= static_cast<__float128>(factor);
-	return static_cast<double>(a);
-}*/
 
 double scaleDDPow2Exact(const DoubleDouble& acc, double factor) {
 	assert(factor > 0.0);
@@ -198,36 +183,37 @@ static std::vector<TestCase> loadTests(const char* path) {
 	std::ifstream f(path);
 	std::string line;
 	while (std::getline(f, line)) {
-		unsigned long long h, l, fb, o;
-		if (std::sscanf(line.c_str(), " [%llx, %llx, %llx, %llx],", &h, &l, &fb, &o) == 4) {
-			tests.push_back({static_cast<uint64_t>(h), static_cast<uint64_t>(l), static_cast<uint64_t>(fb), static_cast<uint64_t>(o)});
+		TestCase t;
+		if (std::sscanf(line.c_str(),
+						" [%" SCNx64 ", %" SCNx64 ", %" SCNx64 ", %" SCNx64 "],",
+						&t.hbits, &t.lbits, &t.fbits, &t.obits) == 4) {
+			tests.push_back(t);
 		}
 	}
 	return tests;
 }
 int main() {
-	auto tests = loadTests("dd_parser_fuzz_table.txt");
+	const auto tests = loadTests("dd_parser_fuzz_table.txt");
 	struct Scaler { const char* name; double (*fn)(const DoubleDouble&, double); };
-	Scaler scalers[] = {
+	const std::array<Scaler, 2> scalers = {{
 		{"scale_float", scaleFloat},
-//		{"scale_decimal", scaleDecimal},
 		{"scale_dd_pow2_exact", scaleDDPow2Exact},
-	};
-	size_t counts[sizeof(scalers)/sizeof(scalers[0])] = {0};
+	}};
+	std::array<size_t, scalers.size()> counts = {};
 	for (const auto& t : tests) {
 		double raw_h = bitsToDouble(t.hbits);
 		double raw_l = bitsToDouble(t.lbits);
 		double sign = (raw_h < 0.0 || (raw_h == 0.0 && raw_l < 0.0)) ? -1.0 : 1.0;
 		DoubleDouble acc(std::fabs(raw_h), std::fabs(raw_l));
 		double factor = bitsToDouble(t.fbits);
-		for (size_t i = 0; i < sizeof(scalers)/sizeof(scalers[0]); ++i) {
+		for (size_t i = 0; i < scalers.size(); ++i) {
 			double y = sign * scalers[i].fn(acc, factor);
 			if (doubleBits(y) != t.obits) {
 				++counts[i];
 			}
 		}
 	}
-	for (size_t i = 0; i < sizeof(scalers)/sizeof(scalers[0]); ++i) {
+	for (size_t i = 0; i < scalers.size(); ++i) {
 		std::printf("%s mismatches: %zu\n", scalers[i].name, counts[i]);
 	}
 	return 0;
