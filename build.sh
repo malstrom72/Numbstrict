@@ -19,7 +19,7 @@ for target in beta release; do
 	bash tools/BuildCpp.sh "$target" native "$out_dir/compareWithRyu" \
 		-I src -I externals/ryu tests/compareWithRyu.cpp src/Numbstrict.cpp src/Makaron.cpp \
 		externals/ryu/ryu/d2s.c externals/ryu/ryu/f2s.c
-	"$out_dir/compareWithRyu"
+		"$out_dir/compareWithRyu" float
 done
 
 echo "Build and tests completed"
