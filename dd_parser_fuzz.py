@@ -55,10 +55,6 @@ class DoubleDouble:
 		self.high = float(high)
 		self.low = float(low)
 
-	def __add__(self, other):
-		low_sum = self.low + other.low
-		overflow = math.floor(low_sum)
-		return DoubleDouble((self.high + other.high) + overflow, low_sum - overflow)
 
 	def __mul__(self, factor: int):
 		low_times_factor = self.low * factor
@@ -74,8 +70,6 @@ class DoubleDouble:
 		carry = math.floor(low_div)
 		return DoubleDouble(q_int + carry, low_div - carry)
 
-	def __lt__(self, other):
-		return self.high < other.high or (self.high == other.high and self.low < other.low)
 
 	def __float__(self):
 		return self.high + self.low
@@ -119,11 +113,11 @@ class Exp10Table:
 EXP10_TABLE = Exp10Table()
 
 
-# ---------------- parse into (accumulator, factor) ----------------
+# ---------------- parse into (sign, accumulator, factor) ----------------
 
 
 def parse_components(s: str):
-	"""Return (sign, exponent, idx, accumulator(DoubleDouble), factor(float), significand_end_str)."""
+	"""Return (sign, accumulator(DoubleDouble), factor(float)) or None."""
 	p = 0
 	e = len(s)
 	sign = 1.0
@@ -132,7 +126,7 @@ def parse_components(s: str):
 		p += 1
 	t = s[p:].lower()
 	if t.startswith("inf") or t.startswith("nan"):
-		return (sign, None, None, None, None, None)
+		return None
 
 	exponent = -1
 	significandBegin = p
@@ -146,7 +140,7 @@ def parse_components(s: str):
 		while p < e and s[p].isdigit():
 			p += 1
 	if p == significandBegin:
-		return (sign, None, None, None, None, None)
+		return None
 	significandEnd = p
 
 	if p < e and (s[p] == 'e' or s[p] == 'E'):
@@ -171,7 +165,7 @@ def parse_components(s: str):
 		p2 += 1
 
 	if p2 == significandEnd or exponent < MIN_EXPONENT or exponent > MAX_EXPONENT:
-		return (sign, exponent, None, None, None, s)
+		return None
 
 	idx = exponent - MIN_EXPONENT
 	magnitude = EXP10_TABLE.normals[idx]
@@ -184,7 +178,7 @@ def parse_components(s: str):
 		j += 1
 
 	factor = EXP10_TABLE.factors[idx]  # power-of-two
-	return (sign, exponent, idx, acc, factor, s)
+	return (sign, acc, factor)
 
 
 # ---------------- scaling helpers ----------------
@@ -359,9 +353,10 @@ def fuzz(n=200000, seed=1234):
 		if not math.isfinite(x):
 			continue
 		s = repr(x)
-		sign, exponent, idx, acc, factor, _ = parse_components(s)
-		if acc is None:
-			continue
+		parsed = parse_components(s)
+		if parsed is None:
+			  continue
+		sign, acc, factor = parsed
 
 		oracle_bits = double_bits(x)
 
