@@ -8,6 +8,7 @@
 #include <utility>
 #include <cstdlib>
 #include <cstdio>
+#include <iostream>
 
 static std::string ryuDouble(double v) {
 		if (v == 0.0) return "0.0";
@@ -162,6 +163,9 @@ int main(int argc, char** argv) {
 		float vr = std::strtof(ryu.c_str(), nullptr);
 		std::printf("bits: %08lx\n ryu:  %s\n", (unsigned long)bits(v), ryu.c_str());
 	}
+	const std::string source = "2.22507385850720088902458687609E-308";
+	const double d = Numbstrict::stringToDouble(source);
+	std::cout << d << std::endl;
 		bool testDouble = false;
 		bool testFloat = false;
 		int testCount = 1000000; /// default random-test count

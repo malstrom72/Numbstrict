@@ -638,157 +638,77 @@ static double trySomething(const DoubleDouble& accumulator, const double factor)
 // round-to-nearest-even step. This matches the Decimal oracle and fixes
 // all denormal boundary mismatches.
 
-static inline uint64_t doubleBits(double x) {
-	uint64_t u;
-	std::memcpy(&u, &x, sizeof(u));
-	return u;
-}
-
+// --- tiny helpers (C++03) ----------------------------------------------------
 static inline double bitsToDouble(uint64_t u) {
-	double x;
-	std::memcpy(&x, &u, sizeof(x));
-	return x;
+    double x;
+    std::memcpy(&x, &u, sizeof(x));
+    return x;
 }
 
-static uint64_t roundToEvenFromParts(uint64_t intPart, double fracPart) {
-	if (fracPart < 0.5) {
-		return intPart;
+// --- slim scaleAndConvert ----------------------------------------------------
+// Assumptions:
+//  - factor is an *exact* power-of-two (normal or subnormal), from your table.
+//  - acc.high is an integer in [0, 2^53) and acc.low ∈ [0,1).
+//  - Table construction guarantees k >= -1074, so T = k + 1074 >= 0.
+static double scaleAndConvert(const DoubleDouble& acc, double factor)
+{
+    if (acc.high == 0.0 && acc.low == 0.0) {
+    	return 0.0;
 	}
-	if (fracPart > 0.5) {
-		return intPart + 1;
+	const double fastResult = (acc.high + acc.low) * factor;
+	if (fastResult >= 1e-307) {
+		return fastResult;
 	}
-	return (intPart & 1) == 0 ? intPart : (intPart + 1);
-}
+	
+    // Slow path: denormal/transition region — do exact assembly then one rounding.
 
-static uint64_t roundShiftRightToEven(uint64_t N, int r) {
-	if (r <= 0) {
-		return N << (-r);
-	}
-	uint64_t q = N >> r;
-	uint64_t rem = N & ((uint64_t(1) << r) - 1);
-	uint64_t half = uint64_t(1) << (r - 1);
-	if (rem > half) {
-		return q + 1;
-	}
-	if (rem < half) {
-		return q;
-	}
-	return q + (q & 1);
-}
+    // k = exact exponent such that factor == 2^k (works for normals/subnormals)
+    int k;
+    frexp(factor, &k);
 
+    // unbiased exponent of acc.high; if high==0, force slow path
+    int exph;
+    frexp(acc.high, &exph);
 
-double scaleDDPow2Exact(const DoubleDouble& acc, double factor) {
-	assert(factor > 0.0);
-	int tmp;
-	std::frexp(factor, &tmp);
-	int k = tmp - 1;				// factor is assumed exact 2^k
-	uint64_t H = static_cast<uint64_t>(acc.high);	// integer part of |high| (non-zero)
-	double L = acc.low; 				// low tail (|low|)
-	std::frexp(acc.high, &tmp);
-	int exph = tmp - 1;				// unbiased exponent of high
-	int e = exph + k; 				// target unbiased exponent after scaling
-	uint64_t N = 0; 				// accumulator for 53-bit significand with hidden bit
-	if (e < -1022) {				// result underflows normal range -> subnormal/zero
-		int T = k + 1074; 			// 1074 = 1022 (min exp bias) + 52 (mantissa bits)
-		double frac; 				// fractional tail after fitting into payload window
-		if (T >= 0) {
-			uint64_t A = H << T; 		// shift high into subnormal payload scale
-			double Bf = std::ldexp(L, T);	// align low the same way
-			uint64_t Bi = static_cast<uint64_t>(Bf);
-			frac = Bf - static_cast<double>(Bi); // leftover fractional contribution
-			N = A + Bi; 				// integer payload before rounding
-		} else {
-			int kk = -T; 				// need to right-shift high into payload bits
-			uint64_t q = H >> kk; 		// integer payload candidate
-			uint64_t r = H & ((uint64_t(1) << kk) - 1);
-			double Bf = (r + std::ldexp(L, kk)) / static_cast<double>(uint64_t(1) << kk);
-			frac = Bf; 				// fractional remainder to round with ties-to-even
-			N = q;
-		}
-		// Round to nearest, ties-to-even using frac and current N
-		if (frac > 0.5) {
-			++N;
-		} else if (frac == 0.5 && (N & 1) == 1) {
-			++N;
-		}
-		// Clamp to zero or smallest normal if rounding crosses the boundary
-		if (N <= 0) {
-			return 0.0; 				// rounded all the way to zero
-		}
-		if (N >= (uint64_t(1) << 52)) {
-			return bitsToDouble(0x0010000000000000ULL); // rounded up into smallest normal
-		}
-		return bitsToDouble(N); 		// subnormal result (exp=0, payload=N)
-	}
-	int s = 52 - exph; 				// align high+low onto the 52-bit payload window
-	double frac; 					// fractional tail not captured in integer payload
-	if (s >= 0) {
-		uint64_t A = H << s; 			// left-shift high into payload scale
-		double Bf = std::ldexp(L, s); 	// align low to same scale
-		uint64_t Bi = static_cast<uint64_t>(Bf);
-		frac = Bf - static_cast<double>(Bi);
-		N = roundToEvenFromParts(A + Bi, frac); // combine and round (keeps hidden 1 if present)
-	} else {
-		int k2 = -s; 					// need to right-shift high
-		uint64_t q = H >> k2; 			// integer payload candidate
-		uint64_t r = H & ((uint64_t(1) << k2) - 1);
-		double Bf = (r + std::ldexp(L, k2)) / static_cast<double>(uint64_t(1) << k2);
-		N = roundToEvenFromParts(q, Bf); 	// q plus fractional tail rounded to even
-	}
-	// Handle rounding overflow that turns 1.111.. into 10.000.. (carry into exponent)
-	if (N == (uint64_t(1) << 53)) {
-		N = uint64_t(1) << 52; 		// renormalize payload to 1<<52 (implicit 1)
-		++e; 						// bump exponent accordingly
-	}
-	int expfield = e + 1023; 			// biased exponent field for IEEE-754 binary64
-	if (expfield <= 0) {
-		// Borderline: normal after rounding became subnormal -> shift and round payload
-		int rshift = 1 - expfield;
-		uint64_t payload = roundShiftRightToEven(N, rshift);
-		if (payload <= 0) {
-			return 0.0;
-		}
-		if (payload >= (uint64_t(1) << 52)) {
-			return bitsToDouble(0x0010000000000000ULL);
-		}
-		return bitsToDouble(payload);
-	}
-	if (expfield >= 0x7ff) {			// overflow to +inf
-		return INFINITY;
-	}
-	// Pack normal: N includes the hidden 1, remove it and assemble final bits
-	uint64_t mant = N - (uint64_t(1) << 52);
-	uint64_t bits = (static_cast<uint64_t>(expfield) << 52) | mant;
-	return bitsToDouble(bits);
-}
+    const int e = exph - 1 + (k - 1); // target unbiased exponent after scaling
 
-static inline int pow2exp_from_bits(double pow2) {
-    // Assumes pow2 is an exact power of two (normal or subnormal)
-    int e;
-    std::frexp(pow2, &e);   // pow2 = 0.5 * 2^e for normals; still works for subnormals
-    return e - 1;           // exact k such that pow2 == 2^k
-}
-
-static inline int ilogb_nonzero(double x) {
-    // x > 0, integer < 2^53, so this is exact and portable
-    return std::ilogb(x);   // unbiased exponent of x
-}
-
-static double scaleAndConvert(const DoubleDouble& a, double factor) {
-    if (a.high == 0.0 && a.low == 0.0) return 0.0;
-
-    const int k    = pow2exp_from_bits(factor);     // factor == 2^k
-    const int exph = ilogb_nonzero(a.high);       // unbiased exponent of high
-    const int e    = exph + k;                      // unbiased exponent after scaling
-
+    // Fast path: result remains normal -> legacy combine is safe & fastest.
     if (e >= -1022) {
-        // Safely normal → cheap path (your legacy combine)
-        return (a.high + a.low) * factor;
-        // or: return (double)a * factor;
-    } else {
-        // Borderline normal or subnormal → exact path that avoids double rounding
-        return scaleDDPow2Exact(a, factor);
+        return fastResult;
     }
+
+
+    // With your table, T = k + 1074 is always >= 0 (no right-shift branch needed).
+    const int T = (k - 1) + 1074;  // 1074 = 1022 (emin bias) + 52 (mantissa bits)
+    assert(T >= 0);
+
+    // Align (high, low) into the 52-bit subnormal payload scale, then round once.
+    const uint64_t A = (static_cast<uint64_t>(acc.high) << T);          // integer contribution
+    const double Bf = ::ldexp(acc.low, T);     // fractional contribution
+    const uint64_t Bi = static_cast<uint64_t>(Bf);
+    const double frac = Bf - static_cast<double>(Bi);
+
+    uint64_t N = A + Bi;                   // payload before rounding
+
+    // Round to nearest, ties-to-even
+    if (frac > 0.5) {
+    	++N;
+	} else if (frac == 0.5) {
+		N += (N & 1ULL);
+	}
+    	return bitsToDouble(N);                           // subnormal
+
+    // Boundaries:
+    // N == 0                -> underflow to +0
+    // N in [1, 2^52 - 1]    -> subnormal (exp=0, payload=N)
+    // N >= 2^52             -> carries into smallest normal (round-up)
+    if (N == 0ULL) {
+        return 0.0;
+    } else if (N >= (1ULL << 52)) {
+        return bitsToDouble(0x0010000000000000ULL);   // +min_normal
+    } else {
+    	return bitsToDouble(N);                           // subnormal
+	}
 }
 
 template<typename T> const Char* parseReal(const Char* const b, const Char* const e, T& value) {
