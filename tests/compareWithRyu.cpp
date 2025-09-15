@@ -209,6 +209,81 @@ int main(int argc, char** argv) {
 						assert(bits(nb) == bits(v) || (v == 0.0 && nb == 0.0));
 						static_cast<void>(round);
 				}
+
+				// One-ULP neighbors around selected edge cases
+				for (double base : dEdge) {
+						if (!std::isfinite(base) || base == 0.0) continue; // skip inf and +/-0 (avoid -0 rounding mismatch)
+						double n1 = std::nextafter(base, -std::numeric_limits<double>::infinity());
+						double n2 = std::nextafter(base, std::numeric_limits<double>::infinity());
+						for (double v : { n1, n2 }) {
+								if (!std::isfinite(v) || v == 0.0) continue;
+								std::string ours = Numbstrict::doubleToString(v);
+								std::string oracle = ryuDouble(v);
+								if (ours != oracle) {
+										double ra = std::strtod(ours.c_str(), nullptr);
+										double rb = std::strtod(oracle.c_str(), nullptr);
+										if (bits(ra) == bits(v) && bits(rb) == bits(v) && is_decimal_tie_equivalent(ours, oracle)) {
+												// accept tie canonicalization difference
+										} else {
+												std::printf("double mismatch (neighbor)\nbits: %016llx\n base: %s\n val:  %s\n ryu:  %s\n",
+														(unsigned long long)bits(v), Numbstrict::doubleToString(base).c_str(), ours.c_str(), oracle.c_str());
+												return 1;
+										}
+								}
+								double round = std::strtod(ours.c_str(), nullptr);
+								assert(bits(round) == bits(v));
+								double na = Numbstrict::stringToDouble(ours);
+								double nb = Numbstrict::stringToDouble(oracle);
+								if (!(bits(na) == bits(v) || (v == 0.0 && na == 0.0))) {
+										std::printf("stringToDouble(ours) mismatch (neighbor)\nbits: %016llx\n ours: %s\n", (unsigned long long)bits(v), ours.c_str());
+										return 1;
+								}
+								if (!(bits(nb) == bits(v) || (v == 0.0 && nb == 0.0))) {
+										std::printf("stringToDouble(ryu) mismatch (neighbor)\nbits: %016llx\n ryu:  %s\n", (unsigned long long)bits(v), oracle.c_str());
+										return 1;
+								}
+								static_cast<void>(round);
+						}
+				}
+
+				// Boundary values around decimal formatting thresholds
+				double dBoundary[] = {
+						1e-6, -1e-6,
+						1e-7, -1e-7,
+						1e10, -1e10
+				};
+				for (double base : dBoundary) {
+						for (double dir : { -std::numeric_limits<double>::infinity(), std::numeric_limits<double>::infinity() }) {
+								double v = std::nextafter(base, dir);
+								if (!std::isfinite(v) || v == 0.0) continue;
+								std::string ours = Numbstrict::doubleToString(v);
+								std::string oracle = ryuDouble(v);
+								if (ours != oracle) {
+										double ra = std::strtod(ours.c_str(), nullptr);
+										double rb = std::strtod(oracle.c_str(), nullptr);
+										if (bits(ra) == bits(v) && bits(rb) == bits(v) && is_decimal_tie_equivalent(ours, oracle)) {
+												// accept tie canonicalization difference
+										} else {
+												std::printf("double mismatch (boundary)\nbits: %016llx\n base: %s\n val:  %s\n ryu:  %s\n",
+														(unsigned long long)bits(v), Numbstrict::doubleToString(base).c_str(), ours.c_str(), oracle.c_str());
+												return 1;
+										}
+								}
+								double round = std::strtod(ours.c_str(), nullptr);
+								assert(bits(round) == bits(v));
+								double na = Numbstrict::stringToDouble(ours);
+								double nb = Numbstrict::stringToDouble(oracle);
+								if (!(bits(na) == bits(v) || (v == 0.0 && na == 0.0))) {
+										std::printf("stringToDouble(ours) mismatch (boundary)\nbits: %016llx\n ours: %s\n", (unsigned long long)bits(v), ours.c_str());
+										return 1;
+								}
+								if (!(bits(nb) == bits(v) || (v == 0.0 && nb == 0.0))) {
+										std::printf("stringToDouble(ryu) mismatch (boundary)\nbits: %016llx\n ryu:  %s\n", (unsigned long long)bits(v), oracle.c_str());
+										return 1;
+								}
+								static_cast<void>(round);
+						}
+				}
 		}
 
 		if (testFloat) {
@@ -234,6 +309,79 @@ int main(int argc, char** argv) {
 						assert(bits(na) == bits(v) || (v == 0.0f && na == 0.0f));
 						assert(bits(nb) == bits(v) || (v == 0.0f && nb == 0.0f));
 						static_cast<void>(round);
+				}
+
+				// One-ULP neighbors around selected edge cases
+				for (float base : fEdge) {
+						if (!std::isfinite(base) || base == 0.0f) continue; // skip inf and +/-0
+						float n1 = std::nextafter(base, -std::numeric_limits<float>::infinity());
+						float n2 = std::nextafter(base, std::numeric_limits<float>::infinity());
+						for (float v : { n1, n2 }) {
+								if (!std::isfinite(v) || v == 0.0f) continue;
+								std::string ours = Numbstrict::floatToString(v);
+								std::string oracle = ryuFloat(v);
+								if (ours != oracle) {
+										float ra = std::strtof(ours.c_str(), nullptr);
+										float rb = std::strtof(oracle.c_str(), nullptr);
+										if (bits(ra) == bits(v) && bits(rb) == bits(v) && is_decimal_tie_equivalent(ours, oracle)) {
+												// accept tie canonicalization difference
+										} else {
+												std::printf("float mismatch (neighbor)\nbits: %08x\n base: %s\n val:  %s\n ryu:  %s\n", bits(v), Numbstrict::floatToString(base).c_str(), ours.c_str(), oracle.c_str());
+												return 1;
+										}
+								}
+								float round = std::strtof(ours.c_str(), nullptr);
+								assert(bits(round) == bits(v));
+								float na = Numbstrict::stringToFloat(ours);
+								float nb = Numbstrict::stringToFloat(oracle);
+								if (!(bits(na) == bits(v) || (v == 0.0f && na == 0.0f))) {
+										std::printf("stringToFloat(ours) mismatch (neighbor)\nbits: %08x\n ours: %s\n", bits(v), ours.c_str());
+										return 1;
+								}
+								if (!(bits(nb) == bits(v) || (v == 0.0f && nb == 0.0f))) {
+										std::printf("stringToFloat(ryu) mismatch (neighbor)\nbits: %08x\n ryu:  %s\n", bits(v), oracle.c_str());
+										return 1;
+								}
+								static_cast<void>(round);
+						}
+				}
+
+				// Boundary values around decimal formatting thresholds
+				float fBoundary[] = {
+						1e-6f, -1e-6f,
+						1e-7f, -1e-7f,
+						1e10f, -1e10f
+				};
+				for (float base : fBoundary) {
+						for (float dir : { -std::numeric_limits<float>::infinity(), std::numeric_limits<float>::infinity() }) {
+								float v = std::nextafter(base, dir);
+								if (!std::isfinite(v) || v == 0.0f) continue;
+								std::string ours = Numbstrict::floatToString(v);
+								std::string oracle = ryuFloat(v);
+								if (ours != oracle) {
+										float ra = std::strtof(ours.c_str(), nullptr);
+										float rb = std::strtof(oracle.c_str(), nullptr);
+										if (bits(ra) == bits(v) && bits(rb) == bits(v) && is_decimal_tie_equivalent(ours, oracle)) {
+												// accept tie canonicalization difference
+										} else {
+												std::printf("float mismatch (boundary)\nbits: %08x\n base: %s\n val:  %s\n ryu:  %s\n", bits(v), Numbstrict::floatToString(base).c_str(), ours.c_str(), oracle.c_str());
+												return 1;
+										}
+								}
+								float round = std::strtof(ours.c_str(), nullptr);
+								assert(bits(round) == bits(v));
+								float na = Numbstrict::stringToFloat(ours);
+								float nb = Numbstrict::stringToFloat(oracle);
+								if (!(bits(na) == bits(v) || (v == 0.0f && na == 0.0f))) {
+										std::printf("stringToFloat(ours) mismatch (boundary)\nbits: %08x\n ours: %s\n", bits(v), ours.c_str());
+										return 1;
+								}
+								if (!(bits(nb) == bits(v) || (v == 0.0f && nb == 0.0f))) {
+										std::printf("stringToFloat(ryu) mismatch (boundary)\nbits: %08x\n ryu:  %s\n", bits(v), oracle.c_str());
+										return 1;
+								}
+								static_cast<void>(round);
+						}
 				}
 		}
 

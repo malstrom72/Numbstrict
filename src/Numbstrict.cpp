@@ -640,9 +640,6 @@ static double trySomething(const DoubleDouble& accumulator, const double factor)
 
 // --- tiny helpers (C++03) ----------------------------------------------------
 static inline double bitsToDouble(uint64_t u) {
-    double x;
-    std::memcpy(&x, &u, sizeof(x));
-    return x;
 }
 
 // --- slim scaleAndConvert ----------------------------------------------------
@@ -655,60 +652,42 @@ static double scaleAndConvert(const DoubleDouble& acc, double factor)
     if (acc.high == 0.0 && acc.low == 0.0) {
     	return 0.0;
 	}
+	
 	const double fastResult = (acc.high + acc.low) * factor;
 	if (fastResult >= 1e-307) {
-		return fastResult;
+		return fastResult;	// Quick shortcut because result is definitely normal.
 	}
 	
     // Slow path: denormal/transition region — do exact assembly then one rounding.
 
-    // k = exact exponent such that factor == 2^k (works for normals/subnormals)
-    int k;
-    frexp(factor, &k);
-
-    // unbiased exponent of acc.high; if high==0, force slow path
-    int exph;
-    frexp(acc.high, &exph);
-
-    const int e = exph - 1 + (k - 1); // target unbiased exponent after scaling
-
+    int factorExponent, highExponent;
+    frexp(factor, &factorExponent);
+    frexp(acc.high, &highExponent);	// unbiased exponent of acc.high
+	
     // Fast path: result remains normal -> legacy combine is safe & fastest.
-    if (e >= -1022) {
+    if (highExponent + factorExponent >= -1020) {
         return fastResult;
     }
 
-
-    // With your table, T = k + 1074 is always >= 0 (no right-shift branch needed).
-    const int T = (k - 1) + 1074;  // 1074 = 1022 (emin bias) + 52 (mantissa bits)
-    assert(T >= 0);
+    const int T = factorExponent + 1073;
+    assert(T >= 0);	// T = factorExponent + 1073 is always >= 0 (no right-shift branch needed).
 
     // Align (high, low) into the 52-bit subnormal payload scale, then round once.
-    const uint64_t A = (static_cast<uint64_t>(acc.high) << T);          // integer contribution
     const double Bf = ::ldexp(acc.low, T);     // fractional contribution
     const uint64_t Bi = static_cast<uint64_t>(Bf);
-    const double frac = Bf - static_cast<double>(Bi);
+    const double fraction = Bf - static_cast<double>(Bi);
 
-    uint64_t N = A + Bi;                   // payload before rounding
+    uint64_t N = (static_cast<uint64_t>(acc.high) << T) + Bi;                   // payload before rounding
 
     // Round to nearest, ties-to-even
-    if (frac > 0.5) {
+    if (fraction > 0.5) {
     	++N;
-	} else if (frac == 0.5) {
+	} else if (fraction == 0.5) {
 		N += (N & 1ULL);
 	}
-    	return bitsToDouble(N);                           // subnormal
-
-    // Boundaries:
-    // N == 0                -> underflow to +0
-    // N in [1, 2^52 - 1]    -> subnormal (exp=0, payload=N)
-    // N >= 2^52             -> carries into smallest normal (round-up)
-    if (N == 0ULL) {
-        return 0.0;
-    } else if (N >= (1ULL << 52)) {
-        return bitsToDouble(0x0010000000000000ULL);   // +min_normal
-    } else {
-    	return bitsToDouble(N);                           // subnormal
-	}
+    double x;
+    std::memcpy(&x, &N, sizeof (double));
+    return x;
 }
 
 template<typename T> const Char* parseReal(const Char* const b, const Char* const e, T& value) {
