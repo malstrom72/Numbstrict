@@ -210,6 +210,88 @@ int main(int argc, char** argv) {
 						static_cast<void>(round);
 				}
 
+				// ULP ring around DBL_MIN: a few under (subnormals), exactly at, and a few above
+				{
+						const double base = std::numeric_limits<double>::min();
+						// exactly at DBL_MIN
+						{
+								const double v = base;
+								std::string ours = Numbstrict::doubleToString(v);
+								std::string oracle = ryuDouble(v);
+								assert(ours == oracle);
+								double round = std::strtod(ours.c_str(), nullptr);
+								assert(bits(round) == bits(v));
+								double na = Numbstrict::stringToDouble(ours);
+								double nb = Numbstrict::stringToDouble(oracle);
+								assert(bits(na) == bits(v) || (v == 0.0 && na == 0.0));
+								assert(bits(nb) == bits(v) || (v == 0.0 && nb == 0.0));
+								static_cast<void>(round);
+						}
+						// a few ULPs under DBL_MIN (into subnormals)
+						double under = base;
+						for (int i = 0; i < 8; ++i) {
+								under = std::nextafter(under, 0.0);
+								if (under == 0.0) break;
+								std::string ours = Numbstrict::doubleToString(under);
+								std::string oracle = ryuDouble(under);
+								if (ours != oracle) {
+										double ra = std::strtod(ours.c_str(), nullptr);
+										double rb = std::strtod(oracle.c_str(), nullptr);
+										if (bits(ra) == bits(under) && bits(rb) == bits(under) && is_decimal_tie_equivalent(ours, oracle)) {
+												// accept tie canonicalization difference
+										} else {
+												std::printf("double mismatch (DBL_MIN under)\nbits: %016llx\n base: %s\n val:  %s\n ryu:  %s\n",
+														(unsigned long long)bits(under), Numbstrict::doubleToString(base).c_str(), ours.c_str(), oracle.c_str());
+												return 1;
+										}
+								}
+								double round = std::strtod(ours.c_str(), nullptr);
+								assert(bits(round) == bits(under));
+								double na = Numbstrict::stringToDouble(ours);
+								double nb = Numbstrict::stringToDouble(oracle);
+								if (!(bits(na) == bits(under) || (under == 0.0 && na == 0.0))) {
+										std::printf("stringToDouble(ours) mismatch (DBL_MIN under)\nbits: %016llx\n ours: %s\n", (unsigned long long)bits(under), ours.c_str());
+										return 1;
+								}
+								if (!(bits(nb) == bits(under) || (under == 0.0 && nb == 0.0))) {
+										std::printf("stringToDouble(ryu) mismatch (DBL_MIN under)\nbits: %016llx\n ryu:  %s\n", (unsigned long long)bits(under), oracle.c_str());
+										return 1;
+								}
+								static_cast<void>(round);
+						}
+						// a few ULPs above DBL_MIN (still normal)
+						double over = base;
+						for (int i = 0; i < 8; ++i) {
+								over = std::nextafter(over, std::numeric_limits<double>::infinity());
+								std::string ours = Numbstrict::doubleToString(over);
+								std::string oracle = ryuDouble(over);
+								if (ours != oracle) {
+										double ra = std::strtod(ours.c_str(), nullptr);
+										double rb = std::strtod(oracle.c_str(), nullptr);
+										if (bits(ra) == bits(over) && bits(rb) == bits(over) && is_decimal_tie_equivalent(ours, oracle)) {
+												// accept tie canonicalization difference
+										} else {
+												std::printf("double mismatch (DBL_MIN over)\nbits: %016llx\n base: %s\n val:  %s\n ryu:  %s\n",
+														(unsigned long long)bits(over), Numbstrict::doubleToString(base).c_str(), ours.c_str(), oracle.c_str());
+												return 1;
+										}
+								}
+								double round = std::strtod(ours.c_str(), nullptr);
+								assert(bits(round) == bits(over));
+								double na = Numbstrict::stringToDouble(ours);
+								double nb = Numbstrict::stringToDouble(oracle);
+								if (!(bits(na) == bits(over) || (over == 0.0 && na == 0.0))) {
+										std::printf("stringToDouble(ours) mismatch (DBL_MIN over)\nbits: %016llx\n ours: %s\n", (unsigned long long)bits(over), ours.c_str());
+										return 1;
+								}
+								if (!(bits(nb) == bits(over) || (over == 0.0 && nb == 0.0))) {
+										std::printf("stringToDouble(ryu) mismatch (DBL_MIN over)\nbits: %016llx\n ryu:  %s\n", (unsigned long long)bits(over), oracle.c_str());
+										return 1;
+								}
+								static_cast<void>(round);
+						}
+				}
+
 				// One-ULP neighbors around selected edge cases
 				for (double base : dEdge) {
 						if (!std::isfinite(base) || base == 0.0) continue; // skip inf and +/-0 (avoid -0 rounding mismatch)

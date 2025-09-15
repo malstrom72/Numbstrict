@@ -642,11 +642,11 @@ static double trySomething(const DoubleDouble& accumulator, const double factor)
 static inline double bitsToDouble(uint64_t u) {
 }
 
-// --- slim scaleAndConvert ----------------------------------------------------
+// scaleAndConvert: multiply by an exact power-of-two and round correctly near subnormals.
 // Assumptions:
-//  - factor is an *exact* power-of-two (normal or subnormal), from your table.
-//  - acc.high is an integer in [0, 2^53) and acc.low ∈ [0,1).
-//  - Table construction guarantees k >= -1074, so T = k + 1074 >= 0.
+//  - 'factor' is an exact power-of-two (normal or subnormal) from the table.
+//  - 'acc.high' is integral in [0, 2^53) and 'acc.low' ∈ [0,1).
+//  - Table ensures factorExponent >= -1074 so T = factorExponent + 1073 >= 0.
 static double scaleAndConvert(const DoubleDouble& acc, double factor)
 {
     if (acc.high == 0.0 && acc.low == 0.0) {
@@ -654,29 +654,28 @@ static double scaleAndConvert(const DoubleDouble& acc, double factor)
 	}
 	
 	const double fastResult = (acc.high + acc.low) * factor;
-	if (fastResult >= 1e-307) {
-		return fastResult;	// Quick shortcut because result is definitely normal.
+	if (fastResult >= 2.2250738585072014e-308) {
+		return fastResult;	// Normal result; fast path is exact here.
 	}
 	
-    // Slow path: denormal/transition region — do exact assembly then one rounding.
-
+	// Slow path: denormal/transition region — assemble payload then single rounding.
     int factorExponent, highExponent;
     frexp(factor, &factorExponent);
     frexp(acc.high, &highExponent);	// unbiased exponent of acc.high
 	
-    // Fast path: result remains normal -> legacy combine is safe & fastest.
+	// Still normal? Return fast path.
     if (highExponent + factorExponent >= -1020) {
+		assert(false);	// Should have been caught by fast path above.
         return fastResult;
     }
 
     const int T = factorExponent + 1073;
-    assert(T >= 0);	// T = factorExponent + 1073 is always >= 0 (no right-shift branch needed).
+	assert(T >= 0);	// Guaranteed by table construction (no right-shift branch needed).
 
-    // Align (high, low) into the 52-bit subnormal payload scale, then round once.
+	// Align (high, low) into the 52-bit subnormal payload scale, then round-to-nearest-even.
     const double Bf = ::ldexp(acc.low, T);     // fractional contribution
     const uint64_t Bi = static_cast<uint64_t>(Bf);
     const double fraction = Bf - static_cast<double>(Bi);
-
     uint64_t N = (static_cast<uint64_t>(acc.high) << T) + Bi;                   // payload before rounding
 
     // Round to nearest, ties-to-even
@@ -685,6 +684,8 @@ static double scaleAndConvert(const DoubleDouble& acc, double factor)
 	} else if (fraction == 0.5) {
 		N += (N & 1ULL);
 	}
+	
+	// Convert the bits to double.
     double x;
     std::memcpy(&x, &N, sizeof (double));
     return x;
