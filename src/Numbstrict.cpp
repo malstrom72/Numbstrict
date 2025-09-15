@@ -552,15 +552,6 @@ template<> struct Traits<float> {
 	typedef double Hires;
 };
 
-#define BOOST 0
-
-#if (BOOST)
-const int BREAK_EXP    = -240;
-const int BOOST_K      = 100;
-const double BOOST_V      = ldexp(1.0, BOOST_K);
-const double BOOST_V_RCP  = 1.0 / BOOST_V;
-#endif
-
 /*
 	Generate a table of `DoubleDoubles` for all powers of 10 from -324 to 308. The `DoubleDoubles` are normalized to
 	take up as many bits as possible while leaving enough headroom to allow multiplications of up to 10 without
@@ -590,11 +581,6 @@ struct Exp10Table {
 		normal = DoubleDouble(WIDTH, 0.0);
 		factor = 1.0 / WIDTH;
 		for (int i = -1; i >= Traits<double>::MIN_EXPONENT; --i) {
-		#if (BOOST)
-			if (i == BREAK_EXP) {
-				factor *= BOOST_V;
-			}
-		#endif
 			// Check factor / 16.0 > 0.0 to avoid normalizing denormal exponents.
 			if (normal.high < WIDTH && factor / 16.0 > 0.0) {
 				factor /= 16.0;
@@ -609,44 +595,22 @@ struct Exp10Table {
 	double factors[Traits<double>::MAX_EXPONENT + 1 - Traits<double>::MIN_EXPONENT];
 } EXP10_TABLE;
 
-static float trySomething(const double accumulator, const double factor) {
-	return static_cast<float>(accumulator * factor);
-}
+/**
+	If we just do (high + low) first, that sum is rounded to 53 bits once, possibly nudging the result slightly upward.
+	Then when we scale down into the subnormal range (right-shift the mantissa) we hit what looks like an exact halfway
+	case — and since the current mantissa is odd, IEEE-754 rounds up again. In reality, the exact (high+low) value was
+	just below that halfway point, so it should have rounded down to the even mantissa. This is a classic "double
+	rounding" problem.
 
-static double trySomething(const DoubleDouble& accumulator, const double factor) {
-	int k;
-	frexp(factor, &k);      // factor = m * 2^(k-1) with m in [0.5,1). But since factor is 2^K exactly,
-	int K = std::ilogb(factor);  // exact exponent for powers of two; for subnormals returns -1022, but ilogb is exact with fpclass
-	int k1 = std::max(K, -1022); // keep first stage normal or at the normal/subnormal boundary
-	int k2 = K - k1;
-	double t = std::ldexp(accumulator.high, k1) + std::ldexp(accumulator.low, k1);
-	return std::ldexp(t, k2);
-}
+	scaleAndConvert avoids this by combining high and low at full precision under the final exponent window and
+	performing a *single* correct round-to-nearest-even step. This matches the Decimal oracle and fixes all denormal
+	boundary mismatches.
 
-// Why we need scaleDDPow2Exact():
-//
-// If we just do (high + low) first, that sum is rounded to 53 bits once,
-// possibly nudging the result slightly upward. Then when we scale down into
-// the subnormal range (right-shift the mantissa) we hit what looks like an
-// exact halfway case — and since the current mantissa is odd, IEEE-754
-// rounds up again. In reality, the exact (high+low) value was just below
-// that halfway point, so it should have rounded down to the even mantissa.
-// This is a classic "double rounding" problem.
-//
-// scaleDDPow2Exact avoids this by combining high and low at full precision
-// under the final exponent window and performing a *single* correct
-// round-to-nearest-even step. This matches the Decimal oracle and fixes
-// all denormal boundary mismatches.
-
-// --- tiny helpers (C++03) ----------------------------------------------------
-static inline double bitsToDouble(uint64_t u) {
-}
-
-// scaleAndConvert: multiply by an exact power-of-two and round correctly near subnormals.
-// Assumptions:
-//  - 'factor' is an exact power-of-two (normal or subnormal) from the table.
-//  - 'acc.high' is integral in [0, 2^53) and 'acc.low' ∈ [0,1).
-//  - Table ensures factorExponent >= -1074 so T = factorExponent + 1073 >= 0.
+	Assumptions:
+	- 'factor' is an exact power-of-two (normal or subnormal) from the table.
+	- 'acc.high' is integral in [0, 2^53) and 'acc.low' ∈ [0,1).
+	- Table ensures factorExponent >= -1073 so T = factorExponent + 1073 >= 0.
+**/
 static double scaleAndConvert(const DoubleDouble& acc, double factor)
 {
     if (acc.high == 0.0 && acc.low == 0.0) {
@@ -655,35 +619,25 @@ static double scaleAndConvert(const DoubleDouble& acc, double factor)
 	
 	const double fastResult = (acc.high + acc.low) * factor;
 	if (fastResult >= 2.2250738585072014e-308) {
-		return fastResult;	// Normal result; fast path is exact here.
+		return fastResult;										// Normal result; fast path is exact here.
 	}
 	
 	// Slow path: denormal/transition region — assemble payload then single rounding.
     int factorExponent, highExponent;
     frexp(factor, &factorExponent);
-    frexp(acc.high, &highExponent);	// unbiased exponent of acc.high
+    frexp(acc.high, &highExponent);								// unbiased exponent of acc.high
 	
-	// Still normal? Return fast path.
-    if (highExponent + factorExponent >= -1020) {
-		assert(false);	// Should have been caught by fast path above.
-        return fastResult;
-    }
-
     const int T = factorExponent + 1073;
-	assert(T >= 0);	// Guaranteed by table construction (no right-shift branch needed).
+	assert(T >= 0);												// Guaranteed by table construction (no right-shift branch needed).
 
 	// Align (high, low) into the 52-bit subnormal payload scale, then round-to-nearest-even.
-    const double Bf = ::ldexp(acc.low, T);     // fractional contribution
+    const double Bf = ::ldexp(acc.low, T);     					// fractional contribution
     const uint64_t Bi = static_cast<uint64_t>(Bf);
     const double fraction = Bf - static_cast<double>(Bi);
-    uint64_t N = (static_cast<uint64_t>(acc.high) << T) + Bi;                   // payload before rounding
+    uint64_t N = (static_cast<uint64_t>(acc.high) << T) + Bi;   // payload before rounding
 
     // Round to nearest, ties-to-even
-    if (fraction > 0.5) {
-    	++N;
-	} else if (fraction == 0.5) {
-		N += (N & 1ULL);
-	}
+	N += (fraction > 0.5 ? 1 : (fraction == 0.5 ? (N & 1ULL) : 0));
 	
 	// Convert the bits to double.
     double x;
@@ -771,17 +725,7 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 				}
 				++p;
 			}
-			const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
-			const double accDouble = static_cast<double>(accumulator);
-			value = static_cast<T>(accDouble * factor);
-			double value2 = scaleAndConvert(accumulator, factor);
-			value = value2;
-
-		#if (BOOST)
-			if (exponent <= BREAK_EXP) {
-				value *= BOOST_V_RCP;
-			}
-		#endif
+			value = scaleAndConvert(accumulator, EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT]);
 		}
 	}
 	value *= sign;
