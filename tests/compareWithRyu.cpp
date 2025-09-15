@@ -9,9 +9,12 @@
 #include <cstdlib>
 #include <cstdio>
 #include <iostream>
+#include <limits>
 
 static std::string ryuDouble(double v) {
 		if (v == 0.0) return "0.0";
+		if (std::isnan(v)) return "nan";
+		if (std::isinf(v)) return v < 0.0 ? "-inf" : "inf";
 		char buf[64];
 		int len = d2s_buffered_n(v, buf);
 		std::string s(buf, len);
@@ -62,6 +65,8 @@ static std::string ryuDouble(double v) {
 
 static std::string ryuFloat(float v) {
 		if (v == 0.0f) return "0.0";
+		if (std::isnan(v)) return "nan";
+		if (std::isinf(v)) return v < 0.0f ? "-inf" : "inf";
 		char buf[32];
 		int len = f2s_buffered_n(v, buf);
 		std::string s(buf, len);
@@ -179,7 +184,19 @@ int main(int argc, char** argv) {
 		if (!testDouble && !testFloat) { testDouble = true; testFloat = true; }
 
 		if (testDouble) {
-				double dEdge[] = {0.0, 1.0, 1000.0, 1e20, 1e-5, 1e-7};
+				double dEdge[] = {
+					0.0,
+					std::numeric_limits<double>::denorm_min(),
+					std::nextafter(std::numeric_limits<double>::min(), 0.0),
+					std::numeric_limits<double>::min(),
+					std::numeric_limits<double>::max(),
+					std::numeric_limits<double>::infinity(),
+					-std::numeric_limits<double>::denorm_min(),
+					-std::nextafter(std::numeric_limits<double>::min(), 0.0),
+					-std::numeric_limits<double>::min(),
+					-std::numeric_limits<double>::max(),
+					-std::numeric_limits<double>::infinity()
+				};
 				for (double v : dEdge) {
 						std::string ours = Numbstrict::doubleToString(v);
 						std::string oracle = ryuDouble(v);
@@ -195,7 +212,17 @@ int main(int argc, char** argv) {
 		}
 
 		if (testFloat) {
-				float fEdge[] = {0.0f, 1.0f, 1000.0f, 1e20f, 1e-5f, 1e-7f};
+				float fEdge[] = {
+					0.0f,
+					std::numeric_limits<float>::denorm_min(),
+					std::nextafter(std::numeric_limits<float>::min(), 0.0f),
+					std::numeric_limits<float>::min(),
+					std::numeric_limits<float>::infinity(),
+					-std::numeric_limits<float>::denorm_min(),
+					-std::nextafter(std::numeric_limits<float>::min(), 0.0f),
+					-std::numeric_limits<float>::min(),
+					-std::numeric_limits<float>::infinity()
+				};
 				for (float v : fEdge) {
 						std::string ours = Numbstrict::floatToString(v);
 						std::string oracle = ryuFloat(v);
