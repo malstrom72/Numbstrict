@@ -8,6 +8,7 @@
 #include <exception>
 #include <memory>
 #include <cstdint>
+#include <ostream>	// for std::basic_ostream and iostream state used by operator<<
 
 namespace Numbstrict {
 

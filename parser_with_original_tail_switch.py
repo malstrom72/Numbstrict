@@ -14,7 +14,7 @@ USE_ORIGINAL_TAIL  = True      # when True, IGNORE boost and use the original C+
 EXPERIMENT_DECIMAL_SCALE = True  # use Decimal(precision=120) for the final scaling (accumulator * factor)
 
 if EXPERIMENT_DECIMAL_SCALE:
-	getcontext().prec = 42
+	getcontext().prec = 24
 
 class DoubleDouble:
 	def __init__(self, high: float = 0.0, low: float = 0.0):
