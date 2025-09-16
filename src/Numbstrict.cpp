@@ -334,143 +334,72 @@ static const Char* parseUnsignedInt(const Char* p, const Char* e, unsigned int& 
 	return p;
 }
 
-// StandardFPEnvScope: x86/x64 + AArch64 (and ARMv7) support
-#include <cfenv>
-#include <cassert>
-
 #if defined(__SSE2__) || defined(_M_X64) || defined(_M_IX86)
-  #include <xmmintrin.h>   // _mm_getcsr/_mm_setcsr
-  #include <float.h>       // _control87 on MSVC
+#include <xmmintrin.h>   // _mm_getcsr/_mm_setcsr
+#include <float.h>       // _control87 on MSVC
 #endif
 
 class StandardFPEnvScope {
 public:
-    StandardFPEnvScope() {
-#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-        // --- Windows / MSVC, x86/x64 ---
-        const unsigned int COMMON = _EM_INEXACT | _EM_UNDERFLOW | _EM_OVERFLOW |
-                                    _EM_ZERODIVIDE | _EM_INVALID | _EM_DENORMAL | _RC_NEAR;
-    #if defined(_M_IX86)
-        // Save both x87 and MXCSR
-        int ok = __control87_2(0, 0, &prevX87_, &prevMXCSR_);
-        assert(ok);
-        unsigned int tmp;
-        // x87: 53-bit precision to avoid double rounding
-        ok = __control87_2(COMMON | _PC_53, _MCW_EM | _MCW_RC | _MCW_PC, &tmp, nullptr);
-        assert(ok);
-        // SSE: clear FTZ/DAZ, set round-to-nearest
-        unsigned int cur = prevMXCSR_;
-        cur &= ~(_MM_FLUSH_ZERO_MASK | _MM_DENORMALS_ZERO_MASK);
-        cur = (cur & ~_MM_ROUND_MASK) | _MM_ROUND_NEAREST;
-        _mm_setcsr(cur);
-    #else
-        // x64: MXCSR only (x87 not used for double)
-        prevMXCSR_ = _mm_getcsr();
-        unsigned int cur = prevMXCSR_;
-        cur &= ~(_MM_FLUSH_ZERO_MASK | _MM_DENORMALS_ZERO_MASK);
-        cur = (cur & ~_MM_ROUND_MASK) | _MM_ROUND_NEAREST;
-        _mm_setcsr(cur);
-        prevX87_ = _control87(0, 0);
-        _control87(COMMON, _MCW_EM | _MCW_RC);
-    #endif
-
-#elif defined(__aarch64__)
-        // --- AArch64 (Apple Silicon, Linux ARM64, etc.) ---
-        int r = fegetenv(&prevEnv_); assert(r == 0); (void)r;
-        r = fesetenv(FE_DFL_ENV);     assert(r == 0);
-        feholdexcept(&dummyEnv_);     // mask exceptions like your original
-
-        // Read/Write FPCR: clear FZ (bit 24), set RN (bits 22-23 = 00)
-      #if defined(__has_builtin)
-        #if __has_builtin(__builtin_aarch64_get_fpcr) && __has_builtin(__builtin_aarch64_set_fpcr)
-          prevFPCR_ = __builtin_aarch64_get_fpcr();
-          uint64_t cur = prevFPCR_;
-          cur &= ~(1ull << 24);          // FZ = 0
-          cur &= ~(3ull << 22);          // RMode = 00 (RN)
-          __builtin_aarch64_set_fpcr(cur);
-        #else
-          asm volatile("mrs %0, fpcr" : "=r"(prevFPCR_));
-          uint64_t cur = prevFPCR_;
-          cur &= ~(1ull << 24);          // FZ = 0
-          cur &= ~(3ull << 22);          // RMode = 00
-          asm volatile("msr fpcr, %0" :: "r"(cur));
-        #endif
-      #else
-        asm volatile("mrs %0, fpcr" : "=r"(prevFPCR_));
-        uint64_t cur = prevFPCR_;
-        cur &= ~(1ull << 24);            // FZ = 0
-        cur &= ~(3ull << 22);            // RMode = 00
-        asm volatile("msr fpcr, %0" :: "r"(cur));
-      #endif
-
-#elif defined(__arm__)
-        // --- ARMv7 (32-bit) ---
-        int r = fegetenv(&prevEnv_); assert(r == 0); (void)r;
-        r = fesetenv(FE_DFL_ENV);     assert(r == 0);
-        feholdexcept(&dummyEnv_);
-
-        // FPSCR: clear FZ (bit 24), set RN (bits 22-23 = 00)
-        asm volatile("vmrs %0, fpscr" : "=r"(prevFPSCR_));
-        uint32_t cur = prevFPSCR_;
-        cur &= ~(1u << 24);              // FZ = 0
-        cur &= ~(3u << 22);              // RMode = 00
-        asm volatile("vmsr fpscr, %0" :: "r"(cur));
-
-#else
-        // --- Fallback: just use fenv (no subnormal control available) ---
-        int r = fegetenv(&prevEnv_); assert(r == 0); (void)r;
-        r = fesetenv(FE_DFL_ENV);     assert(r == 0);
-        feholdexcept(&dummyEnv_);
-#endif
-    }
-
-    ~StandardFPEnvScope() {
-#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-    #if defined(_M_IX86)
-        unsigned int tmp;
-        __control87_2(prevX87_, _MCW_EM | _MCW_RC | _MCW_PC, &tmp, nullptr);
-        _mm_setcsr(prevMXCSR_);
-    #else
-        _mm_setcsr(prevMXCSR_);
-        _control87(prevX87_, _MCW_EM | _MCW_RC);
-    #endif
-
-#elif defined(__aarch64__)
-      #if defined(__has_builtin)
-        #if __has_builtin(__builtin_aarch64_set_fpcr)
-          __builtin_aarch64_set_fpcr(prevFPCR_);
-        #else
-          asm volatile("msr fpcr, %0" :: "r"(prevFPCR_));
-        #endif
-      #else
-        asm volatile("msr fpcr, %0" :: "r"(prevFPCR_));
-      #endif
-        fesetenv(&prevEnv_);
-
-#elif defined(__arm__)
-        asm volatile("vmsr fpscr, %0" :: "r"(prevFPSCR_));
-        fesetenv(&prevEnv_);
-
-#else
-        fesetenv(&prevEnv_);
-#endif
-    }
-
+	StandardFPEnvScope() {
+	#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+		const unsigned int COMMON = _EM_INEXACT|_EM_UNDERFLOW|_EM_OVERFLOW|_EM_ZERODIVIDE|_EM_INVALID|_EM_DENORMAL|_RC_NEAR;
+		unsigned int cur;
+	#if defined(_M_IX86)
+		{ int ok = __control87_2(0,0,&prevX87_,&prevMXCSR_); assert(ok); unsigned int t; ok = __control87_2(COMMON|_PC_53, _MCW_EM|_MCW_RC|_MCW_PC, &t, 0); assert(ok); }
+		cur = prevMXCSR_;
+	#else
+		prevMXCSR_ = _mm_getcsr(); cur = prevMXCSR_; prevX87_ = _control87(0,0); _control87(COMMON, _MCW_EM|_MCW_RC);
+	#endif
+		cur &= ~(_MM_FLUSH_ZERO_MASK|_MM_DENORMALS_ZERO_MASK);
+		cur = (cur & ~_MM_ROUND_MASK) | _MM_ROUND_NEAREST;
+		_mm_setcsr(cur);
+	#elif defined(__aarch64__)
+		int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
+	#if defined(__has_builtin) && __has_builtin(__builtin_aarch64_get_fpcr) && __has_builtin(__builtin_aarch64_set_fpcr)
+		prevFPCR_ = __builtin_aarch64_get_fpcr(); unsigned long long cur = prevFPCR_; cur &= ~(1ull<<24); cur &= ~(3ull<<22); __builtin_aarch64_set_fpcr(cur);
+	#else
+		asm volatile("mrs %0, fpcr" : "=r"(prevFPCR_)); unsigned long long cur = prevFPCR_; cur &= ~(1ull<<24); cur &= ~(3ull<<22); asm volatile("msr fpcr, %0" :: "r"(cur));
+	#endif
+	#elif defined(__arm__)
+		int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
+		asm volatile("vmrs %0, fpscr" : "=r"(prevFPSCR_)); unsigned int cur = prevFPSCR_; cur &= ~(1u<<24); cur &= ~(3u<<22); asm volatile("vmsr fpscr, %0" :: "r"(cur));
+	#else
+		int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
+	#endif
+	}
+	~StandardFPEnvScope() {
+	#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+	#if defined(_M_IX86)
+		{ unsigned int t; __control87_2(prevX87_, _MCW_EM|_MCW_RC|_MCW_PC, &t, 0); }
+	#else
+		_control87(prevX87_, _MCW_EM|_MCW_RC);
+	#endif
+		_mm_setcsr(prevMXCSR_);
+	#elif defined(__aarch64__)
+	#if defined(__has_builtin) && __has_builtin(__builtin_aarch64_set_fpcr)
+		__builtin_aarch64_set_fpcr(prevFPCR_);
+	#else
+		asm volatile("msr fpcr, %0" :: "r"(prevFPCR_));
+	#endif
+		fesetenv(&prevEnv_);
+	#elif defined(__arm__)
+		asm volatile("vmsr fpscr, %0" :: "r"(prevFPSCR_)); fesetenv(&prevEnv_);
+	#else
+		fesetenv(&prevEnv_);
+	#endif
+	}
 private:
 #if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-    unsigned int prevX87_{0};
-    unsigned int prevMXCSR_{0};
+	unsigned int prevX87_, prevMXCSR_;
 #elif defined(__aarch64__)
-    fenv_t   prevEnv_{};
-    fenv_t   dummyEnv_{};
-    uint64_t prevFPCR_{0};
+	fenv_t prevEnv_, dummyEnv_;
+	unsigned long long prevFPCR_;
 #elif defined(__arm__)
-    fenv_t   prevEnv_{};
-    fenv_t   dummyEnv_{};
-    uint32_t prevFPSCR_{0};
+	fenv_t prevEnv_, dummyEnv_;
+	unsigned int prevFPSCR_;
 #else
-    fenv_t   prevEnv_{};
-    fenv_t   dummyEnv_{};
+	fenv_t prevEnv_, dummyEnv_;
 #endif
 };
 
@@ -498,19 +427,10 @@ struct DoubleDouble {
 		const double overflow = floor(lowTimesFactor);
 		return DoubleDouble((high * factor) + overflow, lowTimesFactor - overflow);
 	}
-	DoubleDouble operator/(double divisor) const {
-		assert(divisor != 0);
-
-		// high is an integer < 2^53, so these are exact in double.
-		const double q_int = std::floor(high / divisor);
-		const double rem   = high - q_int * divisor;
-
-		// Fractional part of the quotient:
-		double low_div = (low + rem) / divisor;
-
-		// Normalize so 0 <= low < 1
-		const double carry = std::floor(low_div);
-		return DoubleDouble(q_int + carry, low_div - carry);
+	DoubleDouble operator/(int divisor) const {
+		const double floored = floor(high / divisor);
+		const double remainder = high - floored * divisor;
+		return DoubleDouble(floored, (low + remainder) / divisor);
 	}
 	bool operator<(const DoubleDouble& other) const {
 		return high < other.high || (high == other.high && low < other.low);
@@ -532,68 +452,9 @@ static double multiplyAndAdd(double term, double factorA, double factorB) {
 	return term + factorA * factorB;
 }
 
-/*static double scaleAndConvert(const DoubleDouble& factorA, double factorB) {
-	return static_cast<double>(factorA.high * factorB + factorA.low * factorB);
-}*/
-
 static float scaleAndConvert(double factorA, double factorB) {
 	return static_cast<float>(factorA * factorB);
 }
-
-template<typename T> struct Traits { };
-
-template<> struct Traits<double> {
-	enum { MIN_EXPONENT = -324, MAX_EXPONENT = 308 };
-	typedef DoubleDouble Hires;
-};
-
-template<> struct Traits<float> {
-	enum { MIN_EXPONENT = -45, MAX_EXPONENT = 38 };
-	typedef double Hires;
-};
-
-/*
-	Generate a table of `DoubleDoubles` for all powers of 10 from -324 to 308. The `DoubleDoubles` are normalized to
-	take up as many bits as possible while leaving enough headroom to allow multiplications of up to 10 without
-	overflowing. The exp10Factors array will contain the multiplication factors required to revert the normalization.
-	I.e. `static_cast<double>(normals[1 - (-324)]) * factors[1 - (-324)] == 10.0`. Notice that for the very lowest
-	exponents we refrain from normalizing to correctly convert denormal floating point values.
-*/
-struct Exp10Table {
-	Exp10Table() {
-		StandardFPEnvScope standardFPEnv;
-		
-		const double WIDTH = ldexp(1.0, 53 - 4);
-
-		DoubleDouble normal(WIDTH, 0.0);
-		double factor = 1.0 / WIDTH;
-		for (int i = 0; i <= Traits<double>::MAX_EXPONENT; ++i) {
-			if (normal.high >= WIDTH) {
-				factor *= 16.0;
-				normal = normal / 16.0;
-			}
-			assert(factor < std::numeric_limits<double>::infinity());
-			normals[i - Traits<double>::MIN_EXPONENT] = normal;
-			factors[i - Traits<double>::MIN_EXPONENT] = factor;
-			normal = normal * 10;
-		}
-		
-		normal = DoubleDouble(WIDTH, 0.0);
-		factor = 1.0 / WIDTH;
-		for (int i = -1; i >= Traits<double>::MIN_EXPONENT; --i) {
-			// Check factor / 16.0 > 0.0 to avoid normalizing denormal exponents.
-			if (normal.high < WIDTH && factor / 16.0 > 0.0) {
-				factor /= 16.0;
-				normal = normal * 16;
-			}
-			normal = normal / 10.0;
-			normals[i - Traits<double>::MIN_EXPONENT] = normal;
-			factors[i - Traits<double>::MIN_EXPONENT] = factor;
-		}
-	}
-	DoubleDouble normals[Traits<double>::MAX_EXPONENT + 1 - Traits<double>::MIN_EXPONENT];
-	double factors[Traits<double>::MAX_EXPONENT + 1 - Traits<double>::MIN_EXPONENT];
-} EXP10_TABLE;
 
 /**
 	If we just do (high + low) first, that sum is rounded to 53 bits once, possibly nudging the result slightly upward.
@@ -629,21 +490,78 @@ static double scaleAndConvert(const DoubleDouble& acc, double factor)
 	
     const int T = factorExponent + 1073;
 	assert(T >= 0);												// Guaranteed by table construction (no right-shift branch needed).
-
-	// Align (high, low) into the 52-bit subnormal payload scale, then round-to-nearest-even.
-    const double Bf = ::ldexp(acc.low, T);     					// fractional contribution
-    const uint64_t Bi = static_cast<uint64_t>(Bf);
-    const double fraction = Bf - static_cast<double>(Bi);
-    uint64_t N = (static_cast<uint64_t>(acc.high) << T) + Bi;   // payload before rounding
-
-    // Round to nearest, ties-to-even
-	N += (fraction > 0.5 ? 1 : (fraction == 0.5 ? (N & 1ULL) : 0));
 	
-	// Convert the bits to double.
-    double x;
-    std::memcpy(&x, &N, sizeof (double));
-    return x;
+	// Align (high, low) into the 52-bit subnormal payload scale, then round-to-nearest-even.
+	const double Bf = ldexp(acc.low, T);						// fractional contribution
+	const double Bi = floor(Bf);
+	const double fraction = Bf - Bi;
+
+	// Integer payload (exact in double on this path)
+	double Ni = ldexp(acc.high, T) + Bi;
+
+	// Round to nearest, ties-to-even
+	if (fraction > 0.5 || (fraction == 0.5 && fmod(Ni, 2.0) != 0.0)) {
+		Ni += 1.0;
+	}
+
+	// Subnormal construction (and transition to DBL_MIN when Ni == 2^52)
+	return ldexp(Ni, -1074);
 }
+
+template<typename T> struct Traits { };
+
+template<> struct Traits<double> {
+	enum { MIN_EXPONENT = -324, MAX_EXPONENT = 308 };
+	typedef DoubleDouble Hires;
+};
+
+template<> struct Traits<float> {
+	enum { MIN_EXPONENT = -45, MAX_EXPONENT = 38 };
+	typedef double Hires;
+};
+
+/*
+	Generate a table of `DoubleDoubles` for all powers of 10 from -324 to 308. The `DoubleDoubles` are normalized to
+	take up as many bits as possible while leaving enough headroom to allow multiplications of up to 10 without
+	overflowing. The exp10Factors array will contain the multiplication factors required to revert the normalization.
+	I.e. `static_cast<double>(normals[1 - (-324)]) * factors[1 - (-324)] == 10.0`. Notice that for the very lowest
+	exponents we refrain from normalizing to correctly convert denormal floating point values.
+*/
+struct Exp10Table {
+	Exp10Table() {
+		StandardFPEnvScope standardFPEnv;
+		
+		const double WIDTH = ldexp(1.0, 53 - 4);
+
+		DoubleDouble normal(WIDTH, 0.0);
+		double factor = 1.0 / WIDTH;
+		for (int i = 0; i <= Traits<double>::MAX_EXPONENT; ++i) {
+			if (normal.high >= WIDTH) {
+				factor *= 16.0;
+				normal = normal / 16;
+			}
+			assert(factor < std::numeric_limits<double>::infinity());
+			normals[i - Traits<double>::MIN_EXPONENT] = normal;
+			factors[i - Traits<double>::MIN_EXPONENT] = factor;
+			normal = normal * 10;
+		}
+		
+		normal = DoubleDouble(WIDTH, 0.0);
+		factor = 1.0 / WIDTH;
+		for (int i = -1; i >= Traits<double>::MIN_EXPONENT; --i) {
+			// Check factor / 16.0 > 0.0 to avoid normalizing denormal exponents.
+			if (normal.high < WIDTH && factor / 16.0 > 0.0) {
+				factor /= 16.0;
+				normal = normal * 16;
+			}
+			normal = normal / 10;
+			normals[i - Traits<double>::MIN_EXPONENT] = normal;
+			factors[i - Traits<double>::MIN_EXPONENT] = factor;
+		}
+	}
+	DoubleDouble normals[Traits<double>::MAX_EXPONENT + 1 - Traits<double>::MIN_EXPONENT];
+	double factors[Traits<double>::MAX_EXPONENT + 1 - Traits<double>::MIN_EXPONENT];
+} EXP10_TABLE;
 
 template<typename T> const Char* parseReal(const Char* const b, const Char* const e, T& value) {
 	StandardFPEnvScope standardFPEnv;
@@ -721,7 +639,7 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 			while (p != significandEnd) {
 				if (*p != '.') {
 					accumulator = multiplyAndAdd(accumulator, magnitude, (*p - '0'));
-					magnitude = magnitude / 10.0;
+					magnitude = magnitude / 10;
 				}
 				++p;
 			}
@@ -813,7 +731,7 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 
 		// Finally, is next digit >= 5 (magnitude / 2) then increment it (unless we are at max, just to play nicely with
 		// poorer parsers).
-		if (reconstructed == absValue && accumulator + magnitude / 2.0 < normalized && absValue != std::numeric_limits<T>::max()) {
+		if (reconstructed == absValue && accumulator + magnitude / 2 < normalized && absValue != std::numeric_limits<T>::max()) {
 			++digit;
 
 			// If this happens we have failed to calculate the correct exponent above.
@@ -824,7 +742,7 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 		}
 		
 		*p++ = '0' + digit;
-		magnitude = magnitude / 10.0;
+		magnitude = magnitude / 10;
 		
 		// p < buffer + 27 is an extra precaution if the correct value is never reached (e.g. because of too aggressive
 		// optimizations). 27 leaves room for longest exponent.
