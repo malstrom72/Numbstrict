@@ -452,29 +452,6 @@ static double multiplyAndAdd(double term, double factorA, double factorB) {
 	return term + factorA * factorB;
 }
 
-static float scaleAndRound(double acc, double factor) {
-	if (acc == 0.0) {
-		return 0.0f;
-	}
-
-	const double fastResult = acc * factor;
-	if (fastResult >= 1.1754943508222875e-38) {
-		return static_cast<float>(fastResult);							// normal result; fast path is exact here
-	}
-
-	int factorExponent;													// slow path for float:
-	frexp(factor, &factorExponent);										// align under the final exponent window and round once
-	const double x = ldexp(acc, factorExponent + 148); 					// exact binary scaling to 23-bit payload domain
-	double ni = floor(x);
-	const double fraction = x - ni;
-
-	if (fraction > 0.5 || (fraction == 0.5 && fmod(ni, 2.0) != 0.0)) {
-		ni += 1.0;														// round to nearest, ties-to-even
-	}
-
-	return static_cast<float>(ldexp(ni, -149));							// subnormal construction (or FLT_MIN when ni == 2^52)
-}
-
 /**
 	If we just do (high + low) first, that sum is rounded to 53 bits once, possibly nudging the result slightly upward.
 	Then when we scale down into the subnormal range (right-shift the mantissa) we hit what looks like an exact halfway
@@ -517,6 +494,29 @@ static double scaleAndRound(const DoubleDouble& acc, double factor) {
 	}
 	
 	return ldexp(ni, -1074);											// subnormal construction (or DBL_MIN when ni == 2^52)
+}
+
+static float scaleAndRound(double acc, double factor) {
+	if (acc == 0.0) {
+		return 0.0f;
+	}
+
+	const double fastResult = acc * factor;
+	if (fastResult >= 1.1754943508222875e-38) {
+		return static_cast<float>(fastResult);							// normal result; fast path is exact here
+	}
+
+	int factorExponent;													// slow path for float:
+	frexp(factor, &factorExponent);										// align under the final exponent window and round once
+	const double x = ldexp(acc, factorExponent + 148); 					// exact binary scaling to 23-bit payload domain
+	double ni = floor(x);
+	const double fraction = x - ni;
+
+	if (fraction > 0.5 || (fraction == 0.5 && fmod(ni, 2.0) != 0.0)) {
+		ni += 1.0;														// round to nearest, ties-to-even
+	}
+
+	return static_cast<float>(ldexp(ni, -149));							// subnormal construction (or FLT_MIN when ni == 2^52)
 }
 
 template<typename T> struct Traits { };
