@@ -30,10 +30,10 @@
             filePath = "../src/Numbstrict.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "629"
-            endingLineNumber = "629"
-            landmarkName = "unknown"
-            landmarkType = "0">
+            startingLineNumber = "628"
+            endingLineNumber = "628"
+            landmarkName = "parseReal(b, e, value)"
+            landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
       <BreakpointProxy
@@ -46,9 +46,9 @@
             filePath = "../src/Numbstrict.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "666"
-            endingLineNumber = "666"
-            landmarkName = "scaleAndConvert(acc, factor)"
+            startingLineNumber = "665"
+            endingLineNumber = "665"
+            landmarkName = "realToString(buffer, value)"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
@@ -56,15 +56,15 @@
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "CA70C1BC-5268-49E3-90BE-34A12702B27A"
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "../src/Numbstrict.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "695"
-            endingLineNumber = "695"
-            landmarkName = "scaleAndConvert(acc, factor)"
+            startingLineNumber = "694"
+            endingLineNumber = "694"
+            landmarkName = "realToString(buffer, value)"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
@@ -72,15 +72,15 @@
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "2803C8E5-632D-4689-B813-F1C2190C5B83"
-            shouldBeEnabled = "Yes"
+            shouldBeEnabled = "No"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "../src/Numbstrict.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "686"
-            endingLineNumber = "686"
-            landmarkName = "scaleAndConvert(acc, factor)"
+            startingLineNumber = "685"
+            endingLineNumber = "685"
+            landmarkName = "realToString(buffer, value)"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>
@@ -104,15 +104,31 @@
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
             uuid = "9B15D297-17E3-432E-A77F-72F36B8A6279"
+            shouldBeEnabled = "No"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "../src/Numbstrict.cpp"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "657"
+            endingLineNumber = "657"
+            landmarkName = "parseReal(b, e, value)"
+            landmarkType = "9">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "B9714A03-E7BD-462A-B22F-B66DADDFEC26"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "../src/Numbstrict.cpp"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "658"
-            endingLineNumber = "658"
-            landmarkName = "scaleAndConvert(acc, factor)"
+            startingLineNumber = "474"
+            endingLineNumber = "474"
+            landmarkName = "scaleAndRound(acc, factor)"
             landmarkType = "9">
          </BreakpointContent>
       </BreakpointProxy>

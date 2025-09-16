@@ -452,52 +452,27 @@ static double multiplyAndAdd(double term, double factorA, double factorB) {
 	return term + factorA * factorB;
 }
 
-static float scaleAndConvert(double acc, double factor) {
+static float scaleAndRound(double acc, double factor) {
 	if (acc == 0.0) {
 		return 0.0f;
 	}
 
 	const double fastResult = acc * factor;
 	if (fastResult >= 1.1754943508222875e-38) {
-		return static_cast<float>(fastResult);								// Normal result; fast path is exact here.
+		return static_cast<float>(fastResult);							// normal result; fast path is exact here
 	}
 
-	// Slow path for float: handle denormal/transition region with a single correct round-to-nearest-even.
-	int factorExponent;
-	frexp(factor, &factorExponent);
+	int factorExponent;													// slow path for float:
+	frexp(factor, &factorExponent);										// align under the final exponent window and round once
+	const double x = ldexp(acc, factorExponent + 148); 					// exact binary scaling to 23-bit payload domain
+	double ni = floor(x);
+	const double fraction = x - ni;
 
-	const double ai = floor(acc);
-	const double af = acc - ai;
-
-	const int S = factorExponent + 148; // Align into the 23-bit subnormal payload scale for float
-
-	double Ni;
-	double fraction;
-	if (S >= 0) {
-		const double Bf = ldexp(af, S);
-		const double Bi = floor(Bf);
-		fraction = Bf - Bi;
-		Ni = ldexp(ai, S) + Bi;
-	} else {
-		const int M = -S;
-		const double aiDiv = ldexp(ai, -M);
-		const double aiInt = floor(aiDiv);
-		const double aiFrac = aiDiv - aiInt;
-
-		const double afDiv = ldexp(af, -M);
-		const double sumFrac = aiFrac + afDiv;
-		const double carry = floor(sumFrac);
-		Ni = aiInt + carry;
-		fraction = sumFrac - carry;
+	if (fraction > 0.5 || (fraction == 0.5 && fmod(ni, 2.0) != 0.0)) {
+		ni += 1.0;														// round to nearest, ties-to-even
 	}
 
-	// Round to nearest, ties-to-even
-	if (fraction > 0.5 || (fraction == 0.5 && fmod(Ni, 2.0) != 0.0)) {
-		Ni += 1.0;
-	}
-
-	// Subnormal construction (and transition to FLT_MIN when Ni == 2^23)
-	return static_cast<float>(ldexp(Ni, -149));
+	return static_cast<float>(ldexp(ni, -149));							// subnormal construction (or FLT_MIN when ni == 2^52)
 }
 
 /**
@@ -507,7 +482,7 @@ static float scaleAndConvert(double acc, double factor) {
 	just below that halfway point, so it should have rounded down to the even mantissa. This is a classic "double
 	rounding" problem.
 
-	scaleAndConvert avoids this by combining high and low at full precision under the final exponent window and
+	scaleAndRound avoids this by combining high and low at full precision under the final exponent window and
 	performing a *single* correct round-to-nearest-even step. This matches the Decimal oracle and fixes all denormal
 	boundary mismatches.
 
@@ -516,7 +491,7 @@ static float scaleAndConvert(double acc, double factor) {
 	- 'acc.high' is integral in [0, 2^53) and 'acc.low' ∈ [0,1).
 	- Table ensures factorExponent >= -1073 so T = factorExponent + 1073 >= 0.
 **/
-static double scaleAndConvert(const DoubleDouble& acc, double factor) {
+static double scaleAndRound(const DoubleDouble& acc, double factor) {
     if (acc.high == 0.0 && acc.low == 0.0) {
     	return 0.0;
 	}
@@ -679,7 +654,7 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 				}
 				++p;
 			}
-			value = scaleAndConvert(accumulator, EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT]);
+			value = scaleAndRound(accumulator, EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT]);
 		}
 	}
 	value *= sign;
@@ -760,9 +735,9 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 		assert(next >= normalized);
 		
 		// Do we hit goal with digit or digit + 1?
-		reconstructed = static_cast<T>(scaleAndConvert(accumulator, factor));
+		reconstructed = static_cast<T>(scaleAndRound(accumulator, factor));
 		if (reconstructed != absValue) {
-			reconstructed = static_cast<T>(scaleAndConvert(accumulator + magnitude, factor));
+			reconstructed = static_cast<T>(scaleAndRound(accumulator + magnitude, factor));
 		}
 
 		// Finally, is next digit >= 5 (magnitude / 2) then increment it (unless we are at max, just to play nicely with
