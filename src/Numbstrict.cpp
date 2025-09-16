@@ -452,8 +452,52 @@ static double multiplyAndAdd(double term, double factorA, double factorB) {
 	return term + factorA * factorB;
 }
 
-static float scaleAndConvert(double factorA, double factorB) {
-	return static_cast<float>(factorA * factorB);
+static float scaleAndConvert(double acc, double factor) {
+	if (acc == 0.0) {
+		return 0.0f;
+	}
+
+	const double fastResult = acc * factor;
+	if (fastResult >= 1.1754943508222875e-38) {
+		return static_cast<float>(fastResult);								// Normal result; fast path is exact here.
+	}
+
+	// Slow path for float: handle denormal/transition region with a single correct round-to-nearest-even.
+	int factorExponent;
+	frexp(factor, &factorExponent);
+
+	const double ai = floor(acc);
+	const double af = acc - ai;
+
+	const int S = factorExponent + 148; // Align into the 23-bit subnormal payload scale for float
+
+	double Ni;
+	double fraction;
+	if (S >= 0) {
+		const double Bf = ldexp(af, S);
+		const double Bi = floor(Bf);
+		fraction = Bf - Bi;
+		Ni = ldexp(ai, S) + Bi;
+	} else {
+		const int M = -S;
+		const double aiDiv = ldexp(ai, -M);
+		const double aiInt = floor(aiDiv);
+		const double aiFrac = aiDiv - aiInt;
+
+		const double afDiv = ldexp(af, -M);
+		const double sumFrac = aiFrac + afDiv;
+		const double carry = floor(sumFrac);
+		Ni = aiInt + carry;
+		fraction = sumFrac - carry;
+	}
+
+	// Round to nearest, ties-to-even
+	if (fraction > 0.5 || (fraction == 0.5 && fmod(Ni, 2.0) != 0.0)) {
+		Ni += 1.0;
+	}
+
+	// Subnormal construction (and transition to FLT_MIN when Ni == 2^23)
+	return static_cast<float>(ldexp(Ni, -149));
 }
 
 /**
@@ -472,40 +516,32 @@ static float scaleAndConvert(double factorA, double factorB) {
 	- 'acc.high' is integral in [0, 2^53) and 'acc.low' ∈ [0,1).
 	- Table ensures factorExponent >= -1073 so T = factorExponent + 1073 >= 0.
 **/
-static double scaleAndConvert(const DoubleDouble& acc, double factor)
-{
+static double scaleAndConvert(const DoubleDouble& acc, double factor) {
     if (acc.high == 0.0 && acc.low == 0.0) {
     	return 0.0;
 	}
 	
 	const double fastResult = (acc.high + acc.low) * factor;
 	if (fastResult >= 2.2250738585072014e-308) {
-		return fastResult;										// Normal result; fast path is exact here.
+		return fastResult;												// normal result; fast path is exact here
 	}
 	
-	// Slow path: denormal/transition region — assemble payload then single rounding.
-    int factorExponent, highExponent;
-    frexp(factor, &factorExponent);
-    frexp(acc.high, &highExponent);								// unbiased exponent of acc.high
-	
-    const int t = factorExponent + 1073;
-	assert(t >= 0);												// Guaranteed by table construction (no right-shift branch needed).
-	
-	// Align (high, low) into the 52-bit subnormal payload scale, then round-to-nearest-even.
-	const double bf = ldexp(acc.low, t);						// fractional contribution
+    int factorExponent, highExponent;									// slow path: denormal/transition region
+    frexp(factor, &factorExponent);										// assemble payload then single rounding
+    frexp(acc.high, &highExponent);										// unbiased exponent of acc.high
+    
+	const int t = factorExponent + 1073;								// guaranteed by table construction
+	assert(t >= 0);														// (no right-shift branch needed)	
+	const double bf = ldexp(acc.low, t);								// align (high, low) into the 52-bit subnormal payload scale
 	const double bi = floor(bf);
-	const double fraction = bf - bi;
-
-	// Integer payload (exact in double on this path)
-	double ni = ldexp(acc.high, t) + bi;
-
-	// Round to nearest, ties-to-even
+	const double fraction = bf - bi;									// fractional contribution
+	
+	double ni = ldexp(acc.high, t) + bi;								// integer payload (exact in double)
 	if (fraction > 0.5 || (fraction == 0.5 && fmod(ni, 2.0) != 0.0)) {
-		ni += 1.0;
+		ni += 1.0;														// round to nearest, ties-to-even
 	}
-
-	// Subnormal construction (and transition to DBL_MIN when ni == 2^52)
-	return ldexp(ni, -1074);
+	
+	return ldexp(ni, -1074);											// subnormal construction (or DBL_MIN when ni == 2^52)
 }
 
 template<typename T> struct Traits { };
