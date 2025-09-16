@@ -488,24 +488,24 @@ static double scaleAndConvert(const DoubleDouble& acc, double factor)
     frexp(factor, &factorExponent);
     frexp(acc.high, &highExponent);								// unbiased exponent of acc.high
 	
-    const int T = factorExponent + 1073;
-	assert(T >= 0);												// Guaranteed by table construction (no right-shift branch needed).
+    const int t = factorExponent + 1073;
+	assert(t >= 0);												// Guaranteed by table construction (no right-shift branch needed).
 	
 	// Align (high, low) into the 52-bit subnormal payload scale, then round-to-nearest-even.
-	const double Bf = ldexp(acc.low, T);						// fractional contribution
-	const double Bi = floor(Bf);
-	const double fraction = Bf - Bi;
+	const double bf = ldexp(acc.low, t);						// fractional contribution
+	const double bi = floor(bf);
+	const double fraction = bf - bi;
 
 	// Integer payload (exact in double on this path)
-	double Ni = ldexp(acc.high, T) + Bi;
+	double ni = ldexp(acc.high, t) + bi;
 
 	// Round to nearest, ties-to-even
-	if (fraction > 0.5 || (fraction == 0.5 && fmod(Ni, 2.0) != 0.0)) {
-		Ni += 1.0;
+	if (fraction > 0.5 || (fraction == 0.5 && fmod(ni, 2.0) != 0.0)) {
+		ni += 1.0;
 	}
 
-	// Subnormal construction (and transition to DBL_MIN when Ni == 2^52)
-	return ldexp(Ni, -1074);
+	// Subnormal construction (and transition to DBL_MIN when ni == 2^52)
+	return ldexp(ni, -1074);
 }
 
 template<typename T> struct Traits { };
