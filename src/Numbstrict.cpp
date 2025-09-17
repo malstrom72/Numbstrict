@@ -834,22 +834,16 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 		// Correct behavior is to never reach higher than digit 9.
 		assert(next >= normalized);
 		
-		// Do we hit goal with digit or digit + 1? Use the same scaler as parseReal for symmetry.
-		const T reconstructed0 = scaleAndRound(accumulator, factor, static_cast<T*>(0));
-		const T reconstructed1 = scaleAndRound(accumulator + magnitude, factor, static_cast<T*>(0));
-		bool chooseNext = (reconstructed1 == absValue) && (reconstructed0 != absValue);
-		reconstructed = (chooseNext ? reconstructed1 : reconstructed0);
-		if (!chooseNext) {
-			// Is next digit >= 5 (magnitude / 2) then increment it (unless we are at max, just to play nicely with
-			// poorer parsers). Do not apply if we already chose digit+1 via chooseNext to avoid double-increment.
-			chooseNext = (reconstructed == absValue && accumulator + magnitude / 2 < normalized && absValue != std::numeric_limits<T>::max());
-		}
-		if (chooseNext) {
+		// Decide between digit and digit+1 under final rounding; then optional bump if strictly past half-step.
+		reconstructed = scaleAndRound(accumulator, factor, static_cast<T*>(0));
+		const T r1 = scaleAndRound(accumulator + magnitude, factor, static_cast<T*>(0));
+		if ((reconstructed != absValue && r1 == absValue) || (reconstructed == absValue
+				&& accumulator + magnitude / 2 < normalized && absValue != std::numeric_limits<T>::max())) {
+			reconstructed = r1;
 			++digit;
-			// If this happens we have failed to calculate the correct exponent above.
 			assert(digit < 10);
 		}
-		
+	
 		*p++ = '0' + digit;
 		magnitude = magnitude / 10;
 		
