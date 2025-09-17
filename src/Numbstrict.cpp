@@ -607,32 +607,23 @@ static float scaleAndRoundDDToFloatParse(const DoubleDouble& acc, double factor)
 	return static_cast<float>(ldexp(static_cast<double>(nInt), E - 23));
 }
 // 3-arg overload used to select exact target type rounding at compile time.
-template<typename Out>
-static Out scaleAndRound(const DoubleDouble& acc, double factor, Out*) {
-	return std::is_same<Out, double>::value
-		? static_cast<Out>(scaleAndRound(acc, factor))
-		: static_cast<Out>(scaleAndRoundDDToFloat(acc, factor));
+// Typed dispatch without std::is_same: use pointer tag to select target type
+static double scaleAndRound(const DoubleDouble& acc, double factor, double*) {
+	return scaleAndRound(acc, factor);
 }
 
-// Overload for when accumulator is a plain double (float path using Hires=double)
-template<typename Out>
-static Out scaleAndRound(const double acc, double factor, Out*) {
-	return std::is_same<Out, double>::value
-		? static_cast<Out>(scaleAndRound(DoubleDouble(acc), factor))
-		: static_cast<Out>(scaleAndRoundDDToFloat(DoubleDouble(acc), factor));
+static float scaleAndRound(const DoubleDouble& acc, double factor, float*) {
+	return scaleAndRoundDDToFloatParse(acc, factor);
 }
-
 
 template<typename T> struct Traits { };
 
 template<> struct Traits<double> {
 	enum { MIN_EXPONENT = -324, MAX_EXPONENT = 308 };
-	typedef DoubleDouble Hires;
 };
 
 template<> struct Traits<float> {
 	enum { MIN_EXPONENT = -45, MAX_EXPONENT = 38 };
-	typedef DoubleDouble Hires;
 };
 
 /*
@@ -678,12 +669,7 @@ struct Exp10Table {
 	double factors[Traits<double>::MAX_EXPONENT + 1 - Traits<double>::MIN_EXPONENT];
 } EXP10_TABLE;
 
-// Debug: capture details from the last float parse
-static ParseDebugInfo LAST_FLOAT_PARSE_DEBUG = { 0.0, 0.0, 0.0, 0 };
-
-const ParseDebugInfo& getLastFloatParseDebug() {
-	return LAST_FLOAT_PARSE_DEBUG;
-}
+// Debug capture removed
 
 template<typename T> const Char* parseReal(const Char* const b, const Char* const e, T& value) {
 	StandardFPEnvScope standardFPEnv;
@@ -756,8 +742,8 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 			value = std::numeric_limits<T>::infinity();
 		} else {
 			assert(Traits<double>::MIN_EXPONENT <= exponent && exponent <= Traits<double>::MAX_EXPONENT);
-				typename Traits<T>::Hires magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
-			typename Traits<T>::Hires accumulator(0.0);
+			DoubleDouble magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
+			DoubleDouble accumulator(0.0);
 			while (p != significandEnd) {
 				if (*p != '.') {
 					accumulator = multiplyAndAdd(accumulator, magnitude, (*p - '0'));
@@ -765,20 +751,8 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 				}
 				++p;
 			}
-				const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
-				// Use parse-specific rounding for float to avoid double-rounding at certain exponents
-				if (std::is_same<T, float>::value) {
-					value = static_cast<T>(scaleAndRoundDDToFloatParse(accumulator, factor));
-				} else {
-					value = scaleAndRound(accumulator, factor, static_cast<T*>(0));
-				}
-				// Store debug info for float parses
-				if (std::is_same<T, float>::value) {
-					LAST_FLOAT_PARSE_DEBUG.accumulatorHigh = accumulator.high;
-					LAST_FLOAT_PARSE_DEBUG.accumulatorLow = accumulator.low;
-					LAST_FLOAT_PARSE_DEBUG.factor = factor;
-					LAST_FLOAT_PARSE_DEBUG.exponent = exponent;
-				}
+			const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
+			value = scaleAndRound(accumulator, factor, static_cast<T*>(0));
 		}
 	}
 	value *= sign;
@@ -839,9 +813,9 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 
 	assert(Traits<double>::MIN_EXPONENT <= exponent && exponent <= Traits<double>::MAX_EXPONENT);
 	const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
-	typename Traits<T>::Hires magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
-	const typename Traits<T>::Hires normalized = absValue / factor;
-	typename Traits<T>::Hires accumulator = 0.0;
+	DoubleDouble magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
+	const DoubleDouble normalized = absValue / factor;
+	DoubleDouble accumulator = 0.0;
 	T reconstructed;
 	do {
 		if (p == periodPosition) {
@@ -849,7 +823,7 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 		}
 		
 		// Incrementally find the max digit that keeps accumulator < normalized target (instead of using division).
-		typename Traits<T>::Hires next = accumulator + magnitude;
+		DoubleDouble next = accumulator + magnitude;
 		int digit = 0;
 		while (next < normalized && digit < 9) {
 			accumulator = next;
@@ -861,33 +835,21 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 		assert(next >= normalized);
 		
 		// Do we hit goal with digit or digit + 1? Use the same scaler as parseReal for symmetry.
-		bool chooseNext = false;
-		{
-			T reconstructed0;
-			T reconstructed1;
-			if (std::is_same<T, float>::value) {
-				reconstructed0 = static_cast<T>(scaleAndRoundDDToFloatParse(accumulator, factor));
-				reconstructed1 = static_cast<T>(scaleAndRoundDDToFloatParse(accumulator + magnitude, factor));
-			} else {
-				reconstructed0 = scaleAndRound(accumulator, factor, static_cast<T*>(0));
-				reconstructed1 = scaleAndRound(accumulator + magnitude, factor, static_cast<T*>(0));
-			}
-			chooseNext = (reconstructed1 == absValue) && (reconstructed0 != absValue);
-			reconstructed = (chooseNext ? reconstructed1 : reconstructed0);
-		}
-
-			// Finally, is next digit >= 5 (magnitude / 2) then increment it (unless we are at max, just to play nicely with
+		const T reconstructed0 = scaleAndRound(accumulator, factor, static_cast<T*>(0));
+		const T reconstructed1 = scaleAndRound(accumulator + magnitude, factor, static_cast<T*>(0));
+		bool chooseNext = (reconstructed1 == absValue) && (reconstructed0 != absValue);
+		reconstructed = (chooseNext ? reconstructed1 : reconstructed0);
+		if (!chooseNext) {
+			// Is next digit >= 5 (magnitude / 2) then increment it (unless we are at max, just to play nicely with
 			// poorer parsers). Do not apply if we already chose digit+1 via chooseNext to avoid double-increment.
-			if ((reconstructed == absValue && accumulator + magnitude / 2 < normalized && absValue != std::numeric_limits<T>::max())
-				&& !chooseNext) {
-				++digit;
-				// If this happens we have failed to calculate the correct exponent above.
-				assert(digit < 10);
-			}
+			chooseNext = (reconstructed == absValue && accumulator + magnitude / 2 < normalized && absValue != std::numeric_limits<T>::max());
+		}
+		if (chooseNext) {
+			++digit;
+			// If this happens we have failed to calculate the correct exponent above.
+			assert(digit < 10);
+		}
 		
-			if (chooseNext) {
-				++digit;
-			}
 		*p++ = '0' + digit;
 		magnitude = magnitude / 10;
 		

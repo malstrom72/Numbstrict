@@ -175,18 +175,10 @@ int main(int argc, char** argv) {
 		std::printf("strtof(ours): %08x\nstrtof(ryu):  %08x\n", ua, ub);
 		// Also parse via Numbstrict to inspect accumulator/factor and the resulting bits used by parseReal<float>
 		float p_ours = Numbstrict::stringToFloat(ours);
-		const Numbstrict::ParseDebugInfo& dbgOurs = Numbstrict::getLastFloatParseDebug();
-		std::printf("parse(ours) acc.high: %.17g\n", dbgOurs.accumulatorHigh);
-		std::printf("parse(ours) acc.low:  %.17g\n", dbgOurs.accumulatorLow);
-		std::printf("parse(ours) factor:   %.17g\n", dbgOurs.factor);
 		uint32_t p_ours_bits; std::memcpy(&p_ours_bits, &p_ours, sizeof p_ours_bits);
 		std::printf("parseReal(ours) bits: %08x\n", p_ours_bits);
 
 		float p_ryu = Numbstrict::stringToFloat(oracle);
-		const Numbstrict::ParseDebugInfo& dbgRyu = Numbstrict::getLastFloatParseDebug();
-		std::printf("parse(ryu)  acc.high: %.17g\n", dbgRyu.accumulatorHigh);
-		std::printf("parse(ryu)  acc.low:  %.17g\n", dbgRyu.accumulatorLow);
-		std::printf("parse(ryu)  factor:   %.17g\n", dbgRyu.factor);
 		uint32_t p_ryu_bits; std::memcpy(&p_ryu_bits, &p_ryu, sizeof p_ryu_bits);
 		std::printf("parseReal(ryu)  bits: %08x\n", p_ryu_bits);
 	}
@@ -248,11 +240,6 @@ int main(int argc, char** argv) {
 		v = Numbstrict::stringToFloat(s);
 		std::memcpy(&u, &v, sizeof v);
 		std::cout << "Numbstrict: " << std::hex << u << std::endl;
-		const Numbstrict::ParseDebugInfo& dbg = Numbstrict::getLastFloatParseDebug();
-		std::cout << std::setprecision(17);
-		std::cout << "acc.high: " << dbg.accumulatorHigh << std::endl;
-		std::cout << "acc.low:  " << dbg.accumulatorLow << std::endl;
-		std::cout << "factor:   " << dbg.factor << std::endl;
 	}
 	
 	

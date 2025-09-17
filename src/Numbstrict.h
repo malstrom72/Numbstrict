@@ -347,14 +347,6 @@ float stringToFloat(const String& s, size_t* nextOffset = 0);
 String doubleToString(double value);
 double stringToDouble(const String& s, size_t* nextOffset = 0);
 
-// Debug info for the last float parse. Filled during string-to-float parsing.
-struct ParseDebugInfo {
-	double accumulatorHigh;
-	double accumulatorLow;
-	double factor;
-	int exponent;
-};
-const ParseDebugInfo& getLastFloatParseDebug();
 
 String quoteString(const String& s, Char quoteChar = '\"');
 String unquoteString(const String& s, size_t* nextOffset = 0);
