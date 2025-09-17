@@ -496,28 +496,132 @@ static double scaleAndRound(const DoubleDouble& acc, double factor) {
 	return ldexp(ni, -1074);											// subnormal construction (or DBL_MIN when ni == 2^52)
 }
 
-static float scaleAndRound(double acc, double factor) {
-	if (acc == 0.0) {
+static float scaleAndRoundDDToFloat(const DoubleDouble& acc, double factor) {
+	if (acc.high == 0.0 && acc.low == 0.0) {
 		return 0.0f;
 	}
 
-	const double fastResult = acc * factor;
-	if (fastResult >= 1.1754943508222875e-38) {
-		return static_cast<float>(fastResult);							// normal result; fast path is exact here
+	int factorExponent;
+	frexp(factor, &factorExponent);
+	const int K = factorExponent - 1; // factor = 2^K
+
+	// Use the unbiased exponent of the exact sum to avoid fencepost errors
+	int hiExp;
+	const double accSum = acc.high + acc.low;
+	frexp(accSum, &hiExp);
+
+	int E = (hiExp - 1) + K;
+
+	if (E < -126) {
+		const int t = K + 149;
+		const double x = ldexp(acc.high, t) + ldexp(acc.low, t);
+		double ni = floor(x);
+		const double fraction = x - ni;
+		if (fraction > 0.5 || (fraction == 0.5 && fmod(ni, 2.0) != 0.0)) {
+			ni += 1.0;
+		}
+		return static_cast<float>(ldexp(ni, -149));
 	}
 
-	int factorExponent;													// slow path for float:
-	frexp(factor, &factorExponent);										// align under the final exponent window and round once
-	const double x = ldexp(acc, factorExponent + 148); 					// exact binary scaling to 23-bit payload domain
-	double ni = floor(x);
-	const double fraction = x - ni;
-
-	if (fraction > 0.5 || (fraction == 0.5 && fmod(ni, 2.0) != 0.0)) {
-		ni += 1.0;														// round to nearest, ties-to-even
+	const int s = 24 - hiExp; // round under the significand window (independent of K)
+	const double bf = ldexp(acc.low, s);
+	const double bi = floor(bf);
+	const double fraction = bf - bi;
+	double n = ldexp(acc.high, s) + bi;
+	if (fraction > 0.5 || (fraction == 0.5 && fmod(n, 2.0) != 0.0)) {
+		n += 1.0;
 	}
-
-	return static_cast<float>(ldexp(ni, -149));							// subnormal construction (or FLT_MIN when ni == 2^52)
+	if (n >= 16777216.0) {
+		n *= 0.5;
+		++E;
+	}
+	return static_cast<float>(ldexp(n, E - 23));
 }
+
+// Parse-specific rounding for float: include K in the significand alignment so rounding
+// occurs under the final exponent window (mirrors how strtof reaches the final payload).
+static float scaleAndRoundDDToFloatParse(const DoubleDouble& acc, double factor) {
+	if (acc.high == 0.0 && acc.low == 0.0) {
+		return 0.0f;
+	}
+
+	int factorExponent;
+	frexp(factor, &factorExponent);
+	const int K = factorExponent - 1; // factor = 2^K
+
+	int hiExp;
+	const double accSum = acc.high + acc.low;
+	frexp(accSum, &hiExp);
+
+	int E = (hiExp - 1) + K;
+
+	if (E < -126) {
+		const int t = K + 149;
+		const double x = ldexp(acc.high, t) + ldexp(acc.low, t);
+		double ni = floor(x);
+		const double fraction = x - ni;
+		if (fraction > 0.5 || (fraction == 0.5 && fmod(ni, 2.0) != 0.0)) {
+			ni += 1.0;
+		}
+		return static_cast<float>(ldexp(ni, -149));
+	}
+
+	// Normal case: round the 24-bit payload k = round_even(m * 2^23) where accSum = m * 2^(hiExp-1)
+	const int s = 24 - hiExp;
+	uint64_t nInt = 0;
+	double frac = 0.0;
+	if (s >= 0) {
+		// ldexp(acc.high, s) is integral for integer acc.high
+		uint64_t hInt = static_cast<uint64_t>(acc.high);
+		nInt = (hInt << s);
+		const double bf = ldexp(acc.low, s);
+		const double bi = floor(bf);
+		frac = bf - bi;
+		nInt += static_cast<uint64_t>(bi);
+	} else {
+		const int k = -s; // shift right by k
+		uint64_t hInt = static_cast<uint64_t>(acc.high);
+		const uint64_t mask = (k >= 64 ? ~0ull : ((1ull << k) - 1ull));
+		const uint64_t hFloor = (k >= 64 ? 0ull : (hInt >> k));
+		nInt = hFloor;
+		const uint64_t hRem = (k >= 64 ? hInt : (hInt & mask));
+		const double fracHigh = (k == 0 ? 0.0 : (static_cast<double>(hRem) / static_cast<double>(1ull << k)));
+		const double bf = ldexp(acc.low, s);
+		const double bi = floor(bf);
+		const double fracLow = bf - bi;
+		nInt += static_cast<uint64_t>(bi);
+		frac = fracHigh + fracLow;
+		if (frac >= 1.0) { // carry from combined fractional parts
+			frac -= 1.0;
+			++nInt;
+		}
+	}
+	// Round to nearest, ties-to-even
+	if (frac > 0.5 || (frac == 0.5 && (nInt & 1ull))) {
+		++nInt;
+	}
+	if (nInt >= 16777216ull) { // 1 << 24
+		nInt >>= 1;
+		++E;
+	}
+	return static_cast<float>(ldexp(static_cast<double>(nInt), E - 23));
+}
+// 3-arg overload used to select exact target type rounding at compile time.
+template<typename Out>
+static Out scaleAndRound(const DoubleDouble& acc, double factor, Out*) {
+	return std::is_same<Out, double>::value
+		? static_cast<Out>(scaleAndRound(acc, factor))
+		: static_cast<Out>(scaleAndRoundDDToFloat(acc, factor));
+}
+
+// Overload for when accumulator is a plain double (float path using Hires=double)
+template<typename Out>
+static Out scaleAndRound(const double acc, double factor, Out*) {
+	return std::is_same<Out, double>::value
+		? static_cast<Out>(scaleAndRound(DoubleDouble(acc), factor))
+		: static_cast<Out>(scaleAndRoundDDToFloat(DoubleDouble(acc), factor));
+}
+
 
 template<typename T> struct Traits { };
 
@@ -528,7 +632,7 @@ template<> struct Traits<double> {
 
 template<> struct Traits<float> {
 	enum { MIN_EXPONENT = -45, MAX_EXPONENT = 38 };
-	typedef double Hires;
+	typedef DoubleDouble Hires;
 };
 
 /*
@@ -573,6 +677,13 @@ struct Exp10Table {
 	DoubleDouble normals[Traits<double>::MAX_EXPONENT + 1 - Traits<double>::MIN_EXPONENT];
 	double factors[Traits<double>::MAX_EXPONENT + 1 - Traits<double>::MIN_EXPONENT];
 } EXP10_TABLE;
+
+// Debug: capture details from the last float parse
+static ParseDebugInfo LAST_FLOAT_PARSE_DEBUG = { 0.0, 0.0, 0.0, 0 };
+
+const ParseDebugInfo& getLastFloatParseDebug() {
+	return LAST_FLOAT_PARSE_DEBUG;
+}
 
 template<typename T> const Char* parseReal(const Char* const b, const Char* const e, T& value) {
 	StandardFPEnvScope standardFPEnv;
@@ -645,7 +756,7 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 			value = std::numeric_limits<T>::infinity();
 		} else {
 			assert(Traits<double>::MIN_EXPONENT <= exponent && exponent <= Traits<double>::MAX_EXPONENT);
-			typename Traits<T>::Hires magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
+				typename Traits<T>::Hires magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
 			typename Traits<T>::Hires accumulator(0.0);
 			while (p != significandEnd) {
 				if (*p != '.') {
@@ -654,7 +765,20 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 				}
 				++p;
 			}
-			value = scaleAndRound(accumulator, EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT]);
+				const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
+				// Use parse-specific rounding for float to avoid double-rounding at certain exponents
+				if (std::is_same<T, float>::value) {
+					value = static_cast<T>(scaleAndRoundDDToFloatParse(accumulator, factor));
+				} else {
+					value = scaleAndRound(accumulator, factor, static_cast<T*>(0));
+				}
+				// Store debug info for float parses
+				if (std::is_same<T, float>::value) {
+					LAST_FLOAT_PARSE_DEBUG.accumulatorHigh = accumulator.high;
+					LAST_FLOAT_PARSE_DEBUG.accumulatorLow = accumulator.low;
+					LAST_FLOAT_PARSE_DEBUG.factor = factor;
+					LAST_FLOAT_PARSE_DEBUG.exponent = exponent;
+				}
 		}
 	}
 	value *= sign;
@@ -667,7 +791,9 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 	Char* p = buffer;
 
 	T absValue = value;
-	if (value < 0) {
+	// Preserve negative zero: print "-0.0" when signbit is set on zero
+	const bool negative = (value < 0) || (value == (T)0.0 && std::signbit(value));
+	if (negative) {
 		*p++ = '-';
 		absValue = -value;
 	}
@@ -734,24 +860,34 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 		// Correct behavior is to never reach higher than digit 9.
 		assert(next >= normalized);
 		
-		// Do we hit goal with digit or digit + 1?
-		reconstructed = static_cast<T>(scaleAndRound(accumulator, factor));
-		if (reconstructed != absValue) {
-			reconstructed = static_cast<T>(scaleAndRound(accumulator + magnitude, factor));
+		// Do we hit goal with digit or digit + 1? Use the same scaler as parseReal for symmetry.
+		bool chooseNext = false;
+		{
+			T reconstructed0;
+			T reconstructed1;
+			if (std::is_same<T, float>::value) {
+				reconstructed0 = static_cast<T>(scaleAndRoundDDToFloatParse(accumulator, factor));
+				reconstructed1 = static_cast<T>(scaleAndRoundDDToFloatParse(accumulator + magnitude, factor));
+			} else {
+				reconstructed0 = scaleAndRound(accumulator, factor, static_cast<T*>(0));
+				reconstructed1 = scaleAndRound(accumulator + magnitude, factor, static_cast<T*>(0));
+			}
+			chooseNext = (reconstructed1 == absValue) && (reconstructed0 != absValue);
+			reconstructed = (chooseNext ? reconstructed1 : reconstructed0);
 		}
 
-		// Finally, is next digit >= 5 (magnitude / 2) then increment it (unless we are at max, just to play nicely with
-		// poorer parsers).
-		if (reconstructed == absValue && accumulator + magnitude / 2 < normalized && absValue != std::numeric_limits<T>::max()) {
-			++digit;
-
-			// If this happens we have failed to calculate the correct exponent above.
-			assert(digit < 10);
-		} else {
-			// If this happens we have failed to calculate the correct exponent above.
-			assert(accumulator > 0.0);
-		}
+			// Finally, is next digit >= 5 (magnitude / 2) then increment it (unless we are at max, just to play nicely with
+			// poorer parsers). Do not apply if we already chose digit+1 via chooseNext to avoid double-increment.
+			if ((reconstructed == absValue && accumulator + magnitude / 2 < normalized && absValue != std::numeric_limits<T>::max())
+				&& !chooseNext) {
+				++digit;
+				// If this happens we have failed to calculate the correct exponent above.
+				assert(digit < 10);
+			}
 		
+			if (chooseNext) {
+				++digit;
+			}
 		*p++ = '0' + digit;
 		magnitude = magnitude / 10;
 		
@@ -778,6 +914,7 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 		assert(q >= p);
 		p = std::copy(q, buffer + 32, p);
 	}
+
 	assert(p <= buffer + 32);
 	return p;
 }
@@ -1764,6 +1901,8 @@ bool unitTest() {
 
 	assert(doubleToString(0.0) == "0.0");
 	assert(stringToDouble("0.0") == 0.0);
+	assert(doubleToString(-0.0) == "-0.0");
+	assert(std::signbit(stringToDouble("-0.0")));
 	assert(doubleToString(-1.0) == "-1.0");
 	assert(stringToDouble("-1.0") == -1.0);
 	assert(doubleToString(1.12345689101112133911897) == "1.1234568910111213");
@@ -1799,6 +1938,8 @@ bool unitTest() {
 
 	assert(floatToString(0.0f) == "0.0");
 	assert(stringToFloat("0.0") == 0.0f);
+	assert(floatToString(-0.0f) == "-0.0");
+	assert(std::signbit(stringToFloat("-0.0")));
 	assert(floatToString(-1.0f) == "-1.0");
 	assert(stringToFloat("-1.0") == -1.0f);
 	assert(floatToString(1.12345683575f) == "1.1234568");

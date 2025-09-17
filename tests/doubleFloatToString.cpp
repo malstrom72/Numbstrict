@@ -36,6 +36,15 @@ int main() {
 		static_cast<void>(round);
 	}
 
+	// Negative zero handling (double)
+	{
+		const double nz = -0.0;
+		const auto s = Numbstrict::doubleToString(nz);
+		assert(s == "-0.0");
+		const double r = Numbstrict::stringToDouble(s);
+		assert(std::signbit(r));
+	}
+
 	struct FloatTest { float value; const char* expected; };
 	const FloatTest floatTests[] = {
 		{0.0f, "0.0"},
@@ -63,6 +72,15 @@ int main() {
 			assert(round == t.value);
 		}
 		static_cast<void>(round);
+	}
+
+	// Negative zero handling (float)
+	{
+		const float nz = -0.0f;
+		const auto s = Numbstrict::floatToString(nz);
+		assert(s == "-0.0");
+		const float r = Numbstrict::stringToFloat(s);
+		assert(std::signbit(r));
 	}
 	return 0;
 }
