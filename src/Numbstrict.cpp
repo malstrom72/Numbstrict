@@ -26,6 +26,7 @@
 #include <iostream>
 #include <cstring>
 #include <type_traits>
+#include <iomanip>
 #include "Numbstrict.h"
 
 namespace Numbstrict {
@@ -496,48 +497,6 @@ static double scaleAndRound(const DoubleDouble& acc, double factor) {
 	return ldexp(ni, -1074);											// subnormal construction (or DBL_MIN when ni == 2^52)
 }
 
-static float scaleAndRoundDDToFloat(const DoubleDouble& acc, double factor) {
-	if (acc.high == 0.0 && acc.low == 0.0) {
-		return 0.0f;
-	}
-
-	int factorExponent;
-	frexp(factor, &factorExponent);
-	const int K = factorExponent - 1; // factor = 2^K
-
-	// Use the unbiased exponent of the exact sum to avoid fencepost errors
-	int hiExp;
-	const double accSum = acc.high + acc.low;
-	frexp(accSum, &hiExp);
-
-	int E = (hiExp - 1) + K;
-
-	if (E < -126) {
-		const int t = K + 149;
-		const double x = ldexp(acc.high, t) + ldexp(acc.low, t);
-		double ni = floor(x);
-		const double fraction = x - ni;
-		if (fraction > 0.5 || (fraction == 0.5 && fmod(ni, 2.0) != 0.0)) {
-			ni += 1.0;
-		}
-		return static_cast<float>(ldexp(ni, -149));
-	}
-
-	const int s = 24 - hiExp; // round under the significand window (independent of K)
-	const double bf = ldexp(acc.low, s);
-	const double bi = floor(bf);
-	const double fraction = bf - bi;
-	double n = ldexp(acc.high, s) + bi;
-	if (fraction > 0.5 || (fraction == 0.5 && fmod(n, 2.0) != 0.0)) {
-		n += 1.0;
-	}
-	if (n >= 16777216.0) {
-		n *= 0.5;
-		++E;
-	}
-	return static_cast<float>(ldexp(n, E - 23));
-}
-
 // Parse-specific rounding for float: include K in the significand alignment so rounding
 // occurs under the final exponent window (mirrors how strtof reaches the final payload).
 static float scaleAndRoundDDToFloatParse(const DoubleDouble& acc, double factor) {
@@ -553,58 +512,28 @@ static float scaleAndRoundDDToFloatParse(const DoubleDouble& acc, double factor)
 	const double accSum = acc.high + acc.low;
 	frexp(accSum, &hiExp);
 
-	int E = (hiExp - 1) + K;
+	const int E = (hiExp - 1) + K;
+	const bool subnormal = (E < -126);
 
-	if (E < -126) {
-		const int t = K + 149;
-		const double x = ldexp(acc.high, t) + ldexp(acc.low, t);
-		double ni = floor(x);
-		const double fraction = x - ni;
-		if (fraction > 0.5 || (fraction == 0.5 && fmod(ni, 2.0) != 0.0)) {
-			ni += 1.0;
-		}
-		return static_cast<float>(ldexp(ni, -149));
-	}
+	// Unified assembly: scale (high, low) into the target payload window, then single rounding
+	const int u = subnormal ? (K + 149) : (24 - hiExp);
+	const int v = subnormal ? (-149) : (E - 23);
 
-	// Normal case: round the 24-bit payload k = round_even(m * 2^23) where accSum = m * 2^(hiExp-1)
-	const int s = 24 - hiExp;
-	uint64_t nInt = 0;
-	double frac = 0.0;
-	if (s >= 0) {
-		// ldexp(acc.high, s) is integral for integer acc.high
-		uint64_t hInt = static_cast<uint64_t>(acc.high);
-		nInt = (hInt << s);
-		const double bf = ldexp(acc.low, s);
-		const double bi = floor(bf);
-		frac = bf - bi;
-		nInt += static_cast<uint64_t>(bi);
-	} else {
-		const int k = -s; // shift right by k
-		uint64_t hInt = static_cast<uint64_t>(acc.high);
-		const uint64_t mask = (k >= 64 ? ~0ull : ((1ull << k) - 1ull));
-		const uint64_t hFloor = (k >= 64 ? 0ull : (hInt >> k));
-		nInt = hFloor;
-		const uint64_t hRem = (k >= 64 ? hInt : (hInt & mask));
-		const double fracHigh = (k == 0 ? 0.0 : (static_cast<double>(hRem) / static_cast<double>(1ull << k)));
-		const double bf = ldexp(acc.low, s);
-		const double bi = floor(bf);
-		const double fracLow = bf - bi;
-		nInt += static_cast<uint64_t>(bi);
-		frac = fracHigh + fracLow;
-		if (frac >= 1.0) { // carry from combined fractional parts
-			frac -= 1.0;
-			++nInt;
-		}
+	const double a = ldexp(acc.high, u);
+	const double b = ldexp(acc.low, u);
+
+	double ia, ib;
+	double frac = modf(a, &ia) + modf(b, &ib);
+	double n = ia + ib;
+	if (frac >= 1.0) {
+		frac -= 1.0;
+		n += 1.0;
 	}
 	// Round to nearest, ties-to-even
-	if (frac > 0.5 || (frac == 0.5 && (nInt & 1ull))) {
-		++nInt;
+	if (frac > 0.5 || (frac == 0.5 && fmod(n, 2.0) != 0.0)) {
+		n += 1.0;
 	}
-	if (nInt >= 16777216ull) { // 1 << 24
-		nInt >>= 1;
-		++E;
-	}
-	return static_cast<float>(ldexp(static_cast<double>(nInt), E - 23));
+	return static_cast<float>(ldexp(n, v));
 }
 // 3-arg overload used to select exact target type rounding at compile time.
 // Typed dispatch without std::is_same: use pointer tag to select target type

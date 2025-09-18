@@ -157,7 +157,8 @@ struct FragileDoubleCase {
 
 struct FragileFloatCase {
 	uint32_t bits;
-	const char* expected;
+	const char* expected;   // expected pretty-print (Ryu oracle)
+	const char* source;     // optional source text to parse (can be longer/different)
 };
 
 static const FragileDoubleCase kFragileDoubles[] = {
@@ -187,6 +188,12 @@ static const FragileDoubleCase kFragileDoubles[] = {
 	{ 0x3eb0c6f7a0b5ed8eull, "0.0000010000000000000002" },
 	{ 0x4202a05f1fffffffull, "9999999999.999998" },
 	{ 0x4202a05f20000001ull, "1.0000000000000002e+10" },
+	// Just below powers of two (rounding carry into exponent)
+	{ 0x3fffffffffffffffull, "1.9999999999999998" },
+	{ 0x400fffffffffffffull, "3.9999999999999996" },
+	{ 0x401fffffffffffffull, "7.999999999999999" },
+	{ 0x402fffffffffffffull, "15.999999999999998" },
+	{ 0x403fffffffffffffull, "31.999999999999996" },
 	{ 0x7feffffffffffffeull, "1.7976931348623155e+308" },
 	{ 0x7fefffffffffffffull, "1.7976931348623157e+308" },
 	{ 0x7ff0000000000000ull, "inf" },
@@ -209,36 +216,49 @@ static const FragileDoubleCase kFragileDoubles[] = {
 };
 
 static const FragileFloatCase kFragileFloats[] = {
-	{ 0x00000000u, "0.0" },
-	{ 0x00000001u, "1.0e-45" },
-	{ 0x00000002u, "3.0e-45" },
-	{ 0x007ffffeu, "1.1754941e-38" },
-	{ 0x007fffffu, "1.1754942e-38" },
-	{ 0x00800000u, "1.1754944e-38" },
-	{ 0x00800001u, "1.1754945e-38" },
-	{ 0x33d6bf94u, "9.9999994e-8" },
-	{ 0x33d6bf96u, "1.0000001e-7" },
-	{ 0x358637bcu, "9.999999e-7" },
-	{ 0x358637beu, "0.0000010000001" },
-	{ 0x501502f8u, "9999999000.0" },
-	{ 0x501502fau, "1.0000001e+10" },
-	{ 0x7f800000u, "inf" },
-	{ 0x80000001u, "-1.0e-45" },
-	{ 0x80000002u, "-3.0e-45" },
-	{ 0x807ffffeu, "-1.1754941e-38" },
-	{ 0x807fffffu, "-1.1754942e-38" },
-	{ 0x80800000u, "-1.1754944e-38" },
-	{ 0x80800001u, "-1.1754945e-38" },
-	{ 0x8d2eaca7u, "-5.382571e-31" },	// ours: -5.3825712e-31
-	{ 0x95ae43feu, "-7.0385313e-26" },	// ours: -7.038531e-26 (reported)
-	{ 0xb3d6bf94u, "-9.9999994e-8" },
-	{ 0xb3d6bf96u, "-1.0000001e-7" },
-	{ 0xb58637bcu, "-9.999999e-7" },
-	{ 0xb58637beu, "-0.0000010000001" },
-	{ 0xd01502f8u, "-9999999000.0" },
-	{ 0xd01502fau, "-1.0000001e+10" },
-	{ 0xeb000000u, "-1.5474251e+26" },	// ours: -1.5474250e+26
-	{ 0xff800000u, "-inf" },
+	{ 0x00000000u, "0.0", "0.0" },
+	{ 0x00000001u, "1.0e-45", "1.0e-45" },
+	{ 0x00000002u, "3.0e-45", "3.0e-45" },
+	{ 0x007ffffeu, "1.1754941e-38", "1.1754941e-38" },
+	{ 0x007fffffu, "1.1754942e-38", "1.1754942e-38" },
+	{ 0x00800000u, "1.1754944e-38", "1.1754944e-38" },
+	{ 0x00800001u, "1.1754945e-38", "1.1754945e-38" },
+	{ 0x33d6bf94u, "9.9999994e-8", "9.9999994e-8" },
+	{ 0x33d6bf96u, "1.0000001e-7", "1.0000001e-7" },
+	{ 0x358637bcu, "9.999999e-7", "9.999999e-7" },
+	{ 0x358637beu, "0.0000010000001", "0.0000010000001" },
+	{ 0x501502f8u, "9999999000.0", "9999999000.0" },
+	{ 0x501502fau, "1.0000001e+10", "1.0000001e+10" },
+	// Just below powers of two (rounding carry into exponent)
+	{ 0x3f7fffffu, "0.99999994", "0.99999994" },
+	{ 0x3fffffffu, "1.9999999", "1.9999999" },
+	{ 0x407fffffu, "3.9999998", "3.9999998" },
+	{ 0x40ffffffu, "7.9999995", "7.9999995" },
+	{ 0x417fffffu, "15.999999", "15.999999" },
+	{ 0x427fffffu, "63.999996", "63.999996" },
+	// Force-overflow parse probes: long decimals that round up at power-of-two boundaries
+	{ 0x3f800000u, "1.0", "0.9999999701976776123046875" },
+	{ 0x40000000u, "2.0", "1.999999940395355224609375" },
+	{ 0x40800000u, "4.0", "3.99999988079071044921875" },
+	{ 0x41000000u, "8.0", "7.9999997615814208984375" },
+	{ 0x7f800000u, "inf", "inf" },
+	{ 0x80000001u, "-1.0e-45", "-1.0e-45" },
+	{ 0x80000002u, "-3.0e-45", "-3.0e-45" },
+	{ 0x807ffffeu, "-1.1754941e-38", "-1.1754941e-38" },
+	{ 0x807fffffu, "-1.1754942e-38", "-1.1754942e-38" },
+	{ 0x80800000u, "-1.1754944e-38", "-1.1754944e-38" },
+	{ 0x80800001u, "-1.1754945e-38", "-1.1754945e-38" },
+	{ 0x8d2eaca7u, "-5.382571e-31", "-5.382571e-31" },	// ours: -5.3825712e-31
+	{ 0x95ae43feu, "-7.0385313e-26", "-7.0385313e-26" },	// ours: -7.038531e-26 (reported)
+	{ 0xb3d6bf94u, "-9.9999994e-8", "-9.9999994e-8" },
+	{ 0xb3d6bf96u, "-1.0000001e-7", "-1.0000001e-7" },
+	{ 0xb58637bcu, "-9.999999e-7", "-9.999999e-7" },
+	{ 0xb58637beu, "-0.0000010000001", "-0.0000010000001" },
+	{ 0xd01502f8u, "-9999999000.0", "-9999999000.0" },
+	{ 0xd01502fau, "-1.0000001e+10", "-1.0000001e+10" },
+	{ 0xeb000000u, "-1.5474251e+26", "-1.5474251e+26" },	// ours: -1.5474250e+26
+	{ 0xd3329163u, "-7.6694336e+11", "-7.669433611830981e+11" },
+	{ 0xff800000u, "-inf", "-inf" },
 };
 
 static void emitDoubleListEntry(uint64_t valueBits, const std::string& oracle) {
@@ -399,7 +419,7 @@ int main(int argc, char** argv) {
 		}
 		char* end = nullptr;
 		const int64_t parsedCount = static_cast<int64_t>(std::strtoll(argv[i], &end, 10));
-		if (end && *end == '\0' && parsedCount > 0) {
+		if (end && *end == '\0' && parsedCount >= 0) {
 			testCount = static_cast<int>(parsedCount);
 			continue;
 		}
@@ -417,15 +437,31 @@ int main(int argc, char** argv) {
 				return 1;
 			}
 		}
+
 	}
 	if (testFloat) {
 		for (const FragileFloatCase& entry : kFragileFloats) {
 			float v;
 			std::memcpy(&v, &entry.bits, sizeof v);
-			if (!verifyFloatCase(v, entry.expected, "float mismatch (fragile)", true)) {
-				return 1;
+				if (!verifyFloatCase(v, entry.expected, "float mismatch (fragile)", true)) {
+					return 1;
+				}
+				// Only parse long-form source strings when testCount == 0
+				// to avoid tripping debug asserts during large random runs.
+				if (testCount == 0 && entry.source && entry.source[0]) {
+					const float nb = Numbstrict::stringToFloat(entry.source);
+					const uint32_t oracleBits = bits(nb);
+					if (!(oracleBits == entry.bits || (v == 0.0f && nb == 0.0f))) {
+						std::cout << "float mismatch (fragile source) stringToFloat(source) mismatch" << std::endl;
+						std::cout << "bits: " << toHex32(entry.bits) << std::endl;
+						std::cout << " source: " << entry.source << std::endl;
+						std::cout << " result_bits: " << toHex32(oracleBits) << std::endl;
+						emitFloatListEntry(entry.bits, entry.expected);
+						return 1;
+					}
+				}
 			}
-		}
+
 	}
 
 	const uint64_t doubleSeed = seedProvided ? seedValue : 123456ull;
@@ -463,4 +499,3 @@ int main(int argc, char** argv) {
 	std::cout << "All tests passed" << std::endl;
 	return 0;
 }
-
