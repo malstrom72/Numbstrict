@@ -479,9 +479,8 @@ static double scaleAndRound(const DoubleDouble& acc, double factor) {
 		return fastResult;												// normal result; fast path is exact here
 	}
 	
-    int factorExponent, highExponent;									// slow path: denormal/transition region
+    int factorExponent;													// slow path: denormal/transition region
     frexp(factor, &factorExponent);										// assemble payload then single rounding
-    frexp(acc.high, &highExponent);										// unbiased exponent of acc.high
     
 	const int t = factorExponent + 1073;								// guaranteed by table construction
 	assert(t >= 0);														// (no right-shift branch needed)	
