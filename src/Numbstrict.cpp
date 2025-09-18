@@ -504,6 +504,7 @@ static float scaleAndRoundDDToFloatParse(const DoubleDouble& acc, double factor)
 		return 0.0f;
 	}
 
+
 	int factorExponent;
 	frexp(factor, &factorExponent);
 	const int K = factorExponent - 1; // factor = 2^K
@@ -522,15 +523,16 @@ static float scaleAndRoundDDToFloatParse(const DoubleDouble& acc, double factor)
 	const double a = ldexp(acc.high, u);
 	const double b = ldexp(acc.low, u);
 
-	double ia, ib;
-	double frac = modf(a, &ia) + modf(b, &ib);
+	const double ia = floor(a);
+	const double ib = floor(b);
+	double frac = (a - ia) + (b - ib);
 	double n = ia + ib;
 	if (frac >= 1.0) {
 		frac -= 1.0;
 		n += 1.0;
 	}
 	// Round to nearest, ties-to-even
-	if (frac > 0.5 || (frac == 0.5 && fmod(n, 2.0) != 0.0)) {
+	if (frac > 0.5 || (frac == 0.5 && (static_cast<uint32_t>(n) & 1u))) {
 		n += 1.0;
 	}
 	return static_cast<float>(ldexp(n, v));
