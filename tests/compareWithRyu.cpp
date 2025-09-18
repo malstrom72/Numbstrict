@@ -3,13 +3,13 @@
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <random>
-#include <string>
 #include <cstdlib>
-#include <cstdio>
-#include <cinttypes>
+#include <iomanip>
 #include <iostream>
 #include <limits>
+#include <random>
+#include <sstream>
+#include <string>
 
 static std::string ryuDouble(double v) {
 	if (v == 0.0) return (std::signbit(v) ? "-0.0" : "0.0");
@@ -120,7 +120,9 @@ static std::string toHex32(uint32_t value) {
 	return stream.str();
 }
 
-static bool is_decimal_tie_equivalent(const std::string& a, const std::string& b) {
+// Returns true when two decimal representations differ only by a single
+// last-digit tie that should be considered equivalent for round-to-even comparisons.
+static bool isDecimalTieEquivalent(const std::string& a, const std::string& b) {
 	if ((a.size() && a[0] == '-') != (b.size() && b[0] == '-')) return false;
 	auto split = [](const std::string& s) {
 		size_t e = s.find('e');
@@ -240,76 +242,130 @@ static const FragileFloatCase kFragileFloats[] = {
 };
 
 static void emitDoubleListEntry(uint64_t valueBits, const std::string& oracle) {
-	std::cout << "	{ 0x" << toHex64(valueBits) << "ull, \"" << oracle << "\" }" << '\n';
+	std::cout << "	{ 0x" << toHex64(valueBits) << "ull, \"" << oracle << "\" }" << std::endl;
 }
 
 static void emitFloatListEntry(uint32_t valueBits, const std::string& oracle) {
-	std::cout << "	{ 0x" << toHex32(valueBits) << "u, \"" << oracle << "\" }" << '\n';
+	std::cout << "	{ 0x" << toHex32(valueBits) << "u, \"" << oracle << "\" }" << std::endl;
 }
 
 static bool verifyDoubleCase(double v, const std::string& oracle, const char* context, bool printEntry) {
-	std::string ours = Numbstrict::doubleToString(v);
+	const std::string ours = Numbstrict::doubleToString(v);
 	const uint64_t valueBits = bits(v);
 	if (ours != oracle) {
-		double ra = std::strtod(ours.c_str(), nullptr);
-		double rb = std::strtod(oracle.c_str(), nullptr);
-		if (!(bits(ra) == valueBits && bits(rb) == valueBits && is_decimal_tie_equivalent(ours, oracle))) {
-			std::printf("%s\nbits: %016" PRIx64 "\n ours: %s\n ryu:  %s\n", context, valueBits, ours.c_str(), oracle.c_str());
-			if (printEntry) emitDoubleListEntry(valueBits, oracle);
+		const double ra = std::strtod(ours.c_str(), nullptr);
+		const double rb = std::strtod(oracle.c_str(), nullptr);
+		const uint64_t raBits = bits(ra);
+		const uint64_t rbBits = bits(rb);
+		if (!(raBits == valueBits && rbBits == valueBits && isDecimalTieEquivalent(ours, oracle))) {
+			std::cout << context << std::endl;
+			std::cout << "bits: " << toHex64(valueBits) << std::endl;
+			std::cout << " ours: " << ours << std::endl;
+			std::cout << " ryu:  " << oracle << std::endl;
+			if (printEntry) {
+				emitDoubleListEntry(valueBits, oracle);
+			}
 			return false;
 		}
 	}
-	double round = std::strtod(ours.c_str(), nullptr);
+
+	const double round = std::strtod(ours.c_str(), nullptr);
 	const uint64_t roundBits = bits(round);
 	if (roundBits != valueBits) {
-		std::printf("%s round-trip mismatch\nbits: %016" PRIx64 "\n str: %s\n round_bits: %016" PRIx64 "\n", context, valueBits, ours.c_str(), roundBits);
-		if (printEntry) emitDoubleListEntry(valueBits, oracle);
+		std::cout << context << " round-trip mismatch" << std::endl;
+		std::cout << "bits: " << toHex64(valueBits) << std::endl;
+		std::cout << " str: " << ours << std::endl;
+		std::cout << " round_bits: " << toHex64(roundBits) << std::endl;
+		if (printEntry) {
+			emitDoubleListEntry(valueBits, oracle);
+		}
 		return false;
 	}
-	double na = Numbstrict::stringToDouble(ours);
+
+	const double na = Numbstrict::stringToDouble(ours);
 	const uint64_t oursBits = bits(na);
 	if (!(oursBits == valueBits || (v == 0.0 && na == 0.0))) {
-		std::printf("%s stringToDouble(ours) mismatch\nbits: %016" PRIx64 "\n ours: %s\n result_bits: %016" PRIx64 "\n", context, valueBits, ours.c_str(), oursBits);
-		if (printEntry) emitDoubleListEntry(valueBits, oracle);
+		std::cout << context << " stringToDouble(ours) mismatch" << std::endl;
+		std::cout << "bits: " << toHex64(valueBits) << std::endl;
+		std::cout << " ours: " << ours << std::endl;
+		std::cout << " result_bits: " << toHex64(oursBits) << std::endl;
+		if (printEntry) {
+			emitDoubleListEntry(valueBits, oracle);
+		}
 		return false;
 	}
-	double nb = Numbstrict::stringToDouble(oracle);
+
+	const double nb = Numbstrict::stringToDouble(oracle);
 	const uint64_t oracleBits = bits(nb);
 	if (!(oracleBits == valueBits || (v == 0.0 && nb == 0.0))) {
-		std::printf("%s stringToDouble(ryu) mismatch\nbits: %016" PRIx64 "\n ryu:  %s\n result_bits: %016" PRIx64 "\n", context, valueBits, oracle.c_str(), oracleBits);
-		if (printEntry) emitDoubleListEntry(valueBits, oracle);
+		std::cout << context << " stringToDouble(ryu) mismatch" << std::endl;
+		std::cout << "bits: " << toHex64(valueBits) << std::endl;
+		std::cout << " ryu:  " << oracle << std::endl;
+		std::cout << " result_bits: " << toHex64(oracleBits) << std::endl;
+		if (printEntry) {
+			emitDoubleListEntry(valueBits, oracle);
+		}
 		return false;
 	}
 	return true;
 }
 
 static bool verifyFloatCase(float v, const std::string& oracle, const char* context, bool printEntry) {
-	std::string ours = Numbstrict::floatToString(v);
+	const std::string ours = Numbstrict::floatToString(v);
+	const uint32_t valueBits = bits(v);
 	if (ours != oracle) {
-		float ra = std::strtof(ours.c_str(), nullptr);
-		float rb = std::strtof(oracle.c_str(), nullptr);
-		if (!(bits(ra) == bits(v) && bits(rb) == bits(v) && is_decimal_tie_equivalent(ours, oracle))) {
-			std::printf("%s\nbits: %08x\n ours: %s\n ryu:  %s\n", context, bits(v), ours.c_str(), oracle.c_str());
-			if (printEntry) emitFloatListEntry(bits(v), oracle);
+		const float ra = std::strtof(ours.c_str(), nullptr);
+		const float rb = std::strtof(oracle.c_str(), nullptr);
+		const uint32_t raBits = bits(ra);
+		const uint32_t rbBits = bits(rb);
+		if (!(raBits == valueBits && rbBits == valueBits && isDecimalTieEquivalent(ours, oracle))) {
+			std::cout << context << std::endl;
+			std::cout << "bits: " << toHex32(valueBits) << std::endl;
+			std::cout << " ours: " << ours << std::endl;
+			std::cout << " ryu:  " << oracle << std::endl;
+			if (printEntry) {
+				emitFloatListEntry(valueBits, oracle);
+			}
 			return false;
 		}
 	}
-	float round = std::strtof(ours.c_str(), nullptr);
-	if (bits(round) != bits(v)) {
-		std::printf("%s round-trip mismatch\nbits: %08x\n str: %s\n round_bits: %08x\n", context, bits(v), ours.c_str(), bits(round));
-		if (printEntry) emitFloatListEntry(bits(v), oracle);
+
+	const float round = std::strtof(ours.c_str(), nullptr);
+	const uint32_t roundBits = bits(round);
+	if (roundBits != valueBits) {
+		std::cout << context << " round-trip mismatch" << std::endl;
+		std::cout << "bits: " << toHex32(valueBits) << std::endl;
+		std::cout << " str: " << ours << std::endl;
+		std::cout << " round_bits: " << toHex32(roundBits) << std::endl;
+		if (printEntry) {
+			emitFloatListEntry(valueBits, oracle);
+		}
 		return false;
 	}
-	float na = Numbstrict::stringToFloat(ours);
-	if (!(bits(na) == bits(v) || (v == 0.0f && na == 0.0f))) {
-		std::printf("%s stringToFloat(ours) mismatch\nbits: %08x\n ours: %s\n result_bits: %08x\n", context, bits(v), ours.c_str(), bits(na));
-		if (printEntry) emitFloatListEntry(bits(v), oracle);
+
+	const float na = Numbstrict::stringToFloat(ours);
+	const uint32_t oursBits = bits(na);
+	if (!(oursBits == valueBits || (v == 0.0f && na == 0.0f))) {
+		std::cout << context << " stringToFloat(ours) mismatch" << std::endl;
+		std::cout << "bits: " << toHex32(valueBits) << std::endl;
+		std::cout << " ours: " << ours << std::endl;
+		std::cout << " result_bits: " << toHex32(oursBits) << std::endl;
+		if (printEntry) {
+			emitFloatListEntry(valueBits, oracle);
+		}
 		return false;
 	}
-	float nb = Numbstrict::stringToFloat(oracle);
-	if (!(bits(nb) == bits(v) || (v == 0.0f && nb == 0.0f))) {
-		std::printf("%s stringToFloat(ryu) mismatch\nbits: %08x\n ryu:  %s\n result_bits: %08x\n", context, bits(v), oracle.c_str(), bits(nb));
-		if (printEntry) emitFloatListEntry(bits(v), oracle);
+
+	const float nb = Numbstrict::stringToFloat(oracle);
+	const uint32_t oracleBits = bits(nb);
+	if (!(oracleBits == valueBits || (v == 0.0f && nb == 0.0f))) {
+		std::cout << context << " stringToFloat(ryu) mismatch" << std::endl;
+		std::cout << "bits: " << toHex32(valueBits) << std::endl;
+		std::cout << " ryu:  " << oracle << std::endl;
+		std::cout << " result_bits: " << toHex32(oracleBits) << std::endl;
+		if (printEntry) {
+			emitFloatListEntry(valueBits, oracle);
+		}
 		return false;
 	}
 	return true;
@@ -321,13 +377,20 @@ int main(int argc, char** argv) {
 	int testCount = 1000000;
 	bool seedProvided = false;
 	uint64_t seedValue = 0u;
+	constexpr char kSeedPrefix[] = "seed=";
+	constexpr size_t kSeedPrefixLength = sizeof(kSeedPrefix) - 1;
 	for (int i = 1; i < argc; ++i) {
-		if (!std::strcmp(argv[i], "double")) { testDouble = true; continue; }
-		if (!std::strcmp(argv[i], "float")) { testFloat = true; continue; }
-		const char* seedPrefix = "seed=";
-		if (!std::strncmp(argv[i], seedPrefix, 5)) {
+		if (!std::strcmp(argv[i], "double")) {
+			testDouble = true;
+			continue;
+		}
+		if (!std::strcmp(argv[i], "float")) {
+			testFloat = true;
+			continue;
+		}
+		if (!std::strncmp(argv[i], kSeedPrefix, kSeedPrefixLength)) {
 			char* endSeed = nullptr;
-			uint64_t parsed = static_cast<uint64_t>(std::strtoull(argv[i] + 5, &endSeed, 10));
+			const uint64_t parsed = static_cast<uint64_t>(std::strtoull(argv[i] + kSeedPrefixLength, &endSeed, 10));
 			if (endSeed && *endSeed == '\0') {
 				seedProvided = true;
 				seedValue = parsed;
@@ -335,21 +398,33 @@ int main(int argc, char** argv) {
 			}
 		}
 		char* end = nullptr;
-		int64_t parsedCount = static_cast<int64_t>(std::strtoll(argv[i], &end, 10));
-		if (end && *end == '\0' && parsedCount > 0) { testCount = static_cast<int>(parsedCount); continue; }
+		const int64_t parsedCount = static_cast<int64_t>(std::strtoll(argv[i], &end, 10));
+		if (end && *end == '\0' && parsedCount > 0) {
+			testCount = static_cast<int>(parsedCount);
+			continue;
+		}
 	}
-	if (!testDouble && !testFloat) { testDouble = true; testFloat = true; }
+	if (!testDouble && !testFloat) {
+		testDouble = true;
+		testFloat = true;
+	}
 
 	if (testDouble) {
 		for (const FragileDoubleCase& entry : kFragileDoubles) {
-			double v; std::memcpy(&v, &entry.bits, sizeof v);
-			if (!verifyDoubleCase(v, entry.expected, "double mismatch (fragile)", true)) return 1;
+			double v;
+			std::memcpy(&v, &entry.bits, sizeof v);
+			if (!verifyDoubleCase(v, entry.expected, "double mismatch (fragile)", true)) {
+				return 1;
+			}
 		}
 	}
 	if (testFloat) {
 		for (const FragileFloatCase& entry : kFragileFloats) {
-			float v; std::memcpy(&v, &entry.bits, sizeof v);
-			if (!verifyFloatCase(v, entry.expected, "float mismatch (fragile)", true)) return 1;
+			float v;
+			std::memcpy(&v, &entry.bits, sizeof v);
+			if (!verifyFloatCase(v, entry.expected, "float mismatch (fragile)", true)) {
+				return 1;
+			}
 		}
 	}
 
@@ -362,23 +437,30 @@ int main(int argc, char** argv) {
 
 	for (int i = 0; i < testCount; ++i) {
 		if (testDouble) {
-			uint64_t u = ddist(drng);
-			double v; std::memcpy(&v, &u, sizeof v);
+			const uint64_t u = ddist(drng);
+			double v;
+			std::memcpy(&v, &u, sizeof v);
 			if (std::isfinite(v)) {
-				std::string oracle = ryuDouble(v);
-				if (!verifyDoubleCase(v, oracle, "double mismatch", true)) return 1;
+				const std::string oracle = ryuDouble(v);
+				if (!verifyDoubleCase(v, oracle, "double mismatch", true)) {
+					return 1;
+				}
 			}
 		}
 		if (testFloat) {
-			uint32_t u = fdist(frng);
-			float v; std::memcpy(&v, &u, sizeof v);
+			const uint32_t u = fdist(frng);
+			float v;
+			std::memcpy(&v, &u, sizeof v);
 			if (std::isfinite(v)) {
-				std::string oracle = ryuFloat(v);
-				if (!verifyFloatCase(v, oracle, "float mismatch", true)) return 1;
+				const std::string oracle = ryuFloat(v);
+				if (!verifyFloatCase(v, oracle, "float mismatch", true)) {
+					return 1;
+				}
 			}
 		}
 	}
 
-	std::cout << "All tests passed\n";
+	std::cout << "All tests passed" << std::endl;
 	return 0;
 }
+
