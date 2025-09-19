@@ -497,5 +497,7 @@ int main(int argc, char** argv) {
 	}
 
 	std::cout << "All tests passed" << std::endl;
+	
+	std::cout << "Highest problematic float: " << std::setprecision(9) << Numbstrict::highestProblematicFloat << std::endl;
 	return 0;
 }

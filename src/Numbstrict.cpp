@@ -496,6 +496,8 @@ static double scaleAndRound(const DoubleDouble& acc, double factor) {
 	return ldexp(ni, -1074);											// subnormal construction (or DBL_MIN when ni == 2^52)
 }
 
+float highestProblematicFloat;
+
 // Parse-specific rounding for float: include K in the significand alignment so rounding
 // occurs under the final exponent window (mirrors how strtof reaches the final payload).
 static float scaleAndRoundDDToFloatParse(const DoubleDouble& acc, double factor) {
@@ -503,39 +505,40 @@ static float scaleAndRoundDDToFloatParse(const DoubleDouble& acc, double factor)
 		return 0.0f;
 	}
 
+	const float fastResult = static_cast<float>((acc.high + acc.low) * factor);
 
-	int factorExponent;
+	int factorExponent, hiExp;
 	frexp(factor, &factorExponent);
-	const int K = factorExponent - 1; // factor = 2^K
-
-	int hiExp;
-	const double accSum = acc.high + acc.low;
-	frexp(accSum, &hiExp);
-
-	const int E = (hiExp - 1) + K;
-	const bool subnormal = (E < -126);
+	frexp(acc.high + acc.low, &hiExp);
 
 	// Unified assembly: scale (high, low) into the target payload window, then single rounding
-	const int u = subnormal ? (K + 149) : (24 - hiExp);
-	const int v = subnormal ? (-149) : (E - 23);
+	const bool subnormal = (hiExp + factorExponent < -124);
+	const int u = subnormal ? (factorExponent + 148) : (24 - hiExp);
+	const int v = subnormal ? -149 : (hiExp + factorExponent - 25);
 
 	const double a = ldexp(acc.high, u);
 	const double b = ldexp(acc.low, u);
 
 	const double ia = floor(a);
 	const double ib = floor(b);
-	double frac = (a - ia) + (b - ib);
-	double n = ia + ib;
-	if (frac >= 1.0) {
-		frac -= 1.0;
-		n += 1.0;
-	}
+	double fraction = (a - ia) + (b - ib);
+	double ni = ia + ib;
+	/*if (fraction >= 1.0) {
+		fraction -= 1.0;
+		ni += 1.0;
+	}*/
+	
 	// Round to nearest, ties-to-even
-	if (frac > 0.5 || (frac == 0.5 && (static_cast<uint32_t>(n) & 1u))) {
-		n += 1.0;
+	if (fraction > 0.5 || (fraction == 0.5 && fmod(ni, 2.0) != 0.0)) {
+		ni += 1.0;
 	}
-	return static_cast<float>(ldexp(n, v));
+	const float slowResult = static_cast<float>(ldexp(ni, v));
+	if (fastResult != slowResult) {
+		highestProblematicFloat = std::max(highestProblematicFloat, slowResult);
+	}
+	return slowResult;
 }
+
 // 3-arg overload used to select exact target type rounding at compile time.
 // Typed dispatch without std::is_same: use pointer tag to select target type
 static double scaleAndRound(const DoubleDouble& acc, double factor, double*) {
