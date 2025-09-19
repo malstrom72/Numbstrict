@@ -117,7 +117,6 @@ static double stringstreamStringToDouble(const Numbstrict::String& text) {
 	return value;
 }
 
-
 static std::string ryuFloatToString(float value) {
 	char buffer[32];
 	int length = f2s_buffered_n(value, buffer);
