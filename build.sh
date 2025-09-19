@@ -64,6 +64,10 @@ for target in beta release; do
 		"$out_dir/ryu_d2s.o" "$out_dir/ryu_f2s.o"
 	"$out_dir/compareWithRyu" float
 
+	CPP_OPTIONS="$cpp_options" bash tools/BuildCpp.sh "$target" native "$out_dir/benchmarkToString" \
+		-I src -I externals/ryu tests/benchmarkToString.cpp src/Numbstrict.cpp src/Makaron.cpp \
+		"$out_dir/ryu_d2s.o" "$out_dir/ryu_f2s.o"
+
 	CPP_OPTIONS="$cpp_options" bash tools/BuildCpp.sh "$target" native "$out_dir/dd_parser_downscale_table" \
 		dd_parser_downscale_table.cpp
 	"$out_dir/dd_parser_downscale_table" > /dev/null
