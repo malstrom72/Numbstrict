@@ -38,6 +38,13 @@ template<> struct RandomBits<double> {
 };
 
 template<typename T>
+static size_t toSinkValue(T value) {
+	typename RandomBits<T>::Type bits = 0;
+	std::memcpy(&bits, &value, sizeof value);
+	return static_cast<size_t>(bits);
+}
+
+template<typename T>
 static T buildFromBits(typename RandomBits<T>::Type bits) {
 	T value;
 	std::memcpy(&value, &bits, sizeof value);
@@ -80,6 +87,37 @@ static Numbstrict::String numbstrictDoubleToString(double value) {
 	return Numbstrict::doubleToString(value);
 }
 
+static float numbstrictStringToFloat(const Numbstrict::String& text) {
+	return Numbstrict::stringToFloat(text);
+}
+
+static float stdStrtof(const Numbstrict::String& text) {
+	return std::strtof(text.c_str(), 0);
+}
+
+static float stringstreamStringToFloat(const Numbstrict::String& text) {
+	std::istringstream stream(text);
+	float value = 0.0f;
+	stream >> value;
+	return value;
+}
+
+static double numbstrictStringToDouble(const Numbstrict::String& text) {
+	return Numbstrict::stringToDouble(text);
+}
+
+static double stdStrtod(const Numbstrict::String& text) {
+	return std::strtod(text.c_str(), 0);
+}
+
+static double stringstreamStringToDouble(const Numbstrict::String& text) {
+	std::istringstream stream(text);
+	double value = 0.0;
+	stream >> value;
+	return value;
+}
+
+
 static std::string ryuFloatToString(float value) {
 	char buffer[32];
 	int length = f2s_buffered_n(value, buffer);
@@ -110,6 +148,25 @@ static void runBenchmark(const std::vector<T>& values, const char* label, Func f
 	}
 	const std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 	g_sink = totalLength;
+	const double elapsedMs = std::chrono::duration<double, std::milli>(end - start).count();
+	const double perValueNs = values.empty() ? 0.0 : (elapsedMs * 1000000.0 / static_cast<double>(values.size()));
+	std::cout << label << ": " << elapsedMs << " ms";
+	if (!values.empty()) {
+		std::cout << " (" << perValueNs << " ns/value)";
+	}
+	std::cout << std::endl;
+}
+
+template<typename T, typename Func>
+static void runStringToRealBenchmark(const std::vector<Numbstrict::String>& values, const char* label, Func func) {
+	const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
+	size_t checksum = 0;
+	for (size_t i = 0; i < values.size(); ++i) {
+		const T parsed = func(values[i]);
+		checksum += toSinkValue(parsed);
+	}
+	const std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+	g_sink = checksum;
 	const double elapsedMs = std::chrono::duration<double, std::milli>(end - start).count();
 	const double perValueNs = values.empty() ? 0.0 : (elapsedMs * 1000000.0 / static_cast<double>(values.size()));
 	std::cout << label << ": " << elapsedMs << " ms";
@@ -156,6 +213,15 @@ int main(int argc, const char** argv) {
 		runBenchmark(values, "Numbstrict::doubleToString", numbstrictDoubleToString);
 		runBenchmark(values, "Ryu d2s", ryuDoubleToString);
 		runBenchmark(values, "std::ostringstream<double>", standardToString<double>);
+		std::vector<Numbstrict::String> doubleStrings;
+		doubleStrings.reserve(values.size());
+		for (size_t i = 0; i < values.size(); ++i) {
+			doubleStrings.push_back(numbstrictDoubleToString(values[i]));
+		}
+		std::cout << "string to double benchmarks" << std::endl;
+		runStringToRealBenchmark<double>(doubleStrings, "Numbstrict::stringToDouble", numbstrictStringToDouble);
+		runStringToRealBenchmark<double>(doubleStrings, "std::strtod", stdStrtod);
+		runStringToRealBenchmark<double>(doubleStrings, "std::istringstream<double>", stringstreamStringToDouble);
 		std::cout << std::endl;
 	}
 
@@ -165,6 +231,15 @@ int main(int argc, const char** argv) {
 		runBenchmark(values, "Numbstrict::floatToString", numbstrictFloatToString);
 		runBenchmark(values, "Ryu f2s", ryuFloatToString);
 		runBenchmark(values, "std::ostringstream<float>", standardToString<float>);
+		std::vector<Numbstrict::String> floatStrings;
+		floatStrings.reserve(values.size());
+		for (size_t i = 0; i < values.size(); ++i) {
+			floatStrings.push_back(numbstrictFloatToString(values[i]));
+		}
+		std::cout << "string to float benchmarks" << std::endl;
+		runStringToRealBenchmark<float>(floatStrings, "Numbstrict::stringToFloat", numbstrictStringToFloat);
+		runStringToRealBenchmark<float>(floatStrings, "std::strtof", stdStrtof);
+		runStringToRealBenchmark<float>(floatStrings, "std::istringstream<float>", stringstreamStringToFloat);
 	}
 
 	return 0;
