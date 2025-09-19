@@ -364,8 +364,6 @@ double charsToDouble(const Char* begin, const Char* end = 0, const Char** next =
 
 bool unitTest();
 
-extern float highestProblematicFloat;
-
 } // namespace Numbstrict
 
 #endif /* Numbstrict_h */

@@ -453,6 +453,8 @@ static double multiplyAndAdd(double term, double factorA, double factorB) {
 	return term + factorA * factorB;
 }
 
+template<typename T> static T scaleAndRound(const DoubleDouble &acc, double factor);
+
 /**
 	If we just do (high + low) first, that sum is rounded to 53 bits once, possibly nudging the result slightly upward.
 	Then when we scale down into the subnormal range (right-shift the mantissa) we hit what looks like an exact halfway
@@ -469,7 +471,7 @@ static double multiplyAndAdd(double term, double factorA, double factorB) {
 	- 'acc.high' is integral in [0, 2^53) and 'acc.low' ∈ [0,1).
 	- Table ensures factorExponent >= -1073 so T = factorExponent + 1073 >= 0.
 **/
-static double scaleAndRound(const DoubleDouble& acc, double factor) {
+template<> double scaleAndRound<double>(const DoubleDouble& acc, double factor) {
     if (acc.high == 0.0 && acc.low == 0.0) {
     	return 0.0;
 	}
@@ -496,23 +498,21 @@ static double scaleAndRound(const DoubleDouble& acc, double factor) {
 	return ldexp(ni, -1074);											// subnormal construction (or DBL_MIN when ni == 2^52)
 }
 
-float highestProblematicFloat;
-
-// Parse-specific rounding for float: include K in the significand alignment so rounding
-// occurs under the final exponent window (mirrors how strtof reaches the final payload).
-static float scaleAndRoundDDToFloatParse(const DoubleDouble& acc, double factor) {
+template<> float scaleAndRound<float>(const DoubleDouble& acc, double factor) {
 	if (acc.high == 0.0 && acc.low == 0.0) {
 		return 0.0f;
 	}
 
 	const float fastResult = static_cast<float>((acc.high + acc.low) * factor);
+	if (fastResult > 1.40770614e-25) {
+		return fastResult;												// normal result; fast path is exact here
+	}
 
 	int factorExponent, hiExp;
 	frexp(factor, &factorExponent);
 	frexp(acc.high + acc.low, &hiExp);
 
-	// Unified assembly: scale (high, low) into the target payload window, then single rounding
-	const bool subnormal = (hiExp + factorExponent < -124);
+	const bool subnormal = (hiExp + factorExponent < -124);				// Unified assembly: scale (high, low) into the target payload window, then single rounding
 	const int u = subnormal ? (factorExponent + 148) : (24 - hiExp);
 	const int v = subnormal ? -149 : (hiExp + factorExponent - 25);
 
@@ -523,30 +523,11 @@ static float scaleAndRoundDDToFloatParse(const DoubleDouble& acc, double factor)
 	const double ib = floor(b);
 	double fraction = (a - ia) + (b - ib);
 	double ni = ia + ib;
-	/*if (fraction >= 1.0) {
-		fraction -= 1.0;
-		ni += 1.0;
-	}*/
 	
-	// Round to nearest, ties-to-even
 	if (fraction > 0.5 || (fraction == 0.5 && fmod(ni, 2.0) != 0.0)) {
-		ni += 1.0;
+		ni += 1.0;														// Round to nearest, ties-to-even
 	}
-	const float slowResult = static_cast<float>(ldexp(ni, v));
-	if (fastResult != slowResult) {
-		highestProblematicFloat = std::max(highestProblematicFloat, slowResult);
-	}
-	return slowResult;
-}
-
-// 3-arg overload used to select exact target type rounding at compile time.
-// Typed dispatch without std::is_same: use pointer tag to select target type
-static double scaleAndRound(const DoubleDouble& acc, double factor, double*) {
-	return scaleAndRound(acc, factor);
-}
-
-static float scaleAndRound(const DoubleDouble& acc, double factor, float*) {
-	return scaleAndRoundDDToFloatParse(acc, factor);
+	return static_cast<float>(ldexp(ni, v));
 }
 
 template<typename T> struct Traits { };
@@ -685,7 +666,7 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 				++p;
 			}
 			const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
-			value = scaleAndRound(accumulator, factor, static_cast<T*>(0));
+			value = scaleAndRound<T>(accumulator, factor);
 		}
 	}
 	value *= sign;
@@ -768,8 +749,8 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 		assert(next >= normalized);
 		
 		// Decide between digit and digit+1 under final rounding; then optional bump if strictly past half-step.
-		reconstructed = scaleAndRound(accumulator, factor, static_cast<T*>(0));
-		const T r1 = scaleAndRound(accumulator + magnitude, factor, static_cast<T*>(0));
+		reconstructed = scaleAndRound<T>(accumulator, factor);
+		const T r1 = scaleAndRound<T>(accumulator + magnitude, factor);
 		if ((reconstructed != absValue && r1 == absValue) || (reconstructed == absValue
 				&& accumulator + magnitude / 2 < normalized && absValue != std::numeric_limits<T>::max())) {
 			reconstructed = r1;
