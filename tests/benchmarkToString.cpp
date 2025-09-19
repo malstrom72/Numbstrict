@@ -102,6 +102,21 @@ static float stringstreamStringToFloat(const Numbstrict::String& text) {
 	return value;
 }
 
+static double numbstrictStringToDouble(const Numbstrict::String& text) {
+	return Numbstrict::stringToDouble(text);
+}
+
+static double stdStrtod(const Numbstrict::String& text) {
+	return std::strtod(text.c_str(), 0);
+}
+
+static double stringstreamStringToDouble(const Numbstrict::String& text) {
+	std::istringstream stream(text);
+	double value = 0.0;
+	stream >> value;
+	return value;
+}
+
 static std::string ryuFloatToString(float value) {
 	char buffer[32];
 	int length = f2s_buffered_n(value, buffer);
@@ -197,6 +212,15 @@ int main(int argc, const char** argv) {
 		runBenchmark(values, "Numbstrict::doubleToString", numbstrictDoubleToString);
 		runBenchmark(values, "Ryu d2s", ryuDoubleToString);
 		runBenchmark(values, "std::ostringstream<double>", standardToString<double>);
+		std::vector<Numbstrict::String> doubleStrings;
+		doubleStrings.reserve(values.size());
+		for (size_t i = 0; i < values.size(); ++i) {
+			doubleStrings.push_back(numbstrictDoubleToString(values[i]));
+		}
+		std::cout << "string to double benchmarks" << std::endl;
+		runStringToRealBenchmark<double>(doubleStrings, "Numbstrict::stringToDouble", numbstrictStringToDouble);
+		runStringToRealBenchmark<double>(doubleStrings, "std::strtod", stdStrtod);
+		runStringToRealBenchmark<double>(doubleStrings, "std::istringstream<double>", stringstreamStringToDouble);
 		std::cout << std::endl;
 	}
 
