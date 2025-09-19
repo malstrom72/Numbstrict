@@ -11,6 +11,28 @@
 #include <sstream>
 #include <string>
 
+static constexpr uint64_t kProgressInterval = 1000000ull;
+
+static void printUsage(const char* exe) {
+	std::cout << "Usage: " << exe << " [options] [count]" << std::endl;
+	std::cout << "Options:" << std::endl;
+	std::cout << "\tfloat                 Only run float tests" << std::endl;
+	std::cout << "\tdouble                Only run double tests" << std::endl;
+	std::cout << "\tseed=<value>          Seed for deterministic random tests" << std::endl;
+	std::cout << "\texhaustive            Enable exhaustive sweep" << std::endl;
+	std::cout << "\texhaustive=<bits>     Enable exhaustive sweep with bit step" << std::endl;
+	std::cout << "\t-h | -? | --help       Show this help" << std::endl;
+	std::cout << "count defaults to 1000000 random tests when exhaustive mode is disabled." << std::endl;
+}
+
+static uint64_t computeStepIncrement(int stepBits, int maxBits, int* appliedStepBits) {
+	int bits = stepBits;
+	if (bits < 0) bits = 0;
+	if (bits >= maxBits) bits = maxBits - 1;
+	if (appliedStepBits) *appliedStepBits = bits;
+	return 1ull << static_cast<unsigned int>(bits);
+}
+
 static std::string ryuDouble(double v) {
 	if (v == 0.0) return (std::signbit(v) ? "-0.0" : "0.0");
 	if (std::isnan(v)) return "nan";
@@ -54,6 +76,7 @@ static std::string ryuDouble(double v) {
 			result.insert(decimalPos, ".");
 		}
 	}
+
 	if (neg && result != "0.0") result.insert(0, "-");
 	return result;
 }
@@ -397,9 +420,18 @@ int main(int argc, char** argv) {
 	int testCount = 1000000;
 	bool seedProvided = false;
 	uint64_t seedValue = 0u;
+	bool exhaustive = false;
+	int exhaustiveStepBits = 0;
+	bool showHelp = false;
 	constexpr char kSeedPrefix[] = "seed=";
 	constexpr size_t kSeedPrefixLength = sizeof(kSeedPrefix) - 1;
+	constexpr char kExhaustivePrefix[] = "exhaustive=";
+	constexpr size_t kExhaustivePrefixLength = sizeof(kExhaustivePrefix) - 1;
 	for (int i = 1; i < argc; ++i) {
+		if (!std::strcmp(argv[i], "-h") || !std::strcmp(argv[i], "-?") || !std::strcmp(argv[i], "--help")) {
+			showHelp = true;
+			continue;
+		}
 		if (!std::strcmp(argv[i], "double")) {
 			testDouble = true;
 			continue;
@@ -407,6 +439,19 @@ int main(int argc, char** argv) {
 		if (!std::strcmp(argv[i], "float")) {
 			testFloat = true;
 			continue;
+		}
+		if (!std::strcmp(argv[i], "exhaustive")) {
+			exhaustive = true;
+			continue;
+		}
+		if (!std::strncmp(argv[i], kExhaustivePrefix, kExhaustivePrefixLength)) {
+			char* endExhaustive = nullptr;
+			const long parsedBits = std::strtol(argv[i] + kExhaustivePrefixLength, &endExhaustive, 10);
+			if (endExhaustive && *endExhaustive == '\0' && parsedBits >= 0) {
+				exhaustive = true;
+				exhaustiveStepBits = static_cast<int>(parsedBits);
+				continue;
+			}
 		}
 		if (!std::strncmp(argv[i], kSeedPrefix, kSeedPrefixLength)) {
 			char* endSeed = nullptr;
@@ -424,12 +469,17 @@ int main(int argc, char** argv) {
 			continue;
 		}
 	}
+	if (showHelp) {
+		printUsage(argv[0]);
+		return 0;
+	}
 	if (!testDouble && !testFloat) {
 		testDouble = true;
 		testFloat = true;
 	}
 
 	if (testDouble) {
+		std::cout << "Starting fragile double cases" << std::endl;
 		for (const FragileDoubleCase& entry : kFragileDoubles) {
 			double v;
 			std::memcpy(&v, &entry.bits, sizeof v);
@@ -437,30 +487,33 @@ int main(int argc, char** argv) {
 				return 1;
 			}
 		}
+		std::cout << "Completed fragile double cases (" << (sizeof(kFragileDoubles) / sizeof(kFragileDoubles[0])) << ")" << std::endl;
 
 	}
 	if (testFloat) {
+		std::cout << "Starting fragile float cases" << std::endl;
 		for (const FragileFloatCase& entry : kFragileFloats) {
 			float v;
 			std::memcpy(&v, &entry.bits, sizeof v);
-				if (!verifyFloatCase(v, entry.expected, "float mismatch (fragile)", true)) {
+			if (!verifyFloatCase(v, entry.expected, "float mismatch (fragile)", true)) {
+				return 1;
+			}
+			// Only parse long-form source strings when testCount == 0
+			// to avoid tripping debug asserts during large random runs.
+			if (testCount == 0 && entry.source && entry.source[0]) {
+				const float nb = Numbstrict::stringToFloat(entry.source);
+				const uint32_t oracleBits = bits(nb);
+				if (!(oracleBits == entry.bits || (v == 0.0f && nb == 0.0f))) {
+					std::cout << "float mismatch (fragile source) stringToFloat(source) mismatch" << std::endl;
+					std::cout << "bits: " << toHex32(entry.bits) << std::endl;
+					std::cout << " source: " << entry.source << std::endl;
+					std::cout << " result_bits: " << toHex32(oracleBits) << std::endl;
+					emitFloatListEntry(entry.bits, entry.expected);
 					return 1;
 				}
-				// Only parse long-form source strings when testCount == 0
-				// to avoid tripping debug asserts during large random runs.
-				if (testCount == 0 && entry.source && entry.source[0]) {
-					const float nb = Numbstrict::stringToFloat(entry.source);
-					const uint32_t oracleBits = bits(nb);
-					if (!(oracleBits == entry.bits || (v == 0.0f && nb == 0.0f))) {
-						std::cout << "float mismatch (fragile source) stringToFloat(source) mismatch" << std::endl;
-						std::cout << "bits: " << toHex32(entry.bits) << std::endl;
-						std::cout << " source: " << entry.source << std::endl;
-						std::cout << " result_bits: " << toHex32(oracleBits) << std::endl;
-						emitFloatListEntry(entry.bits, entry.expected);
-						return 1;
-					}
-				}
 			}
+		}
+		std::cout << "Completed fragile float cases (" << (sizeof(kFragileFloats) / sizeof(kFragileFloats[0])) << ")" << std::endl;
 
 	}
 
@@ -471,28 +524,129 @@ int main(int argc, char** argv) {
 	std::mt19937 frng(static_cast<std::mt19937::result_type>(static_cast<unsigned int>(floatSeed & 0xffffffffu)));
 	std::uniform_int_distribution<uint32_t> fdist;
 
-	for (int i = 0; i < testCount; ++i) {
-		if (testDouble) {
-			const uint64_t u = ddist(drng);
-			double v;
-			std::memcpy(&v, &u, sizeof v);
-			if (std::isfinite(v)) {
-				const std::string oracle = ryuDouble(v);
-				if (!verifyDoubleCase(v, oracle, "double mismatch", true)) {
-					return 1;
+	if (!exhaustive && testCount > 0) {
+		std::cout << "Starting random tests (" << testCount << " iterations)" << std::endl;
+		uint64_t doubleProcessed = 0;
+		uint64_t floatProcessed = 0;
+		uint64_t doubleFinite = 0;
+		uint64_t floatFinite = 0;
+		for (int i = 0; i < testCount; ++i) {
+			if (testDouble) {
+				++doubleProcessed;
+				if ((doubleProcessed % kProgressInterval) == 0) {
+					std::cout << "Random double progress: " << doubleProcessed << std::endl;
 				}
+				const uint64_t u = ddist(drng);
+				double v;
+				std::memcpy(&v, &u, sizeof v);
+				if (std::isfinite(v)) {
+					++doubleFinite;
+					const std::string oracle = ryuDouble(v);
+					if (!verifyDoubleCase(v, oracle, "double mismatch", true)) {
+						return 1;
+					}
+				}
+			}
+			if (testFloat) {
+				++floatProcessed;
+				if ((floatProcessed % kProgressInterval) == 0) {
+					std::cout << "Random float progress: " << floatProcessed << std::endl;
+				}
+				const uint32_t u = fdist(frng);
+				float v;
+				std::memcpy(&v, &u, sizeof v);
+				if (std::isfinite(v)) {
+					++floatFinite;
+					const std::string oracle = ryuFloat(v);
+					if (!verifyFloatCase(v, oracle, "float mismatch", true)) {
+						return 1;
+					}
+				}
+			}
+			const uint64_t iteration = static_cast<uint64_t>(i) + 1ull;
+			if ((iteration % kProgressInterval) == 0) {
+				std::cout << "Random iteration progress: " << iteration << std::endl;
 			}
 		}
+		if (testDouble) {
+			std::cout << "Random double processed: " << doubleProcessed << " (finite: " << doubleFinite << ")" << std::endl;
+		}
 		if (testFloat) {
-			const uint32_t u = fdist(frng);
-			float v;
-			std::memcpy(&v, &u, sizeof v);
-			if (std::isfinite(v)) {
-				const std::string oracle = ryuFloat(v);
-				if (!verifyFloatCase(v, oracle, "float mismatch", true)) {
-					return 1;
+			std::cout << "Random float processed: " << floatProcessed << " (finite: " << floatFinite << ")" << std::endl;
+		}
+	}
+
+	if (exhaustive) {
+		if (testDouble) {
+			int appliedBits = 0;
+			const uint64_t step = computeStepIncrement(exhaustiveStepBits, 64, &appliedBits);
+			std::cout << "Starting exhaustive double test with step bits " << appliedBits << " (step size " << step << ")" << std::endl;
+			uint64_t processed = 0;
+			uint64_t finiteTests = 0;
+			uint64_t bitsValue = 0ull;
+			bool done = false;
+			while (!done) {
+				double v;
+				std::memcpy(&v, &bitsValue, sizeof v);
+				++processed;
+				if ((processed % kProgressInterval) == 0) {
+					std::cout << "Exhaustive double progress: " << processed << std::endl;
+				}
+				if (std::isfinite(v)) {
+					++finiteTests;
+					const std::string oracle = ryuDouble(v);
+					if (!verifyDoubleCase(v, oracle, "double mismatch (exhaustive)", true)) {
+						return 1;
+					}
+				}
+				if (bitsValue == std::numeric_limits<uint64_t>::max()) {
+					done = true;
+				} else {
+					const uint64_t next = bitsValue + step;
+					if (next <= bitsValue) {
+						done = true;
+					} else {
+						bitsValue = next;
+					}
 				}
 			}
+			std::cout << "Exhaustive double processed: " << processed << " (finite: " << finiteTests << ")" << std::endl;
+		}
+		if (testFloat) {
+			int appliedBits = 0;
+			const uint64_t stepValue = computeStepIncrement(exhaustiveStepBits, 32, &appliedBits);
+			const uint32_t step = static_cast<uint32_t>(stepValue);
+			std::cout << "Starting exhaustive float test with step bits " << appliedBits << " (step size " << stepValue << ")" << std::endl;
+			uint64_t processed = 0;
+			uint64_t finiteTests = 0;
+			uint32_t bitsValue = 0u;
+			bool done = false;
+			while (!done) {
+				float v;
+				std::memcpy(&v, &bitsValue, sizeof v);
+				++processed;
+				if ((processed % kProgressInterval) == 0) {
+					std::cout << "Exhaustive float progress: " << processed << std::endl;
+				}
+				if (std::isfinite(v)) {
+					++finiteTests;
+					const std::string oracle = ryuFloat(v);
+					if (!verifyFloatCase(v, oracle, "float mismatch (exhaustive)", true)) {
+						return 1;
+					}
+				}
+				if (bitsValue == std::numeric_limits<uint32_t>::max()) {
+					done = true;
+				} else {
+					const uint32_t next = bitsValue + step;
+					if (next <= bitsValue) {
+						done = true;
+					} else {
+						bitsValue = next;
+					}
+				}
+			}
+			std::cout << "Exhaustive float processed: " << processed << " (finite: " << finiteTests << ")" << std::endl;
 		}
 	}
 
@@ -501,3 +655,4 @@ int main(int argc, char** argv) {
 	std::cout << "Highest problematic float: " << std::setprecision(9) << Numbstrict::highestProblematicFloat << std::endl;
 	return 0;
 }
+
