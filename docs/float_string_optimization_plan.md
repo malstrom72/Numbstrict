@@ -8,6 +8,7 @@
 ## Ground Rules
 - [ ] Always run the release benchmark suite both before and after every optimization attempt (currently `timeout 180 ./build.sh` followed by `output/release/benchmarkToString`).
 - [ ] Publish benchmark results for each optimization using the standardized format documented below so that performance history stays auditable.
+- [ ] Always execute the 10,000,000-iteration `compareWithRyu` fuzz regression (`output/release/compareWithRyu 10000000`) when validating changes, and record any discrepancies.
 
 ## Measurement Baseline
 - [ ] Reproduce the current performance numbers by running the benchmark suite referenced by `./build.sh` and any additional float/string microbenchmarks.
