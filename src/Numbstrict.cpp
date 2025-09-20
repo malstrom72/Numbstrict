@@ -699,15 +699,46 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 			value = std::numeric_limits<T>::infinity();
 		} else {
 			assert(Traits<double>::MIN_EXPONENT <= exponent && exponent <= Traits<double>::MAX_EXPONENT);
-			DoubleDouble magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
-			DoubleDouble accumulator(0.0);
-			while (p != significandEnd) {
-				if (*p != '.') {
-					accumulator = multiplyAndAdd(accumulator, magnitude, (*p - '0'));
-					magnitude = magnitude / 10;
+				DoubleDouble magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
+				DoubleDouble accumulator(0.0);
+				const Char* fast = p;
+				double fastDigitsValue = 0.0;
+				int fastDigits = 0;
+				DoubleDouble fastMagnitude;
+				bool fastHasDigit = false;
+				const double FAST_DIGIT_LIMIT = 9007199254740992.0;
+				while (fast != significandEnd && fastDigits < 18) {
+					if (*fast == '.') {
+						++fast;
+						continue;
+					}
+					const int digit = (*fast - '0');
+					const double nextValue = fastDigitsValue * 10.0 + digit;
+					if (nextValue > FAST_DIGIT_LIMIT) {
+						break;
+					}
+					fastDigitsValue = nextValue;
+					if (!fastHasDigit) {
+						fastMagnitude = magnitude;
+						fastHasDigit = true;
+					} else {
+						fastMagnitude = fastMagnitude / 10;
+					}
+					++fastDigits;
+					++fast;
 				}
-				++p;
-			}
+				if (fastHasDigit) {
+					accumulator = multiplyAndAdd(accumulator, fastMagnitude, fastDigitsValue);
+					magnitude = fastMagnitude / 10;
+					p = fast;
+				}
+				while (p != significandEnd) {
+					if (*p != '.') {
+						accumulator = multiplyAndAdd(accumulator, magnitude, (*p - '0'));
+						magnitude = magnitude / 10;
+					}
+					++p;
+				}
 			const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
 			value = scaleAndRound<T>(accumulator, factor);
 		}
