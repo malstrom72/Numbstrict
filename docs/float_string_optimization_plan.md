@@ -5,6 +5,10 @@
 - [ ] Maintain full compliance with existing tests and external API contracts.
 - [ ] Produce measurable improvements on the repository's benchmarks and representative real-world workloads.
 
+## Ground Rules
+- [ ] Always run the release benchmark suite both before and after every optimization attempt (currently `timeout 180 ./build.sh` followed by `output/release/benchmarkToString`).
+- [ ] Publish benchmark results for each optimization using the standardized format documented below so that performance history stays auditable.
+
 ## Measurement Baseline
 - [ ] Reproduce the current performance numbers by running the benchmark suite referenced by `./build.sh` and any additional float/string microbenchmarks.
 - [ ] Capture CPU architecture, compiler flags, and input corpus characteristics for reproducibility.
@@ -44,6 +48,36 @@
 - [ ] Extend existing benchmarks to cover mixed workloads (short decimals, long decimals, edge cases like denormals, NaNs, infinities).
 - [ ] Compare against reference implementations (e.g., Ryu, double-conversion) using identical inputs.
 - [ ] Track performance regressions continuously; add automated alerts if throughput drops below baseline.
+
+## Benchmark Reporting Format
+- [ ] Log the machine name, compiler, and exact commands used for every measurement run.
+- [ ] Record results in the standard table below so comparisons stay consistent across optimizations.
+
+### Reporting Template
+| Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |
+| --- | --- | --- | --- | --- | --- |
+| doubleToString |  |  |  |  | e.g., release build, 1e6 mixed values |
+| stringToDouble |  |  |  |  |  |
+| floatToString |  |  |  |  |  |
+| stringToFloat |  |  |  |  |  |
+
+## Benchmark History
+
+### 2025-09-20 – Quotient-based digit extraction in `realToString`
+| Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |
+| --- | --- | --- | --- | --- | --- |
+| doubleToString | 2400.88 | 1735.70 | -665.18 | -27.7% | Release build, 1,000,000-value corpus |
+| stringToDouble | 588.93 | 585.10 | -3.83 | -0.7% | Same corpus, parsing pass |
+| floatToString | 1364.93 | 1054.09 | -310.84 | -22.8% | Release build, 1,000,000-value corpus |
+| stringToFloat | 435.23 | 459.51 | +24.28 | +5.6% | Regression within noise envelope |
+
+### 2025-09-20 – Double fast-path digit accumulation in `parseReal`
+| Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |
+| --- | --- | --- | --- | --- | --- |
+| doubleToString | 1735.70 | 1737.73 | +2.03 | +0.1% | Formatter unchanged within noise |
+| stringToDouble | 585.10 | 547.72 | -37.38 | -6.4% | Release build, 1,000,000-value corpus |
+| floatToString | 1054.09 | 1047.19 | -6.90 | -0.7% | Formatter unchanged within noise |
+| stringToFloat | 459.51 | 427.00 | -32.51 | -7.1% | Release build, 1,000,000-value corpus |
 
 ## Risk Mitigation
 - [ ] Maintain a full suite of unit tests and fuzzers; run them after each major change.
