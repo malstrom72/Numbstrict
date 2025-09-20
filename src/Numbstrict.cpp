@@ -423,17 +423,6 @@ struct DoubleDouble {
 		const double overflow = floor(lowSum);
 		return DoubleDouble((high + other.high) + overflow, lowSum - overflow);
 	}
-	DoubleDouble operator-(const DoubleDouble& other) const {
-		double lowDiff = low - other.low;
-		double borrow = 0.0;
-		if (lowDiff < 0.0) {
-			lowDiff += 1.0;
-			borrow = 1.0;
-		}
-		const double highDiff = (high - other.high) - borrow;
-		assert(highDiff >= 0.0);
-		return DoubleDouble(highDiff, lowDiff);
-	}
 	DoubleDouble operator*(int factor) const {
 		const double lowTimesFactor = low * factor;
 		const double overflow = floor(lowTimesFactor);
@@ -462,38 +451,6 @@ static DoubleDouble multiplyAndAdd(const DoubleDouble& term, const DoubleDouble&
 
 static double multiplyAndAdd(double term, double factorA, double factorB) {
 	return term + factorA * factorB;
-}
-
-static int extractDigit(const DoubleDouble& normalized, const DoubleDouble& accumulator, const DoubleDouble& magnitude) {
-	assert(!(normalized < accumulator));
-	const DoubleDouble remaining = normalized - accumulator;
-	if (remaining.high == 0.0 && remaining.low == 0.0) {
-		return 0;
-	}
-
-	double approx = static_cast<double>(remaining) / static_cast<double>(magnitude);
-	int digit = static_cast<int>(approx);
-	if (digit < 0) {
-		digit = 0;
-	} else if (digit > 9) {
-		digit = 9;
-	}
-
-	DoubleDouble trial = magnitude * digit;
-	while (digit > 0 && remaining < trial) {
-		trial = trial - magnitude;
-		--digit;
-	}
-	while (digit < 9) {
-		const DoubleDouble nextTrial = trial + magnitude;
-		if (remaining < nextTrial) {
-			break;
-		}
-		++digit;
-		trial = nextTrial;
-	}
-
-	return digit;
 }
 
 template<typename T> static T scaleAndRound(const DoubleDouble &acc, double factor);
@@ -699,46 +656,15 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 			value = std::numeric_limits<T>::infinity();
 		} else {
 			assert(Traits<double>::MIN_EXPONENT <= exponent && exponent <= Traits<double>::MAX_EXPONENT);
-				DoubleDouble magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
-				DoubleDouble accumulator(0.0);
-				const Char* fast = p;
-				double fastDigitsValue = 0.0;
-				int fastDigits = 0;
-				DoubleDouble fastMagnitude;
-				bool fastHasDigit = false;
-				const double FAST_DIGIT_LIMIT = 9007199254740992.0;
-				while (fast != significandEnd && fastDigits < 18) {
-					if (*fast == '.') {
-						++fast;
-						continue;
-					}
-					const int digit = (*fast - '0');
-					const double nextValue = fastDigitsValue * 10.0 + digit;
-					if (nextValue > FAST_DIGIT_LIMIT) {
-						break;
-					}
-					fastDigitsValue = nextValue;
-					if (!fastHasDigit) {
-						fastMagnitude = magnitude;
-						fastHasDigit = true;
-					} else {
-						fastMagnitude = fastMagnitude / 10;
-					}
-					++fastDigits;
-					++fast;
+			DoubleDouble magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
+			DoubleDouble accumulator(0.0);
+			while (p != significandEnd) {
+				if (*p != '.') {
+					accumulator = multiplyAndAdd(accumulator, magnitude, (*p - '0'));
+					magnitude = magnitude / 10;
 				}
-				if (fastHasDigit) {
-					accumulator = multiplyAndAdd(accumulator, fastMagnitude, fastDigitsValue);
-					magnitude = fastMagnitude / 10;
-					p = fast;
-				}
-				while (p != significandEnd) {
-					if (*p != '.') {
-						accumulator = multiplyAndAdd(accumulator, magnitude, (*p - '0'));
-						magnitude = magnitude / 10;
-					}
-					++p;
-				}
+				++p;
+			}
 			const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
 			value = scaleAndRound<T>(accumulator, factor);
 		}
@@ -810,26 +736,31 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 			*p++ = '.';
 		}
 		
-		// Derive the next digit via a quotient of the remaining distance and current magnitude.
-		int digit = extractDigit(normalized, accumulator, magnitude);
-		DoubleDouble digitAccumulator = accumulator + magnitude * digit;
-		assert(!(normalized < digitAccumulator));
+		// Incrementally find the max digit that keeps accumulator < normalized target (instead of using division).
+		DoubleDouble next = accumulator + magnitude;
+		int digit = 0;
+		while (next < normalized && digit < 9) {
+			accumulator = next;
+			next = next + magnitude;
+			++digit;
+		}
 
-		const DoubleDouble candidatePlusOne = digitAccumulator + magnitude;
-		reconstructed = scaleAndRound<T>(digitAccumulator, factor);
-		const T r1 = scaleAndRound<T>(candidatePlusOne, factor);
+		// Correct behavior is to never reach higher than digit 9.
+		assert(next >= normalized);
+		
+		// Decide between digit and digit+1 under final rounding; then optional bump if strictly past half-step.
+		reconstructed = scaleAndRound<T>(accumulator, factor);
+		const T r1 = scaleAndRound<T>(accumulator + magnitude, factor);
 		if ((reconstructed != absValue && r1 == absValue) || (reconstructed == absValue
-				&& digitAccumulator + magnitude / 2 < normalized && absValue != std::numeric_limits<T>::max())) {
+				&& accumulator + magnitude / 2 < normalized && absValue != std::numeric_limits<T>::max())) {
 			reconstructed = r1;
 			++digit;
 			assert(digit < 10);
-			digitAccumulator = candidatePlusOne;
 		}
-
+	
 		*p++ = '0' + digit;
-		accumulator = digitAccumulator;
 		magnitude = magnitude / 10;
-
+		
 		// p < buffer + 27 is an extra precaution if the correct value is never reached (e.g. because of too aggressive
 		// optimizations). 27 leaves room for longest exponent.
 	} while (p < buffer + 27 && reconstructed != absValue);
