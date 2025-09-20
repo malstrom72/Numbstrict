@@ -749,11 +749,24 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 		assert(next >= normalized);
 		
 		// Decide between digit and digit+1 under final rounding; then optional bump if strictly past half-step.
+		const DoubleDouble halfMagnitude = magnitude / 2;
 		reconstructed = scaleAndRound<T>(accumulator, factor);
-		const T r1 = scaleAndRound<T>(accumulator + magnitude, factor);
-		if ((reconstructed != absValue && r1 == absValue) || (reconstructed == absValue
-				&& accumulator + magnitude / 2 < normalized && absValue != std::numeric_limits<T>::max())) {
-			reconstructed = r1;
+		bool computedNext = false;
+		T roundedCandidate = reconstructed;
+		if (reconstructed != absValue) {
+			roundedCandidate = scaleAndRound<T>(next, factor);
+			computedNext = true;
+			if (roundedCandidate == absValue) {
+				reconstructed = roundedCandidate;
+				++digit;
+				assert(digit < 10);
+			}
+		} else if ((accumulator + halfMagnitude) < normalized && absValue != std::numeric_limits<T>::max()) {
+			if (!computedNext) {
+				roundedCandidate = scaleAndRound<T>(next, factor);
+				computedNext = true;
+			}
+			reconstructed = roundedCandidate;
 			++digit;
 			assert(digit < 10);
 		}

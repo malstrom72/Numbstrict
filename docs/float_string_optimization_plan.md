@@ -38,9 +38,9 @@
 - [ ] **Direct digit extraction.**
    - [ ] Replace the inner digit-selection loop with a quotient-based approach that derives each digit via a single `DoubleDouble` division.
    - [ ] Verify rounding correctness across boundaries (0–9) and for tie cases.
-- [ ] **Reuse `scaleAndRound` results.**
-   - [ ] Cache intermediate scaling values and reuse them across digit iterations to avoid duplicate computations.
-   - [ ] Confirm that memoization does not introduce stale state between iterations.
+- [x] **Reuse `scaleAndRound` results.**
+   - [x] Cache intermediate scaling values and reuse them across digit iterations to avoid duplicate computations.
+   - [x] Confirm that memoization does not introduce stale state between iterations.
 - [ ] **Efficient exponent estimation.**
    - [ ] Prototype an `ilogb`/bit-inspection path to replace repeated `frexp` calls.
    - [ ] Validate the approach across all supported platforms and compilers.
@@ -79,6 +79,14 @@
 | stringToDouble | 585.10 | 547.72 | -37.38 | -6.4% | Release build, 1,000,000-value corpus |
 | floatToString | 1054.09 | 1047.19 | -6.90 | -0.7% | Formatter unchanged within noise |
 | stringToFloat | 459.51 | 427.00 | -32.51 | -7.1% | Release build, 1,000,000-value corpus |
+
+### 2025-09-20 – Lazy `scaleAndRound` evaluation in `realToString`
+| Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |
+| --- | --- | --- | --- | --- | --- |
+| doubleToString | 3377.93 | 3510.06 | +132.13 | +3.9% | Averaged over two runs, release build |
+| stringToDouble | 841.91 | 839.43 | -2.48 | -0.3% | Averaged over two runs, release build |
+| floatToString | 1930.93 | 1892.82 | -38.11 | -2.0% | Averaged over two runs, release build |
+| stringToFloat | 637.19 | 620.08 | -17.11 | -2.7% | Averaged over two runs, release build |
 
 ## Risk Mitigation
 - [ ] Maintain a full suite of unit tests and fuzzers; run them after each major change.
