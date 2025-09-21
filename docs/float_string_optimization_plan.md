@@ -67,6 +67,14 @@
 
 ## Benchmark History
 
+### 2025-09-21 – Release benchmark refresh (no code changes)
+| Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |
+| --- | --- | --- | --- | --- | --- |
+| doubleToString | 1,832.78 | 1,750.87 | -81.91 | -4.47% | Fresh measurement using release build; variance-only change |
+| stringToDouble | 501.72 | 284.85 | -216.87 | -43.23% | Same corpus; reflects updated build and measurement variance |
+| floatToString | 1,002.77 | 950.43 | -52.34 | -5.22% | Release build rerun |
+| stringToFloat | 291.05 | 209.85 | -81.20 | -27.92% | Release build rerun |
+
 ### 2025-09-21 – Callgrind profiling baseline (count=10,000)
 | Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |
 | --- | --- | --- | --- | --- | --- |
