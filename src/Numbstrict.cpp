@@ -341,68 +341,97 @@ static const Char* parseUnsignedInt(const Char* p, const Char* e, unsigned int& 
 #endif
 
 class StandardFPEnvScope {
-public:
-	StandardFPEnvScope() {
-	#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-		const unsigned int COMMON = _EM_INEXACT|_EM_UNDERFLOW|_EM_OVERFLOW|_EM_ZERODIVIDE|_EM_INVALID|_EM_DENORMAL|_RC_NEAR;
-		unsigned int cur;
-	#if defined(_M_IX86)
-		{ int ok = __control87_2(0,0,&prevX87_,&prevMXCSR_); assert(ok); unsigned int t; ok = __control87_2(COMMON|_PC_53, _MCW_EM|_MCW_RC|_MCW_PC, &t, 0); assert(ok); }
-		cur = prevMXCSR_;
-	#else
-		prevMXCSR_ = _mm_getcsr(); cur = prevMXCSR_; prevX87_ = _control87(0,0); _control87(COMMON, _MCW_EM|_MCW_RC);
-	#endif
-		cur &= ~(_MM_FLUSH_ZERO_MASK|_MM_DENORMALS_ZERO_MASK);
-		cur = (cur & ~_MM_ROUND_MASK) | _MM_ROUND_NEAREST;
-		_mm_setcsr(cur);
-	#elif defined(__aarch64__)
-		int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
-	#if defined(__has_builtin) && __has_builtin(__builtin_aarch64_get_fpcr) && __has_builtin(__builtin_aarch64_set_fpcr)
-		prevFPCR_ = __builtin_aarch64_get_fpcr(); unsigned long long cur = prevFPCR_; cur &= ~(1ull<<24); cur &= ~(3ull<<22); __builtin_aarch64_set_fpcr(cur);
-	#else
-		asm volatile("mrs %0, fpcr" : "=r"(prevFPCR_)); unsigned long long cur = prevFPCR_; cur &= ~(1ull<<24); cur &= ~(3ull<<22); asm volatile("msr fpcr, %0" :: "r"(cur));
-	#endif
-	#elif defined(__arm__)
-		int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
-		asm volatile("vmrs %0, fpscr" : "=r"(prevFPSCR_)); unsigned int cur = prevFPSCR_; cur &= ~(1u<<24); cur &= ~(3u<<22); asm volatile("vmsr fpscr, %0" :: "r"(cur));
-	#else
-		int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
-	#endif
-	}
-	~StandardFPEnvScope() {
-	#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-	#if defined(_M_IX86)
-		{ unsigned int t; __control87_2(prevX87_, _MCW_EM|_MCW_RC|_MCW_PC, &t, 0); }
-	#else
-		_control87(prevX87_, _MCW_EM|_MCW_RC);
-	#endif
-		_mm_setcsr(prevMXCSR_);
-	#elif defined(__aarch64__)
-	#if defined(__has_builtin) && __has_builtin(__builtin_aarch64_set_fpcr)
-		__builtin_aarch64_set_fpcr(prevFPCR_);
-	#else
-		asm volatile("msr fpcr, %0" :: "r"(prevFPCR_));
-	#endif
-		fesetenv(&prevEnv_);
-	#elif defined(__arm__)
-		asm volatile("vmsr fpscr, %0" :: "r"(prevFPSCR_)); fesetenv(&prevEnv_);
-	#else
-		fesetenv(&prevEnv_);
-	#endif
-	}
-private:
+	public:
+		StandardFPEnvScope();
+		~StandardFPEnvScope();
+	private:
+		void enter();
+		void leave();
+		bool active_;
+		static thread_local int depth_;
 #if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-	unsigned int prevX87_, prevMXCSR_;
+		unsigned int prevX87_, prevMXCSR_;
 #elif defined(__aarch64__)
-	fenv_t prevEnv_, dummyEnv_;
-	unsigned long long prevFPCR_;
+		fenv_t prevEnv_, dummyEnv_;
+		unsigned long long prevFPCR_;
 #elif defined(__arm__)
-	fenv_t prevEnv_, dummyEnv_;
-	unsigned int prevFPSCR_;
+		fenv_t prevEnv_, dummyEnv_;
+		unsigned int prevFPSCR_;
 #else
-	fenv_t prevEnv_, dummyEnv_;
+		fenv_t prevEnv_, dummyEnv_;
 #endif
 };
+
+StandardFPEnvScope::StandardFPEnvScope() : active_(false) {
+	if (depth_++ == 0) {
+		active_ = true;
+		enter();
+	}
+}
+
+StandardFPEnvScope::~StandardFPEnvScope() {
+	if (active_) {
+		leave();
+	}
+	assert(depth_ > 0);
+	--depth_;
+}
+
+void StandardFPEnvScope::enter() {
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+	const unsigned int COMMON = _EM_INEXACT|_EM_UNDERFLOW|_EM_OVERFLOW|_EM_ZERODIVIDE|_EM_INVALID|_EM_DENORMAL|_RC_NEAR;
+	unsigned int cur;
+#if defined(_M_IX86)
+	{ int ok = __control87_2(0,0,&prevX87_,&prevMXCSR_); assert(ok); unsigned int t; ok = __control87_2(COMMON|_PC_53, _MCW_EM|_MCW_RC|_MCW_PC, &t, 0); assert(ok); }
+	cur = prevMXCSR_;
+#else
+	prevMXCSR_ = _mm_getcsr(); cur = prevMXCSR_; prevX87_ = _control87(0,0); _control87(COMMON, _MCW_EM|_MCW_RC);
+#endif
+	cur &= ~(_MM_FLUSH_ZERO_MASK|_MM_DENORMALS_ZERO_MASK);
+	cur = (cur & ~_MM_ROUND_MASK) | _MM_ROUND_NEAREST;
+	_mm_setcsr(cur);
+#elif defined(__aarch64__)
+	int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
+#if defined(__has_builtin) && __has_builtin(__builtin_aarch64_get_fpcr) && __has_builtin(__builtin_aarch64_set_fpcr)
+	prevFPCR_ = __builtin_aarch64_get_fpcr(); unsigned long long cur = prevFPCR_; cur &= ~(1ull<<24); cur &= ~(3ull<<22); __builtin_aarch64_set_fpcr(cur);
+#else
+	asm volatile("mrs %0, fpcr" : "=r"(prevFPCR_)); unsigned long long cur = prevFPCR_; cur &= ~(1ull<<24); cur &= ~(3ull<<22); asm volatile("msr fpcr, %0" :: "r"(cur));
+#endif
+#elif defined(__arm__)
+	int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
+	asm volatile("vmrs %0, fpscr" : "=r"(prevFPSCR_)); unsigned int cur = prevFPSCR_; cur &= ~(1u<<24); cur &= ~(3u<<22); asm volatile("vmsr fpscr, %0" :: "r"(cur));
+#else
+	int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
+#endif
+}
+
+void StandardFPEnvScope::leave() {
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+#if defined(_M_IX86)
+	{ unsigned int t; __control87_2(prevX87_, _MCW_EM|_MCW_RC|_MCW_PC, &t, 0); }
+#else
+	_control87(prevX87_, _MCW_EM|_MCW_RC);
+#endif
+	_mm_setcsr(prevMXCSR_);
+#elif defined(__aarch64__)
+#if defined(__has_builtin) && __has_builtin(__builtin_aarch64_set_fpcr)
+	__builtin_aarch64_set_fpcr(prevFPCR_);
+#else
+	asm volatile("msr fpcr, %0" :: "r"(prevFPCR_));
+#endif
+	fesetenv(&prevEnv_);
+#elif defined(__arm__)
+	asm volatile("vmsr fpscr, %0" :: "r"(prevFPSCR_)); fesetenv(&prevEnv_);
+#else
+	fesetenv(&prevEnv_);
+#endif
+}
+
+thread_local int StandardFPEnvScope::depth_ = 0;
+
+FloatStringBatchGuard::FloatStringBatchGuard() : scope_(new StandardFPEnvScope()) { }
+
+FloatStringBatchGuard::~FloatStringBatchGuard() { delete scope_; }
 
 const int NEGATIVE_E_NOTATION_START = -6;
 const int POSITIVE_E_NOTATION_START = 10;

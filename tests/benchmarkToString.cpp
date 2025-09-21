@@ -209,16 +209,25 @@ int main(int argc, const char** argv) {
 	if (runDouble) {
 		std::vector<double> values = generateValues<double>(count, seed);
 		std::cout << "double benchmarks (" << values.size() << " values)" << std::endl;
-		runBenchmark(values, "Numbstrict::doubleToString", numbstrictDoubleToString);
+		{
+			Numbstrict::FloatStringBatchGuard guard;
+			runBenchmark(values, "Numbstrict::doubleToString", numbstrictDoubleToString);
+		}
 		runBenchmark(values, "Ryu d2s", ryuDoubleToString);
 		runBenchmark(values, "std::ostringstream<double>", standardToString<double>);
 		std::vector<Numbstrict::String> doubleStrings;
 		doubleStrings.reserve(values.size());
-		for (size_t i = 0; i < values.size(); ++i) {
-			doubleStrings.push_back(numbstrictDoubleToString(values[i]));
+		{
+			Numbstrict::FloatStringBatchGuard guard;
+			for (size_t i = 0; i < values.size(); ++i) {
+				doubleStrings.push_back(numbstrictDoubleToString(values[i]));
+			}
 		}
 		std::cout << "string to double benchmarks" << std::endl;
-		runStringToRealBenchmark<double>(doubleStrings, "Numbstrict::stringToDouble", numbstrictStringToDouble);
+		{
+			Numbstrict::FloatStringBatchGuard guard;
+			runStringToRealBenchmark<double>(doubleStrings, "Numbstrict::stringToDouble", numbstrictStringToDouble);
+		}
 		runStringToRealBenchmark<double>(doubleStrings, "std::strtod", stdStrtod);
 		runStringToRealBenchmark<double>(doubleStrings, "std::istringstream<double>", stringstreamStringToDouble);
 		std::cout << std::endl;
@@ -227,16 +236,25 @@ int main(int argc, const char** argv) {
 	if (runFloat) {
 		std::vector<float> values = generateValues<float>(count, seed);
 		std::cout << "float benchmarks (" << values.size() << " values)" << std::endl;
-		runBenchmark(values, "Numbstrict::floatToString", numbstrictFloatToString);
+		{
+			Numbstrict::FloatStringBatchGuard guard;
+			runBenchmark(values, "Numbstrict::floatToString", numbstrictFloatToString);
+		}
 		runBenchmark(values, "Ryu f2s", ryuFloatToString);
 		runBenchmark(values, "std::ostringstream<float>", standardToString<float>);
 		std::vector<Numbstrict::String> floatStrings;
 		floatStrings.reserve(values.size());
-		for (size_t i = 0; i < values.size(); ++i) {
-			floatStrings.push_back(numbstrictFloatToString(values[i]));
+		{
+			Numbstrict::FloatStringBatchGuard guard;
+			for (size_t i = 0; i < values.size(); ++i) {
+				floatStrings.push_back(numbstrictFloatToString(values[i]));
+			}
 		}
 		std::cout << "string to float benchmarks" << std::endl;
-		runStringToRealBenchmark<float>(floatStrings, "Numbstrict::stringToFloat", numbstrictStringToFloat);
+		{
+			Numbstrict::FloatStringBatchGuard guard;
+			runStringToRealBenchmark<float>(floatStrings, "Numbstrict::stringToFloat", numbstrictStringToFloat);
+		}
 		runStringToRealBenchmark<float>(floatStrings, "std::strtof", stdStrtof);
 		runStringToRealBenchmark<float>(floatStrings, "std::istringstream<float>", stringstreamStringToFloat);
 	}

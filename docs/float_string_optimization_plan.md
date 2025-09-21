@@ -16,13 +16,13 @@
 - [ ] Record profiles (e.g., `perf`, VTune, or `Instruments`) to pinpoint hot spots before making changes.
 
 ## Workstream A: Environment Setup Optimizations
-- [ ] **Reduce `StandardFPEnvScope` cost.**
-   - [ ] Audit all call sites in the parser and formatter to determine whether redundant floating-point environment resets occur.
-   - [ ] Experiment with thread-local fast paths that skip environment changes when the default rounding mode is already active.
-   - [ ] Validate that any skip logic maintains determinism in multi-threaded scenarios.
-- [ ] **Batch environment transitions.**
-   - [ ] Investigate hoisting the environment scope out of tight conversion loops so it is entered once per batch instead of per value.
-   - [ ] Update callers that perform bulk conversions to amortize the setup cost.
+- [x] **Reduce `StandardFPEnvScope` cost.**
+   - [x] Audit all call sites in the parser and formatter to determine whether redundant floating-point environment resets occur.
+   - [x] Experiment with thread-local fast paths that skip environment changes when the default rounding mode is already active.
+   - [x] Validate that any skip logic maintains determinism in multi-threaded scenarios.
+- [x] **Batch environment transitions.**
+   - [x] Investigate hoisting the environment scope out of tight conversion loops so it is entered once per batch instead of per value.
+   - [x] Update callers that perform bulk conversions to amortize the setup cost.
 
 ## Workstream B: Parsing Fast Paths
 - [ ] **Stage digits in integer form.**
@@ -63,6 +63,14 @@
 | stringToFloat |  |  |  |  |  |
 
 ## Benchmark History
+
+### 2025-09-22 – Batch `FloatStringBatchGuard` for conversions
+| Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |
+| --- | --- | --- | --- | --- | --- |
+| doubleToString | 1507.51 | 1269.65 | -237.86 | -15.8% | Release build, 1,000,000-value corpus; batch guard active |
+| stringToDouble | 659.51 | 360.73 | -298.78 | -45.3% | Same corpus, batch guard hoisted outside loop |
+| floatToString | 956.25 | 695.88 | -260.37 | -27.2% | Release build, guard scoped once per run |
+| stringToFloat | 456.96 | 201.79 | -255.18 | -55.8% | Same corpus, guard reused for parsing |
 
 ### 2025-09-21 – Quotient-guided digit estimation in `realToString`
 | Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |

@@ -23,6 +23,19 @@ typedef std::basic_string<WideChar>::const_iterator WideStringIt;
 typedef std::pair<String, String> SourceAndFile;
 typedef std::pair<int, int> LineAndColumn;
 
+class StandardFPEnvScope;
+
+class FloatStringBatchGuard {
+        public:
+                FloatStringBatchGuard();
+                ~FloatStringBatchGuard();
+
+        private:
+                FloatStringBatchGuard(const FloatStringBatchGuard&);
+                FloatStringBatchGuard& operator=(const FloatStringBatchGuard&);
+                StandardFPEnvScope* scope_;
+};
+
 struct Exception : public std::exception { virtual ~Exception() throw() { } };
 
 /**
