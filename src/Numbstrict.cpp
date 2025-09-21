@@ -345,10 +345,25 @@ class StandardFPEnvScope {
 		StandardFPEnvScope();
 		~StandardFPEnvScope();
 	private:
+		bool shouldSkipEnter() const;
 		void enter();
 		void leave();
 		bool active_;
+		bool prevWasDefault_;
 		static thread_local int depth_;
+		static thread_local bool normalized_;
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+		static bool isDefaultMXCSR(unsigned int mxcsr);
+		static bool isDefaultX87(unsigned int ctrl);
+#elif defined(__aarch64__)
+		static bool isDefaultEnv(const fenv_t& env);
+		static bool isDefaultFPCR(unsigned long long fpcr);
+#elif defined(__arm__)
+		static bool isDefaultEnv(const fenv_t& env);
+		static bool isDefaultFPSCR(unsigned int fpscr);
+#else
+		static bool isDefaultEnv(const fenv_t& env);
+#endif
 #if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
 		unsigned int prevX87_, prevMXCSR_;
 #elif defined(__aarch64__)
@@ -362,10 +377,12 @@ class StandardFPEnvScope {
 #endif
 };
 
-StandardFPEnvScope::StandardFPEnvScope() : active_(false) {
+StandardFPEnvScope::StandardFPEnvScope() : active_(false), prevWasDefault_(false) {
 	if (depth_++ == 0) {
-		active_ = true;
-		enter();
+		if (!shouldSkipEnter()) {
+			active_ = true;
+			enter();
+		}
 	}
 }
 
@@ -377,32 +394,89 @@ StandardFPEnvScope::~StandardFPEnvScope() {
 	--depth_;
 }
 
+bool StandardFPEnvScope::shouldSkipEnter() const {
+	if (!normalized_) {
+		return false;
+	}
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+	if (!isDefaultMXCSR(_mm_getcsr())) {
+		return false;
+	}
+	if (!isDefaultX87(_control87(0, 0))) {
+		return false;
+	}
+	return true;
+#elif defined(__aarch64__)
+	fenv_t currentEnv;
+	int r = fegetenv(&currentEnv);
+	assert(r == 0);
+	(void) r;
+	if (!isDefaultEnv(currentEnv)) {
+		return false;
+	}
+#if defined(__has_builtin) && __has_builtin(__builtin_aarch64_get_fpcr)
+	unsigned long long fpcr = __builtin_aarch64_get_fpcr();
+#else
+	unsigned long long fpcr;
+	asm volatile("mrs %0, fpcr" : "=r"(fpcr));
+#endif
+	return isDefaultFPCR(fpcr);
+#elif defined(__arm__)
+	fenv_t currentEnv;
+	int r = fegetenv(&currentEnv);
+	assert(r == 0);
+	(void) r;
+	if (!isDefaultEnv(currentEnv)) {
+		return false;
+	}
+	unsigned int fpscr;
+	asm volatile("vmrs %0, fpscr" : "=r"(fpscr));
+	return isDefaultFPSCR(fpscr);
+#else
+	fenv_t currentEnv;
+	int r = fegetenv(&currentEnv);
+	assert(r == 0);
+	(void) r;
+	return isDefaultEnv(currentEnv);
+#endif
+}
+
 void StandardFPEnvScope::enter() {
 #if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
 	const unsigned int COMMON = _EM_INEXACT|_EM_UNDERFLOW|_EM_OVERFLOW|_EM_ZERODIVIDE|_EM_INVALID|_EM_DENORMAL|_RC_NEAR;
 	unsigned int cur;
 #if defined(_M_IX86)
 	{ int ok = __control87_2(0,0,&prevX87_,&prevMXCSR_); assert(ok); unsigned int t; ok = __control87_2(COMMON|_PC_53, _MCW_EM|_MCW_RC|_MCW_PC, &t, 0); assert(ok); }
+	prevWasDefault_ = isDefaultMXCSR(prevMXCSR_) && isDefaultX87(prevX87_);
 	cur = prevMXCSR_;
 #else
-	prevMXCSR_ = _mm_getcsr(); cur = prevMXCSR_; prevX87_ = _control87(0,0); _control87(COMMON, _MCW_EM|_MCW_RC);
+	prevMXCSR_ = _mm_getcsr(); cur = prevMXCSR_; prevX87_ = _control87(0,0);
+	prevWasDefault_ = isDefaultMXCSR(prevMXCSR_) && isDefaultX87(prevX87_);
+	_control87(COMMON, _MCW_EM|_MCW_RC);
 #endif
 	cur &= ~(_MM_FLUSH_ZERO_MASK|_MM_DENORMALS_ZERO_MASK);
 	cur = (cur & ~_MM_ROUND_MASK) | _MM_ROUND_NEAREST;
 	_mm_setcsr(cur);
 #elif defined(__aarch64__)
-	int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
+	int r; r = fegetenv(&prevEnv_); assert(r==0); prevWasDefault_ = isDefaultEnv(prevEnv_); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
 #if defined(__has_builtin) && __has_builtin(__builtin_aarch64_get_fpcr) && __has_builtin(__builtin_aarch64_set_fpcr)
-	prevFPCR_ = __builtin_aarch64_get_fpcr(); unsigned long long cur = prevFPCR_; cur &= ~(1ull<<24); cur &= ~(3ull<<22); __builtin_aarch64_set_fpcr(cur);
+	prevFPCR_ = __builtin_aarch64_get_fpcr();
+	prevWasDefault_ = prevWasDefault_ && isDefaultFPCR(prevFPCR_);
+	unsigned long long cur = prevFPCR_; cur &= ~(1ull<<24); cur &= ~(3ull<<22); __builtin_aarch64_set_fpcr(cur);
 #else
-	asm volatile("mrs %0, fpcr" : "=r"(prevFPCR_)); unsigned long long cur = prevFPCR_; cur &= ~(1ull<<24); cur &= ~(3ull<<22); asm volatile("msr fpcr, %0" :: "r"(cur));
+	asm volatile("mrs %0, fpcr" : "=r"(prevFPCR_));
+	prevWasDefault_ = prevWasDefault_ && isDefaultFPCR(prevFPCR_);
+	unsigned long long cur = prevFPCR_; cur &= ~(1ull<<24); cur &= ~(3ull<<22); asm volatile("msr fpcr, %0" :: "r"(cur));
 #endif
 #elif defined(__arm__)
-	int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
-	asm volatile("vmrs %0, fpscr" : "=r"(prevFPSCR_)); unsigned int cur = prevFPSCR_; cur &= ~(1u<<24); cur &= ~(3u<<22); asm volatile("vmsr fpscr, %0" :: "r"(cur));
+	int r; r = fegetenv(&prevEnv_); assert(r==0); prevWasDefault_ = isDefaultEnv(prevEnv_); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
+	asm volatile("vmrs %0, fpscr" : "=r"(prevFPSCR_));
+	prevWasDefault_ = prevWasDefault_ && isDefaultFPSCR(prevFPSCR_);
+	unsigned int cur = prevFPSCR_; cur &= ~(1u<<24); cur &= ~(3u<<22); asm volatile("vmsr fpscr, %0" :: "r"(cur));
 #else
-	int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
+	int r; r = fegetenv(&prevEnv_); assert(r==0); prevWasDefault_ = isDefaultEnv(prevEnv_); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
 #endif
+	normalized_ = true;
 }
 
 void StandardFPEnvScope::leave() {
@@ -425,9 +499,83 @@ void StandardFPEnvScope::leave() {
 #else
 	fesetenv(&prevEnv_);
 #endif
+	normalized_ = prevWasDefault_;
 }
 
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+bool StandardFPEnvScope::isDefaultMXCSR(unsigned int mxcsr) {
+	unsigned int normalized = mxcsr & ~(_MM_FLUSH_ZERO_MASK|_MM_DENORMALS_ZERO_MASK);
+	normalized = (normalized & ~_MM_ROUND_MASK) | _MM_ROUND_NEAREST;
+	return normalized == mxcsr;
+}
+
+bool StandardFPEnvScope::isDefaultX87(unsigned int ctrl) {
+	const unsigned int mask = _MCW_EM|_MCW_RC
+#if defined(_M_IX86)
+		| _MCW_PC
+#endif
+	;
+	const unsigned int target = (_EM_INEXACT|_EM_UNDERFLOW|_EM_OVERFLOW|_EM_ZERODIVIDE|_EM_INVALID|_EM_DENORMAL|_RC_NEAR)
+#if defined(_M_IX86)
+		| _PC_53
+#endif
+	;
+	return (ctrl & mask) == (target & mask);
+}
+#elif defined(__aarch64__)
+bool StandardFPEnvScope::isDefaultEnv(const fenv_t& env) {
+	static thread_local bool captured = false;
+	static thread_local fenv_t defaultEnv;
+	if (!captured) {
+		fenv_t restore;
+		int r = fegetenv(&restore); assert(r == 0);
+		r = fesetenv(FE_DFL_ENV); assert(r == 0);
+		r = fegetenv(&defaultEnv); assert(r == 0);
+		r = fesetenv(&restore); assert(r == 0);
+		captured = true;
+	}
+	return std::memcmp(&env, &defaultEnv, sizeof(fenv_t)) == 0;
+}
+
+bool StandardFPEnvScope::isDefaultFPCR(unsigned long long fpcr) {
+	return ((fpcr & (1ull<<24)) == 0) && ((fpcr & (3ull<<22)) == 0);
+}
+#elif defined(__arm__)
+bool StandardFPEnvScope::isDefaultEnv(const fenv_t& env) {
+	static thread_local bool captured = false;
+	static thread_local fenv_t defaultEnv;
+	if (!captured) {
+		fenv_t restore;
+		int r = fegetenv(&restore); assert(r == 0);
+		r = fesetenv(FE_DFL_ENV); assert(r == 0);
+		r = fegetenv(&defaultEnv); assert(r == 0);
+		r = fesetenv(&restore); assert(r == 0);
+		captured = true;
+	}
+	return std::memcmp(&env, &defaultEnv, sizeof(fenv_t)) == 0;
+}
+
+bool StandardFPEnvScope::isDefaultFPSCR(unsigned int fpscr) {
+	return ((fpscr & (1u<<24)) == 0) && ((fpscr & (3u<<22)) == 0);
+}
+#else
+bool StandardFPEnvScope::isDefaultEnv(const fenv_t& env) {
+	static thread_local bool captured = false;
+	static thread_local fenv_t defaultEnv;
+	if (!captured) {
+		fenv_t restore;
+		int r = fegetenv(&restore); assert(r == 0);
+		r = fesetenv(FE_DFL_ENV); assert(r == 0);
+		r = fegetenv(&defaultEnv); assert(r == 0);
+		r = fesetenv(&restore); assert(r == 0);
+		captured = true;
+	}
+	return std::memcmp(&env, &defaultEnv, sizeof(fenv_t)) == 0;
+}
+#endif
+
 thread_local int StandardFPEnvScope::depth_ = 0;
+thread_local bool StandardFPEnvScope::normalized_ = false;
 
 FloatStringBatchGuard::FloatStringBatchGuard() : scope_(new StandardFPEnvScope()) { }
 

@@ -64,6 +64,14 @@
 
 ## Benchmark History
 
+### 2025-09-23 – Thread-local `StandardFPEnvScope` reuse
+| Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |
+| --- | --- | --- | --- | --- | --- |
+| doubleToString | 1286.80 | 1288.17 | +1.37 | +0.1% | Release build, 1,000,000-value corpus; thread-local skip verification |
+| stringToDouble | 357.78 | 393.68 | +35.90 | +10.0% | Release build, same corpus; regression from additional `fegetenv` checks |
+| floatToString | 693.03 | 734.82 | +41.79 | +6.0% | Release build, same corpus; guard amortization still pending tuning |
+| stringToFloat | 202.69 | 218.85 | +16.16 | +8.0% | Release build, same corpus; follow-up needed to recover baseline |
+
 ### 2025-09-22 – Batch `FloatStringBatchGuard` for conversions
 | Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |
 | --- | --- | --- | --- | --- | --- |
