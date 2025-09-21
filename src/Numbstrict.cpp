@@ -844,32 +844,30 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 		} else if (exponent > Traits<T>::MAX_EXPONENT) {
 			value = std::numeric_limits<T>::infinity();
 		} else {
-			assert(Traits<double>::MIN_EXPONENT <= exponent && exponent <= Traits<double>::MAX_EXPONENT);
-			DoubleDouble magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
-			DoubleDouble accumulator(0.0);
-			static const int PARSE_CHUNK_POW10[5] = { 1, 10, 100, 1000, 10000 };
-			while (p != significandEnd) {
-				if (*p == '.') {
-					++p;
-					continue;
-				}
-				int chunkValue = 0;
-				int chunkDigits = 0;
-				const Char* chunkEnd = p;
-				while (chunkEnd != significandEnd && chunkDigits < 4 && *chunkEnd != '.') {
-					chunkValue = chunkValue * 10 + (*chunkEnd - '0');
-					++chunkEnd;
-					++chunkDigits;
-				}
-				// Divide once to obtain the magnitude for the next digit position, then scale it back up
-				// for the chunk's most significant digit so we avoid multiplying the integer by ten inside
-				// the loop while preserving the per-digit weighting.
-				const DoubleDouble nextMagnitude = magnitude / PARSE_CHUNK_POW10[chunkDigits];
-				const DoubleDouble chunkMagnitude = nextMagnitude * 10;
-				accumulator = multiplyAndAdd(accumulator, chunkMagnitude, chunkValue);
-				magnitude = nextMagnitude;
-				p = chunkEnd;
-			}
+					assert(Traits<double>::MIN_EXPONENT <= exponent && exponent <= Traits<double>::MAX_EXPONENT);
+					DoubleDouble magnitudeTimesTen = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT] * 10;
+					DoubleDouble accumulator(0.0);
+					static const int PARSE_CHUNK_POW10[5] = { 1, 10, 100, 1000, 10000 };
+					while (p != significandEnd) {
+						if (*p == '.') {
+							++p;
+							continue;
+						}
+						int chunkValue = 0;
+						int chunkDigits = 0;
+						const Char* chunkEnd = p;
+						while (chunkEnd != significandEnd && chunkDigits < 4 && *chunkEnd != '.') {
+							chunkValue = chunkValue * 10 + (*chunkEnd - '0');
+							++chunkEnd;
+							++chunkDigits;
+						}
+						// `magnitudeTimesTen` tracks the current digit magnitude scaled by ten so a single division
+						// yields the weighting for the chunk's most significant digit without an extra multiply.
+						const DoubleDouble chunkMagnitude = magnitudeTimesTen / PARSE_CHUNK_POW10[chunkDigits];
+						accumulator = multiplyAndAdd(accumulator, chunkMagnitude, chunkValue);
+						magnitudeTimesTen = chunkMagnitude;
+						p = chunkEnd;
+					}
 			const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
 			value = scaleAndRound<T>(accumulator, factor);
 		}
