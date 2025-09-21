@@ -861,11 +861,13 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 					++chunkEnd;
 					++chunkDigits;
 				}
-				// Divide once to advance the magnitude and reuse that result to weight this chunk.
-				DoubleDouble nextMagnitude = magnitude / PARSE_CHUNK_POW10[chunkDigits];
-				DoubleDouble chunkMagnitude = nextMagnitude * 10;
+				// Weight the chunk by the magnitude of its most significant digit, then advance.
+				DoubleDouble chunkMagnitude = magnitude;
+				if (chunkDigits > 1) {
+					chunkMagnitude = chunkMagnitude / PARSE_CHUNK_POW10[chunkDigits - 1];
+				}
 				accumulator = multiplyAndAdd(accumulator, chunkMagnitude, chunkValue);
-				magnitude = nextMagnitude;
+				magnitude = chunkMagnitude / 10;
 				p = chunkEnd;
 			}
 			const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
