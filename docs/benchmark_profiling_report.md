@@ -70,7 +70,23 @@
 ### Notes
 - The profiling run confirms that `DoubleDouble` arithmetic (division, addition, comparison) and the formatter’s `realToString` implementation dominate instruction counts, aligning with previous optimization targets.
 - Library fallbacks (`std::strtod`, `std::ostringstream`) still incur significant cost but serve as baselines for comparison.
-- Future optimization experiments should focus on reducing `DoubleDouble` division frequency and improving `scaleAndRound` efficiency.
+
+## Prioritized Optimization Plan
+1. **Cut per-digit `DoubleDouble` divisions in the formatter (top hotspot: `DoubleDouble::operator/(int)`).**
+- Replace the repeated `magnitude / 10` and quotient estimation divides with cached powers of ten or reciprocal multiplies.
+- Validate that the new approach preserves rounding across 0–9 digit boundaries using the 10,000,000-case `compareWithRyu` fuzz test before landing.
+2. **Streamline the formatter core (`realToString` and `scaleAndRound`).**
+- Cache `scaleAndRound` outputs so each digit uses one scaling pass instead of recomputing for both the candidate and `candidate + 1`.
+- Examine opportunities to move invariant work (e.g., exponent prep) out of the digit loop per profiling evidence.
+3. **Reduce `DoubleDouble` helper traffic (`operator+`, comparisons, subtraction).**
+- Profile whether batching digit accumulation or reusing intermediate sums can reduce the 6–8% instruction budget consumed by `multiplyAndAdd` and the basic operators.
+- Consider specialized helpers for common cases (e.g., adding a small integer) to avoid full 128-bit style arithmetic when unnecessary.
+4. **Tighten parsing hotspots (`parseReal`, `multiplyAndAdd`).**
+- Extend the floating fast-path accumulator to cover more digits without sacrificing exactness, so fewer iterations reach the expensive `DoubleDouble` loop.
+- Investigate caching of per-digit magnitudes similar to the formatter to eliminate the mirrored `/ 10` cost on the parsing side.
+5. **Re-measure after each change.**
+- Benchmarks must be captured before and after every optimization using the release harness plus the Callgrind profile when relevant.
+- Record the deltas in both this report and the optimization plan so the impact of each change remains auditable.
 
 ## Artifacts
 - Raw profile: `docs/profiles/callgrind.benchmarkToString.count10000.out`
