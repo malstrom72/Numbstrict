@@ -847,12 +847,27 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 			assert(Traits<double>::MIN_EXPONENT <= exponent && exponent <= Traits<double>::MAX_EXPONENT);
 			DoubleDouble magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
 			DoubleDouble accumulator(0.0);
+			static const int PARSE_CHUNK_POW10[5] = { 1, 10, 100, 1000, 10000 };
 			while (p != significandEnd) {
-				if (*p != '.') {
-					accumulator = multiplyAndAdd(accumulator, magnitude, (*p - '0'));
-					magnitude = magnitude / 10;
+				if (*p == '.') {
+					++p;
+					continue;
 				}
-				++p;
+				int chunkValue = 0;
+				int chunkDigits = 0;
+				const Char* chunkEnd = p;
+				while (chunkEnd != significandEnd && chunkDigits < 4 && *chunkEnd != '.') {
+					chunkValue = chunkValue * 10 + (*chunkEnd - '0');
+					++chunkEnd;
+					++chunkDigits;
+				}
+				DoubleDouble chunkMagnitude = magnitude;
+				if (chunkDigits > 1) {
+					chunkMagnitude = chunkMagnitude / PARSE_CHUNK_POW10[chunkDigits - 1];
+				}
+				accumulator = multiplyAndAdd(accumulator, chunkMagnitude, chunkValue);
+				magnitude = magnitude / PARSE_CHUNK_POW10[chunkDigits];
+				p = chunkEnd;
 			}
 			const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
 			value = scaleAndRound<T>(accumulator, factor);

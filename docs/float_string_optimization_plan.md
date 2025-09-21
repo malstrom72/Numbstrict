@@ -28,6 +28,9 @@
 - [ ] **Stage digits in integer form.**
    - [ ] Implement an initial loop that consumes up to 18 significant digits into a 64-bit accumulator before converting to `DoubleDouble`.
    - [ ] Benchmark the cutoff point (e.g., 18 vs. 19 digits) to balance precision and overhead.
+- [x] **Chunked digit accumulation.**
+   - [x] Batch significand digits in up to four-digit groups to amortize `DoubleDouble` operations.
+   - [x] Validate the chunked path against `output/release/compareWithRyu 10000000` to ensure rounding fidelity.
 - [ ] **Table-driven magnitude handling.**
    - [ ] Precompute powers of ten for the most common exponent ranges and replace repetitive `DoubleDouble / 10` operations with lookups.
    - [ ] Ensure the table covers denormals and extreme exponents; fall back to the existing path when out of range.
@@ -119,6 +122,14 @@
 | stringToDouble | 841.91 | 839.43 | -2.48 | -0.3% | Averaged over two runs, release build |
 | floatToString | 1930.93 | 1892.82 | -38.11 | -2.0% | Averaged over two runs, release build |
 | stringToFloat | 637.19 | 620.08 | -17.11 | -2.7% | Averaged over two runs, release build |
+
+### 2025-09-24 – Four-digit chunk accumulation in `parseReal`
+| Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |
+| --- | --- | --- | --- | --- | --- |
+| doubleToString | 1409.56 | 1388.60 | -20.96 | -1.5% | Release build, 1,000,000-value corpus; chunk size four |
+| stringToDouble | 406.261 | 296.891 | -109.37 | -26.9% | Release build, same corpus |
+| floatToString | 727.757 | 713.061 | -14.70 | -2.0% | Release build, same corpus |
+| stringToFloat | 216.123 | 183.750 | -32.37 | -15.0% | Release build, same corpus |
 
 ## Risk Mitigation
 - [ ] Maintain a full suite of unit tests and fuzzers; run them after each major change.
