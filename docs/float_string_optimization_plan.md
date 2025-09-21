@@ -35,9 +35,9 @@
    - [ ] Use microbenchmarks with typical JSON/CSV numeric strings to measure the impact of the fast path before and after implementation.
 
 ## Workstream C: Formatting Improvements
-- [ ] **Direct digit extraction.**
-   - [ ] Replace the inner digit-selection loop with a quotient-based approach that derives each digit via a single `DoubleDouble` division.
-   - [ ] Verify rounding correctness across boundaries (0–9) and for tie cases.
+- [x] **Direct digit extraction.**
+   - [x] Replace the inner digit-selection loop with a quotient-based approach that derives each digit via a single `DoubleDouble` division.
+   - [x] Verify rounding correctness across boundaries (0–9) and for tie cases.
 - [x] **Reuse `scaleAndRound` results.**
    - [x] Cache intermediate scaling values and reuse them across digit iterations to avoid duplicate computations.
    - [x] Confirm that memoization does not introduce stale state between iterations.
@@ -63,6 +63,14 @@
 | stringToFloat |  |  |  |  |  |
 
 ## Benchmark History
+
+### 2025-09-21 – Quotient-guided digit estimation in `realToString`
+| Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |
+| --- | --- | --- | --- | --- | --- |
+| doubleToString | 2931.49 | 1998.30 | -933.19 | -31.8% | Release build, 1,000,000-value corpus |
+| stringToDouble | 789.79 | 761.03 | -28.76 | -3.6% | Same corpus, parsing pass |
+| floatToString | 1748.86 | 1203.78 | -545.08 | -31.2% | Release build, 1,000,000-value corpus |
+| stringToFloat | 570.69 | 566.48 | -4.21 | -0.7% | Same corpus, parsing pass |
 
 ### 2025-09-20 – Quotient-based digit extraction in `realToString`
 | Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |

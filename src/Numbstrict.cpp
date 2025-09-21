@@ -428,6 +428,18 @@ struct DoubleDouble {
 		const double overflow = floor(lowTimesFactor);
 		return DoubleDouble((high * factor) + overflow, lowTimesFactor - overflow);
 	}
+	DoubleDouble operator-(const DoubleDouble& other) const {
+		double highDiff = high - other.high;
+		double lowDiff = low - other.low;
+		if (lowDiff < 0.0) {
+			lowDiff += 1.0;
+			highDiff -= 1.0;
+		}
+		return DoubleDouble(highDiff, lowDiff);
+	}
+	bool operator==(const DoubleDouble& other) const {
+		return high == other.high && low == other.low;
+	}
 	DoubleDouble operator/(int divisor) const {
 		const double floored = floor(high / divisor);
 		const double remainder = high - floored * divisor;
@@ -736,21 +748,35 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 			*p++ = '.';
 		}
 		
-		// Incrementally find the max digit that keeps accumulator < normalized target (instead of using division).
-		DoubleDouble next = accumulator + magnitude;
+		DoubleDouble remaining = normalized - accumulator;
+		double magnitudeValue = static_cast<double>(magnitude);
+		double approx = 0.0;
+		if (magnitudeValue > 0.0) {
+			approx = static_cast<double>(remaining) / magnitudeValue;
+		}
 		int digit = 0;
-		while (next < normalized && digit < 9) {
-			accumulator = next;
+		if (approx > 0.0) {
+			digit = static_cast<int>(approx);
+		}
+		if (digit > 9) {
+			digit = 9;
+		}
+		
+		DoubleDouble candidate = multiplyAndAdd(accumulator, magnitude, digit);
+		while (normalized < candidate && digit > 0) {
+			candidate = candidate - magnitude;
+			--digit;
+		}
+		
+		DoubleDouble next = candidate + magnitude;
+		while (digit < 9 && !(normalized < next)) {
+			candidate = next;
 			next = next + magnitude;
 			++digit;
 		}
-
-		// Correct behavior is to never reach higher than digit 9.
-		assert(next >= normalized);
 		
-		// Decide between digit and digit+1 under final rounding; then optional bump if strictly past half-step.
 		const DoubleDouble halfMagnitude = magnitude / 2;
-		reconstructed = scaleAndRound<T>(accumulator, factor);
+		reconstructed = scaleAndRound<T>(candidate, factor);
 		bool computedNext = false;
 		T roundedCandidate = reconstructed;
 		if (reconstructed != absValue) {
@@ -761,7 +787,7 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 				++digit;
 				assert(digit < 10);
 			}
-		} else if ((accumulator + halfMagnitude) < normalized && absValue != std::numeric_limits<T>::max()) {
+		} else if ((candidate + halfMagnitude) < normalized && absValue != std::numeric_limits<T>::max()) {
 			if (!computedNext) {
 				roundedCandidate = scaleAndRound<T>(next, factor);
 				computedNext = true;
@@ -770,8 +796,9 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 			++digit;
 			assert(digit < 10);
 		}
-	
+		
 		*p++ = '0' + digit;
+		accumulator = candidate;
 		magnitude = magnitude / 10;
 		
 		// p < buffer + 27 is an extra precaution if the correct value is never reached (e.g. because of too aggressive
