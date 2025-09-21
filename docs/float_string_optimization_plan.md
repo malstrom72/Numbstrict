@@ -11,9 +11,9 @@
 - [ ] Always execute the 10,000,000-iteration `compareWithRyu` fuzz regression (`output/release/compareWithRyu 10000000`) when validating changes, and record any discrepancies.
 
 ## Measurement Baseline
-- [ ] Reproduce the current performance numbers by running the benchmark suite referenced by `./build.sh` and any additional float/string microbenchmarks.
-- [ ] Capture CPU architecture, compiler flags, and input corpus characteristics for reproducibility.
-- [ ] Record profiles (e.g., `perf`, VTune, or `Instruments`) to pinpoint hot spots before making changes.
+- [x] Reproduce the current performance numbers by running the benchmark suite referenced by `./build.sh` and any additional float/string microbenchmarks.
+- [x] Capture CPU architecture, compiler flags, and input corpus characteristics for reproducibility.
+- [x] Record profiles (e.g., `perf`, VTune, or `Instruments`) to pinpoint hot spots before making changes.
 
 ## Workstream A: Environment Setup Optimizations
 - [x] **Reduce `StandardFPEnvScope` cost.**
@@ -63,6 +63,14 @@
 | stringToFloat |  |  |  |  |  |
 
 ## Benchmark History
+
+### 2025-09-21 – Callgrind profiling baseline (count=10,000)
+| Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |
+| --- | --- | --- | --- | --- | --- |
+| doubleToString | 1,832.78 | 60,373.8 | +58,541.02 | +3,195% | Callgrind run with reduced corpus; captures instrumentation overhead |
+| stringToDouble | 501.72 | 18,938.2 | +18,436.48 | +3,675% | Same run; reflects profiling overhead, not an optimization |
+| floatToString | 1,002.77 | 37,886.6 | +36,883.83 | +3,678% | Profiling-only measurement |
+| stringToFloat | 291.048 | 12,164.0 | +11,872.95 | +4,079% | Profiling-only measurement |
 
 ### 2025-09-23 – Thread-local `StandardFPEnvScope` reuse
 | Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |
