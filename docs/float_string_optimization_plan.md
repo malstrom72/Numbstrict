@@ -181,6 +181,10 @@ The latest release benchmark on the current `work` branch produces the following
 - Summary: Added helpers that bypassed `frexp` by manipulating IEEE exponent bits directly.
 - Outcome: Produced no measurable formatter speedup; marked pointless and rolled back.
 
+### Double Staging Accumulator (attempted 2025-09-22)
+- Summary: Batched up to 18 significant digits into a `double` before updating the `DoubleDouble` accumulator to cut per-digit `multiplyAndAdd` calls.
+- Outcome: `output/release/compareWithRyu 10000000` failed on fragile input `0x3eb0c6f7a0b5ed8c`, returning the next-lower ULP. Reverted immediately despite observing benchmark shifts (before: 3203.12 / 783.13 / 1723.49 / 575.14 ns/value; after: 3116.94 / 849.31 / 1743.29 / 559.14 ns/value for doubleToString/stringToDouble/floatToString/stringToFloat).
+
 ## Notes
 - Maintain this document alongside code changes so every optimization attempt—successful or not—retains its benchmarks, decisions, and rollback criteria.
 - When new profiling data is captured, cross-link it here and update the backlog priorities accordingly.
