@@ -72,11 +72,26 @@ The latest release benchmark on the current `work` branch produces the following
   - `scaleAndRound<double>` and `scaleAndRound<float>` jointly add ~5.9% of instructions, highlighting redundant scaling and rounding work per digit.
   - Floating-point environment helpers such as `fegetenv` still show up, indicating there is remaining overhead to trim even after batching scopes.
 
+### 2025-09-22 – String-to-real subset benchmark (mode = `stringToReal`)
+- Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString mode=stringToReal`.
+- Dataset: 1,000,000 mixed values focused on parsing.
+- Results:
+
+| Benchmark | Time (ns/value) | Reference |
+| --- | --- | --- |
+| Numbstrict::stringToDouble | 592.47 | `std::strtod` 209.73 / `std::istringstream<double>` 508.36 |
+| Numbstrict::stringToFloat | 454.81 | `std::strtof` 108.69 / `std::istringstream<float>` 343.60 |
+
+- Notes: The parser remains ~2.8× slower than the C library baselines despite recent staging improvements, underscoring the need to attack `DoubleDouble` math inside `parseReal`.
+
 ## Profiling Log
 - 2025-09-22: Stored Callgrind capture at `docs/profiles/callgrind.benchmarkToString.count10000.out` for drill-down analysis of the instrumented benchmark run described above.
 - 2025-09-22: Captured parse-only Callgrind runs with instrumentation toggled on inside `stringToReal<double>` and `stringToReal<float>`.
   - Commands: `timeout 180 ./build.sh`, `valgrind --tool=callgrind --collect-atstart=no --toggle-collect='double Numbstrict::stringToReal<double>(char const*, char const*, char const**)' --callgrind-out-file=docs/profiles/callgrind.stringToDouble.count10000.out output/release/benchmarkToString double count=10000`, `valgrind --tool=callgrind --collect-atstart=no --toggle-collect='float Numbstrict::stringToReal<float>(char const*, char const*, char const**)' --callgrind-out-file=docs/profiles/callgrind.stringToFloat.count10000.out output/release/benchmarkToString float count=10000`.
   - Notes: Instrumentation stays disabled during string generation and formatting so only the parsing loops contribute to the profile. For doubles the run recorded 21.2M instructions with `parseReal<double>` responsible for 55% and `DoubleDouble::operator/(int)` for 28% of the total. The float-focused run recorded 12.8M instructions with `parseReal<float>` consuming 49% and the same division helper accounting for 22%, reaffirming that the `/ 10` path dominates the parser hot spots.
+- 2025-09-22: Profiled the benchmark with `mode=stringToReal` to capture combined parsing hotspots under instrumentation.
+  - Command: `valgrind --tool=callgrind --callgrind-out-file=docs/profiles/callgrind.stringToReal.count10000.out output/release/benchmarkToString count=10000 mode=stringToReal`.
+  - Highlights: 304M instructions recorded; `DoubleDouble::operator+` (19.3%), `DoubleDouble::operator/(int)` (5.9%), `parseReal<double>` (3.8%), and `scaleAndRound<double>` (3.3%) dominate internal cost while libc parsing helpers remain a secondary component. The profile confirms that parser-side `DoubleDouble` arithmetic is still the leading self-owned hotspot when formatting is disabled.
 
 ## Optimization Backlog
 - [ ] Batch `StandardFPEnvScope` usage so hot loops amortize floating-point environment setup without breaking denormal handling.
@@ -90,6 +105,9 @@ The latest release benchmark on the current `work` branch produces the following
 - [ ] Provide a cheaper ordered comparison for `DoubleDouble` magnitude checks to shrink `operator<` cost inside `realToString`.
 - [ ] Investigate restructuring `scaleAndRound` to reuse intermediate results across digits or leverage integer arithmetic to cut its 6% instruction share.
 - [ ] Audit floating-point environment entry/exit paths after batching to eliminate the remaining `fegetenv`/`fesetenv` calls that still appear in the profile.
+- [ ] Explore alternatives to `DoubleDouble::operator+` inside the parser (e.g., fused updates or wider staging buffers) to reduce its 19% share in the string-to-real profile.
+- [ ] Reduce reliance on `DoubleDouble::operator/(int)` during parsing by caching or precomputing chunk magnitudes for the common `/10` cases observed in the new profile.
+- [ ] Investigate lighter-weight magnitude comparisons or cached thresholds to cut `DoubleDouble::operator<` overhead in parse loops.
 
 ## Completed Experiments
 ### Quotient-Based Digit Extraction (recorded 2025-09-21)
