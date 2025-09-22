@@ -504,8 +504,16 @@ FloatStringBatchGuard::~FloatStringBatchGuard() {
 const int NEGATIVE_E_NOTATION_START = -6;
 const int POSITIVE_E_NOTATION_START = 10;
 
-const int PARSE_CHUNK_DIGITS = 4;
-const int PARSE_CHUNK_POW10[PARSE_CHUNK_DIGITS + 1] = { 1, 10, 100, 1000, 10000 };
+const int PARSE_CHUNK_DIGITS = 6;
+const int PARSE_CHUNK_POW10[PARSE_CHUNK_DIGITS + 1] = {
+	1,
+	10,
+	100,
+	1000,
+	10000,
+	100000,
+	1000000
+};
 
 /*
 	Helper class for high-precision double <=> string conversion routines. 52*2 bits of two doubles allows accurate

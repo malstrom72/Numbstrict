@@ -123,7 +123,7 @@ The latest release benchmark on the current `work` branch produces the following
  - [x] Batch `StandardFPEnvScope` usage so hot loops amortize floating-point environment setup without breaking denormal handling (10,000 parser calls still instantiate the scope during the Callgrind runs).【F:docs/profiles/callgrind.stringToDouble.count10000.out†L23-L45】【F:docs/profiles/callgrind.stringToFloat.count10000.out†L48-L71】
 - [x] Replace per-digit `DoubleDouble / 10` divisions with cached magnitudes sourced from `EXP10_TABLE` (163,739 divides per 10,000 samples consume 6.39M instructions in the double parser alone).【F:docs/profiles/callgrind.stringToDouble.count10000.out†L23-L79】 Addressed by chunking digits into four-digit groups so each block shares one divide (2025-09-22).
 - [ ] Carry a running remainder in `realToString` to eliminate redundant subtraction when estimating digits.
-- [ ] Extend the staged-digit parser to operate on multiple base-1e9 chunks without precision loss.
+- [ ] Extend the staged-digit parser to operate on multiple base-1e9 chunks without precision loss (six-digit chunking landed; evaluate safe path to 1e9).
 - [ ] Replace `frexp` exponent estimation with direct IEEE exponent extraction.
 - [ ] Cache rounding intermediates so the formatter avoids duplicate `scaleAndRound` work inside the digit loop.
 - [ ] Profile and tune the `compareWithRyu` harness to reduce measurement noise while keeping coverage intact.
@@ -161,6 +161,20 @@ The latest release benchmark on the current `work` branch produces the following
 | stringToDouble | 379.23 | 258.43 | ▼ ~32% | Chunked accumulation amortizes magnitude divides |
 | floatToString | 1,135.64 | 1,173.05 | ▲ ~3% | Formatting unaffected; variation within noise |
 | stringToFloat | 220.66 | 205.29 | ▼ ~7% | Parser benefits from fewer high-precision divides |
+
+- Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString`, `output/release/compareWithRyu 10000000`.
+
+### Six-digit parser chunking (recorded 2025-09-22)
+- Status: Landed; correctness verified with `output/release/compareWithRyu 10000000`.
+- Summary: Raised the steady-state parser chunk size from four to six digits so each pass through `parseReal` reuses a single divided magnitude across a larger block of significand digits without tripping the `DoubleDouble` invariants.
+- Benchmarks (release build, 1,000,000 values):
+
+| Benchmark | Before (ns/value) | After (ns/value) | Δ | Notes |
+| --- | --- | --- | --- | --- |
+| doubleToString | 3,100.37 | 3,096.45 | ▼ ~0% | Formatter unchanged within measurement noise |
+| stringToDouble | 365.00 | 301.09 | ▼ ~18% | Larger chunks halve the remaining `/10` work |
+| floatToString | 1,632.34 | 1,599.66 | ▼ ~2% | Minor knock-on effect from dataset reuse |
+| stringToFloat | 278.93 | 254.51 | ▼ ~9% | Parsing loop benefits directly from fewer divides |
 
 - Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString`, `output/release/compareWithRyu 10000000`.
 
@@ -231,6 +245,20 @@ addition instead of recomputing it for the `digit+1` candidate.
 ### Parser Chunk Magnitude Pre-Scaling (recorded 2025-09-21)
 - Summary: Tried to reuse a pre-divided magnitude to avoid extra multiplications inside the chunking loop.
 - Outcome: Required multiple `DoubleDouble` divides per chunk and provided no measurable speedup; reverted.
+
+### Eight-digit parser chunking (attempted 2025-09-22)
+- Summary: Increased the parser chunk size to eight digits so each `DoubleDouble::operator/(int)` call could be amortized across a larger block.
+- Outcome: `output/release/compareWithRyu 10000000` reported a mismatch on `0xd591d138bf11ff6e` (returned `0xd591d138bf11ff6f`), so the change was dropped despite promising benchmark deltas.
+- Benchmarks (release build, 1,000,000 values):
+
+| Benchmark | Before (ns/value) | After (ns/value) | Δ | Notes |
+| --- | --- | --- | --- | --- |
+| doubleToString | 3,100.37 | 3,088.30 | ▼ ~0% | Formatter path unaffected |
+| stringToDouble | 365.00 | 258.01 | ▼ ~29% | Larger chunks slashed divide count |
+| floatToString | 1,632.34 | 1,595.33 | ▼ ~2% | Downstream effect from dataset reuse |
+| stringToFloat | 278.93 | 218.87 | ▼ ~22% | Significant parser improvement before rollback |
+
+- Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString`, `output/release/compareWithRyu 10000000` (failed).
 
 ### Nine-Digit FAST_DIGIT Stage (recorded 2025-09-21)
 - Summary: Replaced the steady-state parser loop with a persistent nine-digit fast path.
