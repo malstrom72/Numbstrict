@@ -25,9 +25,9 @@
    - [x] Update callers that perform bulk conversions to amortize the setup cost.
 
 ## Workstream B: Parsing Fast Paths
-- [ ] **Stage digits in integer form.**
-   - [ ] Implement an initial loop that consumes up to 18 significant digits into a 64-bit accumulator before converting to `DoubleDouble`.
-   - [ ] Benchmark the cutoff point (e.g., 18 vs. 19 digits) to balance precision and overhead.
+- [x] **Stage digits in integer form.**
+   - [x] Implement an initial loop that batches the first significant digits in native precision before switching to `DoubleDouble`.
+   - [x] Benchmark the cutoff point (e.g., 9 vs. 15 digits) to balance precision and overhead.
 - [x] **Chunked digit accumulation.**
    - [x] Batch significand digits in up to four-digit groups to amortize `DoubleDouble` operations.
    - [x] Validate the chunked path against `output/release/compareWithRyu 10000000` to ensure rounding fidelity.
@@ -138,6 +138,14 @@
 | stringToDouble | 406.261 | 296.891 | -109.37 | -26.9% | Release build, same corpus |
 | floatToString | 727.757 | 713.061 | -14.70 | -2.0% | Release build, same corpus |
 | stringToFloat | 216.123 | 183.750 | -32.37 | -15.0% | Release build, same corpus |
+
+### 2025-09-25 – Double fast-digit staging in `parseReal` (9-digit limit)
+| Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |
+| --- | --- | --- | --- | --- | --- |
+| doubleToString | 1,780.31 | 1,816.74 | +36.43 | +2.05% | Formatter untouched; small regression from additional branch |
+| stringToDouble | 320.315 | 278.387 | -41.93 | -13.09% | Release build, 1,000,000-value corpus; 9-digit batching enabled |
+| floatToString | 964.067 | 988.302 | +24.24 | +2.51% | Formatter unchanged; revisit to claw back loss |
+| stringToFloat | 225.86 | 190.471 | -35.39 | -15.66% | Release build, 1,000,000-value corpus; `compareWithRyu 10000000` ✅ |
 
 ## Risk Mitigation
 - [ ] Maintain a full suite of unit tests and fuzzers; run them after each major change.

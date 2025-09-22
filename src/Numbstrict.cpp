@@ -642,6 +642,20 @@ static double multiplyAndAdd(double term, double factorA, double factorB) {
 	return term + factorA * factorB;
 }
 
+static const int PARSE_CHUNK_POW10[5] = { 1, 10, 100, 1000, 10000 };
+
+static DoubleDouble divideMagnitudeByPow10(const DoubleDouble& magnitudeTimesTen, int digits) {
+	DoubleDouble result = magnitudeTimesTen;
+	while (digits >= 4) {
+		result = result / PARSE_CHUNK_POW10[4];
+		digits -= 4;
+	}
+	if (digits > 0) {
+		result = result / PARSE_CHUNK_POW10[digits];
+	}
+	return result;
+}
+
 template<typename T> static T scaleAndRound(const DoubleDouble &acc, double factor);
 
 /**
@@ -847,7 +861,25 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 					assert(Traits<double>::MIN_EXPONENT <= exponent && exponent <= Traits<double>::MAX_EXPONENT);
 					DoubleDouble magnitudeTimesTen = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT] * 10;
 					DoubleDouble accumulator(0.0);
-					static const int PARSE_CHUNK_POW10[5] = { 1, 10, 100, 1000, 10000 };
+					const int FAST_DIGIT_LIMIT = 9;
+					double fastAccumulator = 0.0;
+					int fastDigits = 0;
+					const Char* fast = p;
+					while (fast != significandEnd && fastDigits < FAST_DIGIT_LIMIT) {
+						if (*fast == '.') {
+							++fast;
+							continue;
+						}
+						fastAccumulator = fastAccumulator * 10.0 + (*fast - '0');
+						++fastDigits;
+						++fast;
+					}
+					if (fastDigits > 0) {
+						DoubleDouble chunkMagnitude = divideMagnitudeByPow10(magnitudeTimesTen, fastDigits);
+						accumulator = multiplyAndAdd(accumulator, chunkMagnitude, fastAccumulator);
+						magnitudeTimesTen = chunkMagnitude;
+						p = fast;
+					}
 					while (p != significandEnd) {
 						if (*p == '.') {
 							++p;
@@ -868,7 +900,8 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 						magnitudeTimesTen = chunkMagnitude;
 						p = chunkEnd;
 					}
-			const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
+
+					const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
 			value = scaleAndRound<T>(accumulator, factor);
 		}
 	}
