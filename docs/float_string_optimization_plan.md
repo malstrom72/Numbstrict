@@ -67,6 +67,14 @@
 
 ## Benchmark History
 
+### 2025-09-25 – Eight-digit chunk parser without staged fast digits
+| Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |
+| --- | --- | --- | --- | --- | --- |
+| doubleToString | 1,835.00 | 1,798.12 | -36.88 | -2.01% | Removed the 9-digit staging fast path and extended chunked accumulation to eight digits. |
+| stringToDouble | 282.73 | 223.69 | -59.04 | -20.88% | Same corpus; faster chunking outweighs loss of fast-path staging. |
+| floatToString | 1,020.58 | 994.40 | -26.18 | -2.57% | Formatter unchanged aside from chunk weighting reuse. |
+| stringToFloat | 186.66 | 183.41 | -3.25 | -1.74% | Regression within noise; parser uses broader chunking exclusively. |
+
 ### 2025-09-21 – Release benchmark refresh (no code changes)
 | Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |
 | --- | --- | --- | --- | --- | --- |
