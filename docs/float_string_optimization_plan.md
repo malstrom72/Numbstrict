@@ -120,14 +120,14 @@ The latest release benchmark on the current `work` branch produces the following
 	- **Verification:** Stress-test with extreme exponents and long mantissas under `compareWithRyu 10000000`, document benchmark deltas, and capture targeted Callgrind runs to ensure overall parser instruction counts fall.
 
 ## Optimization Backlog
-- [ ] Batch `StandardFPEnvScope` usage so hot loops amortize floating-point environment setup without breaking denormal handling (10,000 parser calls still instantiate the scope during the Callgrind runs).【F:docs/profiles/callgrind.stringToDouble.count10000.out†L23-L45】【F:docs/profiles/callgrind.stringToFloat.count10000.out†L48-L71】
+ - [x] Batch `StandardFPEnvScope` usage so hot loops amortize floating-point environment setup without breaking denormal handling (10,000 parser calls still instantiate the scope during the Callgrind runs).【F:docs/profiles/callgrind.stringToDouble.count10000.out†L23-L45】【F:docs/profiles/callgrind.stringToFloat.count10000.out†L48-L71】
 - [ ] Replace per-digit `DoubleDouble / 10` divisions with cached magnitudes sourced from `EXP10_TABLE` (163,739 divides per 10,000 samples consume 6.39M instructions in the double parser alone).【F:docs/profiles/callgrind.stringToDouble.count10000.out†L23-L79】
 - [ ] Carry a running remainder in `realToString` to eliminate redundant subtraction when estimating digits.
 - [ ] Extend the staged-digit parser to operate on multiple base-1e9 chunks without precision loss.
 - [ ] Replace `frexp` exponent estimation with direct IEEE exponent extraction.
 - [ ] Cache rounding intermediates so the formatter avoids duplicate `scaleAndRound` work inside the digit loop.
 - [ ] Profile and tune the `compareWithRyu` harness to reduce measurement noise while keeping coverage intact.
-- [ ] Fuse multiply/add sequences or introduce dedicated helpers to reduce the number of `DoubleDouble::operator+` calls in the formatter digit loop.
+- [x] Fuse multiply/add sequences or introduce dedicated helpers to reduce the number of `DoubleDouble::operator+` calls in the formatter digit loop.
 - [ ] Provide a cheaper ordered comparison for `DoubleDouble` magnitude checks to shrink `operator<` cost inside `realToString`.
 - [ ] Investigate restructuring `scaleAndRound` to reuse intermediate results across digits or leverage integer arithmetic to cut its 6% instruction share.
 - [ ] Audit floating-point environment entry/exit paths after batching to eliminate the remaining `fegetenv`/`fesetenv` calls that still appear in the profile.
@@ -136,6 +136,20 @@ The latest release benchmark on the current `work` branch produces the following
 - [ ] Investigate lighter-weight magnitude comparisons or cached thresholds to cut `DoubleDouble::operator<` overhead in parse loops.
 
 ## Completed Experiments
+### Float Environment Batch Guard (recorded 2025-09-22)
+- Status: Landed; correctness verified with `compareWithRyu 10000000`.
+- Summary: Introduced a thread-local floating-point environment state and the public `FloatStringBatchGuard`, then wrapped the benchmark harness so runs normalize the environment once per batch instead of per conversion.
+- Benchmarks (release build, 1,000,000 values):
+
+| Benchmark | Before (ns/value) | After (ns/value) | Δ | Notes |
+| --- | --- | --- | --- | --- |
+| doubleToString | 3,670.98 | 3,063.41 | ▼ ~17% | Guard avoids redundant FP env setup |
+| stringToDouble | 891.18 | 490.23 | ▼ ~45% | Parser skips per-call env transitions |
+| floatToString | 1,972.30 | 1,570.94 | ▼ ~20% | Same dataset as above |
+| stringToFloat | 649.98 | 278.19 | ▼ ~57% | Batch guard removes repeated setup |
+
+- Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString`, `output/release/compareWithRyu 10000000`.
+
 ### Quotient-Based Digit Extraction (recorded 2025-09-21)
 - Status: Landed; correctness verified with `compareWithRyu 10000000`.
 - Summary: Replaced the incremental digit search loop in `realToString` with a quotient-based approach that performs one `DoubleDouble` division per digit and retains the guard checks for rounding.
@@ -159,6 +173,23 @@ The latest release benchmark on the current `work` branch produces the following
 | stringToDouble | 902 | 874 | ▼ ~3% | Primary beneficiary; fewer `DoubleDouble` operations |
 | floatToString | 1,602 | 1,544 | ▼ ~4% | Secondary effects via dataset preparation |
 | stringToFloat | 717 | 695 | ▼ ~3% | Direct improvement from batched digit accumulation |
+
+- Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString`, `output/release/compareWithRyu 10000000`.
+
+### Formatter next-sum reuse (recorded 2025-09-22)
+- Status: Landed; correctness verified with `output/release/compareWithRyu 10000000`.
+- Summary: Reused the `accumulator + magnitude` sum produced during digit selection so rounding checks share that `DoubleDouble`
+addition instead of recomputing it for the `digit+1` candidate.
+- Benchmarks (release build, 1,000,000 values):
+
+| Benchmark | Before (ns/value) | After (ns/value) | Δ | Notes |
+| --- | --- | --- | --- | --- |
+| doubleToString | 3,167.46 | 2,996.63 | ▼ ~5% | Removes one `DoubleDouble::operator+` per digit |
+| stringToDouble | 549.11 | 541.55 | ▼ ~1% | Parser unchanged; variation within noise |
+| floatToString | 1,693.55 | 1,548.36 | ▼ ~9% | Same dataset as above |
+| stringToFloat | 302.27 | 291.66 | ▼ ~4% | Parser unaffected; reflects noise |
+
+- Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString`, `output/release/compareWithRyu 10000000`.
 
 ## Rolled Back or Abandoned Experiments
 ### Lazy `scaleAndRound` Reuse (recorded 2025-09-21)
