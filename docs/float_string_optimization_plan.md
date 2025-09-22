@@ -136,6 +136,20 @@ The latest release benchmark on the current `work` branch produces the following
 - [ ] Investigate lighter-weight magnitude comparisons or cached thresholds to cut `DoubleDouble::operator<` overhead in parse loops.
 
 ## Completed Experiments
+### Integer-based DoubleDouble division (recorded 2025-09-22)
+- Status: Landed; correctness verified with `compareWithRyu 10000000`.
+- Summary: Replaced the generic floor-based `DoubleDouble::operator/(int)` path with an integer quotient/remainder implementation so per-digit divisions in parsing and formatting avoid redundant floating math.
+- Benchmarks (release build, 1,000,000 values):
+
+| Benchmark | Before (ns/value) | After (ns/value) | Δ | Notes |
+| --- | --- | --- | --- | --- |
+| doubleToString | 3,058.37 | 3,061.81 | ≈ 0% | Formatter change within noise |
+| stringToDouble | 705.48 | 554.71 | ▼ ~21% | Parser hot path benefits directly |
+| floatToString | 1,584.68 | 1,599.13 | ≈ 0% | Change is noise-level for float formatting |
+| stringToFloat | 295.58 | 286.75 | ▼ ~3% | Parser per-digit divides shrink |
+
+- Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString`, `output/release/compareWithRyu 10000000`.
+
 ### Float Environment Batch Guard (recorded 2025-09-22)
 - Status: Landed; correctness verified with `compareWithRyu 10000000`.
 - Summary: Introduced a thread-local floating-point environment state and the public `FloatStringBatchGuard`, then wrapped the benchmark harness so runs normalize the environment once per batch instead of per conversion.

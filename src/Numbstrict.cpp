@@ -526,9 +526,16 @@ struct DoubleDouble {
 		return DoubleDouble((high * factor) + overflow, lowTimesFactor - overflow);
 	}
 	DoubleDouble operator/(int divisor) const {
-		const double floored = floor(high / divisor);
-		const double remainder = high - floored * divisor;
-		return DoubleDouble(floored, (low + remainder) / divisor);
+		assert(divisor > 0);
+		assert(high >= 0.0);
+		const unsigned int positiveDivisor = static_cast<unsigned int>(divisor);
+		const uint64_t integerHigh = static_cast<uint64_t>(high);
+		const uint64_t quotient = integerHigh / positiveDivisor;
+		const uint64_t remainderInt = integerHigh - quotient * positiveDivisor;
+		const double floored = static_cast<double>(quotient);
+		const double remainder = static_cast<double>(remainderInt);
+		const double fractional = high - static_cast<double>(integerHigh);
+		return DoubleDouble(floored, (low + remainder + fractional) / divisor);
 	}
 	bool operator<(const DoubleDouble& other) const {
 		return high < other.high || (high == other.high && low < other.low);
