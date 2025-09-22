@@ -74,6 +74,9 @@ The latest release benchmark on the current `work` branch produces the following
 
 ## Profiling Log
 - 2025-09-22: Stored Callgrind capture at `docs/profiles/callgrind.benchmarkToString.count10000.out` for drill-down analysis of the instrumented benchmark run described above.
+- 2025-09-22: Captured parse-only Callgrind runs with instrumentation toggled on inside `stringToReal<double>` and `stringToReal<float>`.
+  - Commands: `timeout 180 ./build.sh`, `valgrind --tool=callgrind --collect-atstart=no --toggle-collect='double Numbstrict::stringToReal<double>(char const*, char const*, char const**)' --callgrind-out-file=docs/profiles/callgrind.stringToDouble.count10000.out output/release/benchmarkToString double count=10000`, `valgrind --tool=callgrind --collect-atstart=no --toggle-collect='float Numbstrict::stringToReal<float>(char const*, char const*, char const**)' --callgrind-out-file=docs/profiles/callgrind.stringToFloat.count10000.out output/release/benchmarkToString float count=10000`.
+  - Notes: Instrumentation stays disabled during string generation and formatting so only the parsing loops contribute to the profile. For doubles the run recorded 21.2M instructions with `parseReal<double>` responsible for 55% and `DoubleDouble::operator/(int)` for 28% of the total. The float-focused run recorded 12.8M instructions with `parseReal<float>` consuming 49% and the same division helper accounting for 22%, reaffirming that the `/ 10` path dominates the parser hot spots.
 
 ## Optimization Backlog
 - [ ] Batch `StandardFPEnvScope` usage so hot loops amortize floating-point environment setup without breaking denormal handling.

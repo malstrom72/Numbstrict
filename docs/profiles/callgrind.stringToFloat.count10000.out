@@ -1,0 +1,412 @@
+# callgrind format
+version: 1
+creator: callgrind-3.22.0
+pid: 5759
+cmd:  output/release/benchmarkToString float count=10000
+part: 1
+
+
+desc: I1 cache: 
+desc: D1 cache: 
+desc: LL cache: 
+
+desc: Timerange: Basic block 0 - 39042313
+desc: Trigger: Program termination
+
+positions: line
+events: Ir
+summary: 12838162
+
+
+ob=(8) /workspace/Numbstrict/output/release/benchmarkToString
+fl=(213) ???
+fn=(1360) main
+cfn=(1782) void runStringToRealBenchmark<float, float (*)(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)>(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&, char const*, float (*)(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&))
+calls=1 0 
+0 12838162
+
+fn=(1784) numbstrictStringToFloat(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+cfn=(1786) Numbstrict::stringToFloat(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, unsigned long*)
+calls=10000 0 
+0 12838162
+
+fn=(1782)
+cfn=(1784)
+calls=10000 0 
+0 12838162
+
+fn=(1576) Numbstrict::DoubleDouble::DoubleDouble(double)
+0 89658
+cob=(3) /usr/lib/x86_64-linux-gnu/libm.so.6
+cfi=(218) ./math/../sysdeps/x86_64/fpu/multiarch/s_floor-sse4_1.S
+cfn=(1346) __floor_sse41
+calls=49810 21 
+0 29886
+0 9962
+0 109582
+
+fn=(1788) float Numbstrict::stringToReal<float>(char const*, char const*, char const**)
+0 130000
+cfn=(1790) char const* Numbstrict::skipWhite<char const*>(char const*, char const*)
+calls=10000 0 
+0 100000
+0 40000
+cfn=(1792) char const* Numbstrict::parseReal<float>(char const*, char const*, float&)
+calls=10000 0 
+0 12338162
+0 50000
+cfn=(1790)
+calls=10000 0 
+0 70000
+0 110000
+
+fn=(1790)
+0 170000
+
+fn=(1792)
+0 180000
+cfn=(1328) Numbstrict::StandardFPEnvScope::StandardFPEnvScope()
+calls=10000 0 
+0 730000
+0 169846
+cob=(2) /usr/lib/x86_64-linux-gnu/libc.so.6
+cfi=(205) ./string/../sysdeps/x86_64/multiarch/strcmp-avx2.S
+cfn=(1132) __strncmp_avx2
+calls=10000 206 
+0 256976
+0 10000
+0 59996
+cob=(2)
+cfi=(205)
+cfn=(1132)
+calls=9998 206 
+0 256830
+0 9998
+0 1499107
+cfn=(1576)
+calls=9962 0 
+0 239088
+0 1747586
+cob=(3)
+cfi=(218)
+cfn=(1346)
+calls=77275 21 
+0 231825
+0 77275
+0 1854600
+cfn=(1342) Numbstrict::DoubleDouble::operator/(int) const
+calls=77275 0 
+0 3013725
+0 463797
+cfn=(1582) float Numbstrict::scaleAndRound<float>(Numbstrict::DoubleDouble const&, double)
+calls=9962 0 
+0 817665
+0 139848
+cob=(3)
+cfi=(216) ./math/../sysdeps/x86_64/fpu/fesetenv.c
+cfn=(1336) fesetenv
+calls=10000 31 
+0 450000
+0 10000
+0 120000
+
+fn=(1310) (below main)
+cob=(2)
+cfi=(214) ./csu/../csu/libc-start.c
+cfn=(1312) __libc_start_main@@GLIBC_2.34
+calls=1 242 
+0 12838162
+
+fn=(1786)
+cfn=(1788)
+calls=10000 0 
+0 12838162
+
+fn=(1582)
+0 284027
+cob=(3)
+cfi=(237) ./math/../sysdeps/ieee754/dbl-64/s_frexp.c
+cfn=(1570) frexp
+calls=53547 36 
+0 42425
+0 1697
+0 5091
+cob=(3)
+cfi=(237)
+cfn=(1570)
+calls=53547 36 
+0 42425
+0 1697
+0 18532
+cob=(3)
+cfi=(239) ./math/./s_ldexp_template.c
+cfn=(1586) ldexp
+calls=52224 22 
+0 82600
+0 1652
+0 135
+cob=(3)
+cfi=(239)
+cfn=(1586)
+calls=1323 22 
+0 2250
+0 45
+0 6788
+cob=(3)
+cfi=(239)
+cfn=(1586)
+calls=53547 22 
+0 84850
+0 1697
+0 8485
+cob=(3)
+cfi=(218)
+cfn=(1346)
+calls=53547 21 
+0 5091
+0 1697
+0 6788
+cob=(3)
+cfi=(218)
+cfn=(1346)
+calls=53547 21 
+0 5091
+0 1697
+0 39874
+cob=(3)
+cfi=(239)
+cfn=(1586)
+calls=53547 22 
+0 84850
+0 1697
+0 86484
+
+fn=(1328)
+0 40000
+cob=(3)
+cfi=(215) ./math/../sysdeps/x86_64/fpu/fegetenv.c
+cfn=(1332) fegetenv
+calls=30001 23 
+0 60000
+0 10000
+0 20000
+cob=(3)
+cfi=(216)
+cfn=(1336)
+calls=30001 31 
+0 340000
+0 10000
+0 30000
+cob=(3)
+cfi=(217) ./math/../sysdeps/x86_64/fpu/feholdexcpt.c
+cfn=(1340) feholdexcept
+calls=30001 23 
+0 210000
+0 10000
+
+fn=(1342)
+0 1159125
+cob=(3)
+cfi=(218)
+cfn=(1346)
+calls=244613 21 
+0 231825
+0 77275
+0 1545500
+
+ob=(2)
+fl=(219) ./csu/../sysdeps/nptl/libc_start_call_main.h
+fn=(1352) (below main)
+cob=(8)
+cfi=(213)
+cfn=(1360)
+calls=1 0 
+58 12838162
+
+fl=(205)
+fn=(1132)
+206 19998
++24 19998
++5 19998
++14 19998
++25 19998
++1 19998
++1 19998
++2 19998
++1 19998
++4 19460
++4 19460
++2 19460
++2 19460
++3 19460
++2 19460
++1 19460
++11 19425
++10 19425
++1 19425
++3 19425
++4 38850
++5 19460
++1 19460
++1 19460
++4 35
++1 70
+957 1238
++1 1238
++1 1238
++1 1238
++2 1238
++3 1238
++1 1238
++4 1238
++1 1238
++9 538
++4 538
++1 538
++8 472
++1 472
++1 472
++1 472
++1 472
++1 472
++2 472
++47 537
++1 537
++3 537
++1 537
++1 537
++3 1074
++7 538
++1 538
++1 538
++1 539
++3 1
++1 2
++30 66
++1 66
++2 66
++1 66
++1 66
++1 66
++1 66
++1 66
++1 66
+
+fl=(214)
+fn=(1312)
+cfi=(219)
+cfn=(1352)
+calls=1 29 
+360 12838162
+
+ob=(3)
+fl=(237)
+fn=(1570)
+36 3394
++2 3394
+-2 3394
++3 10182
++3 30546
++3 3394
++1 6788
++10 3394
++6 3394
+-6 13576
++8 3394
+
+fl=(217)
+fn=(1340)
+23 70000
++5 30000
++6 40000
++1 10000
++3 60000
+
+fl=(240) ./math/../sysdeps/ieee754/dbl-64/s_scalbn.c
+fn=(1588) __scalbn
+30 5091
++3 5091
+-3 5091
++4 10182
++1 10182
++6 10182
++1 10182
++2 30546
++5 10182
++1 25455
++1 5091
+
+fl=(239)
+fn=(1586)
+22 5091
++1 50910
+-1 10182
++2 5091
+cfi=(240)
+cfn=(1588)
+calls=160641 +6 
+* 127275
++1 45819
++2 10182
+
+fl=(218)
+fn=(1346)
+21 167906
++1 167906
++1 167906
+
+fl=(215)
+fn=(1332)
+23 10000
++9 10000
+-8 30000
++8 10000
+
+fl=(216)
+fn=(1336)
+31 140000
++7 40000
++3 40000
++27 10000
+-25 10000
++25 10000
+-6 20000
++30 10000
+-3 10000
++14 10000
+-11 20000
++7 20000
+-7 10000
++5 30000
++5 10000
+-5 10000
++1 10000
++4 10000
+-4 10000
++1 40000
+-39 10000
++46 20000
++5 30000
+-51 10000
++46 20000
++5 90000
+-66 10000
++6 10000
+-5 10000
++1 10000
+-2 10000
++6 10000
+-6 20000
++3 20000
++12 40000
+
+ob=(1) /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+fl=(1) ???
+fn=(0) 0x000000000001f540
+cob=(8)
+cfi=(213)
+cfn=(1310)
+calls=1 0 
+0 12838162
+
+totals: 12838162
