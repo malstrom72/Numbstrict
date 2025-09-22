@@ -104,7 +104,7 @@ The latest release benchmark on the current `work` branch produces the following
 	- **Implementation:** Extend the formatter state with a cached remainder, refactor comparisons to use sign checks or integer digit bounds, and only fall back to `operator<` for exceptional branches (e.g., denormals). Maintain parity between float and double paths.
 	- **Verification:** Exhaustively fuzz via `compareWithRyu 10000000`, add targeted unit cases around boundary digits (0↔1, 8↔9, tie-to-even), and benchmark before/after to ensure the reduced comparator usage translates to a measurable improvement.
 
-- [ ] **Reduce `/10` divisions in the parser.** The double-only Callgrind run shows 163,739 invocations of `DoubleDouble::operator/(int)` costing 6.39M instructions, while the combined benchmark still pays for the same helper before every digit. Precomputing chunk magnitudes or keeping reciprocal ladders would directly attack this hotspot.【F:docs/profiles/callgrind.stringToDouble.count10000.out†L23-L79】【F:docs/profiles/callgrind.benchmarkToString.count10000.out†L1973-L1976】
+- [x] **Reduce `/10` divisions in the parser.** The double-only Callgrind run shows 163,739 invocations of `DoubleDouble::operator/(int)` costing 6.39M instructions, while the combined benchmark still pays for the same helper before every digit. Precomputing chunk magnitudes or keeping reciprocal ladders would directly attack this hotspot.【F:docs/profiles/callgrind.stringToDouble.count10000.out†L23-L79】【F:docs/profiles/callgrind.benchmarkToString.count10000.out†L1973-L1976】 Implemented by batching significand digits into four-digit chunks so each group shares a single magnitude divide (2025-09-22).
 	- **Design:** Map the parser’s digit-consumption flow and identify where each `/10` occurs. Build a cache strategy (e.g., array of `DoubleDouble` powers of ten or reciprocal ladder) keyed by the current exponent so the loop can reuse precomputed magnitudes.
 	- **Implementation:** Generate the cache at startup or lazily on first use, thread it through `parseReal`, and replace direct `/10` calls with index lookups. Preserve precision by validating cached values against the existing division results.
 	- **Verification:** Run the standard benchmark/fuzz regimen and add micro-benchmarks focusing on long mantissas to ensure no precision drift. Capture Callgrind before/after to confirm the divide hotspot shrinks.
@@ -121,7 +121,7 @@ The latest release benchmark on the current `work` branch produces the following
 
 ## Optimization Backlog
  - [x] Batch `StandardFPEnvScope` usage so hot loops amortize floating-point environment setup without breaking denormal handling (10,000 parser calls still instantiate the scope during the Callgrind runs).【F:docs/profiles/callgrind.stringToDouble.count10000.out†L23-L45】【F:docs/profiles/callgrind.stringToFloat.count10000.out†L48-L71】
-- [ ] Replace per-digit `DoubleDouble / 10` divisions with cached magnitudes sourced from `EXP10_TABLE` (163,739 divides per 10,000 samples consume 6.39M instructions in the double parser alone).【F:docs/profiles/callgrind.stringToDouble.count10000.out†L23-L79】
+- [x] Replace per-digit `DoubleDouble / 10` divisions with cached magnitudes sourced from `EXP10_TABLE` (163,739 divides per 10,000 samples consume 6.39M instructions in the double parser alone).【F:docs/profiles/callgrind.stringToDouble.count10000.out†L23-L79】 Addressed by chunking digits into four-digit groups so each block shares one divide (2025-09-22).
 - [ ] Carry a running remainder in `realToString` to eliminate redundant subtraction when estimating digits.
 - [ ] Extend the staged-digit parser to operate on multiple base-1e9 chunks without precision loss.
 - [ ] Replace `frexp` exponent estimation with direct IEEE exponent extraction.
@@ -132,7 +132,7 @@ The latest release benchmark on the current `work` branch produces the following
 - [ ] Investigate restructuring `scaleAndRound` to reuse intermediate results across digits or leverage integer arithmetic to cut its 6% instruction share.
 - [ ] Audit floating-point environment entry/exit paths after batching to eliminate the remaining `fegetenv`/`fesetenv` calls that still appear in the profile.
 - [ ] Explore alternatives to `DoubleDouble::operator+` inside the parser (e.g., fused updates or wider staging buffers) to reduce its 19% share in the string-to-real profile.
-- [ ] Reduce reliance on `DoubleDouble::operator/(int)` during parsing by caching or precomputing chunk magnitudes for the common `/10` cases observed in the new profile.
+- [x] Reduce reliance on `DoubleDouble::operator/(int)` during parsing by caching or precomputing chunk magnitudes for the common `/10` cases observed in the new profile — satisfied by the four-digit chunk accumulator that reuses each magnitude divide (2025-09-22).
 - [ ] Investigate lighter-weight magnitude comparisons or cached thresholds to cut `DoubleDouble::operator<` overhead in parse loops.
 
 ## Completed Experiments
@@ -147,6 +147,20 @@ The latest release benchmark on the current `work` branch produces the following
 | stringToDouble | 705.48 | 554.71 | ▼ ~21% | Parser hot path benefits directly |
 | floatToString | 1,584.68 | 1,599.13 | ≈ 0% | Change is noise-level for float formatting |
 | stringToFloat | 295.58 | 286.75 | ▼ ~3% | Parser per-digit divides shrink |
+
+- Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString`, `output/release/compareWithRyu 10000000`.
+
+### Chunked parser digit accumulation (recorded 2025-09-22)
+- Status: Landed; correctness verified with `output/release/compareWithRyu 10000000`.
+- Summary: Grouped up to four significand digits per iteration in `parseReal`, reusing the divided magnitude across each block so the parser pays one `DoubleDouble::operator/(int)` per chunk instead of per digit.
+- Benchmarks (release build, 1,000,000 values):
+
+| Benchmark | Before (ns/value) | After (ns/value) | Δ | Notes |
+| --- | --- | --- | --- | --- |
+| doubleToString | 2,217.33 | 2,224.50 | ▲ ~0% | Formatter path unchanged (noise-level delta) |
+| stringToDouble | 379.23 | 258.43 | ▼ ~32% | Chunked accumulation amortizes magnitude divides |
+| floatToString | 1,135.64 | 1,173.05 | ▲ ~3% | Formatting unaffected; variation within noise |
+| stringToFloat | 220.66 | 205.29 | ▼ ~7% | Parser benefits from fewer high-precision divides |
 
 - Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString`, `output/release/compareWithRyu 10000000`.
 

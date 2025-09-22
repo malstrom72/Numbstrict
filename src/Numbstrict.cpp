@@ -504,6 +504,9 @@ FloatStringBatchGuard::~FloatStringBatchGuard() {
 const int NEGATIVE_E_NOTATION_START = -6;
 const int POSITIVE_E_NOTATION_START = 10;
 
+const int PARSE_CHUNK_DIGITS = 4;
+const int PARSE_CHUNK_POW10[PARSE_CHUNK_DIGITS + 1] = { 1, 10, 100, 1000, 10000 };
+
 /*
 	Helper class for high-precision double <=> string conversion routines. 52*2 bits of two doubles allows accurate
 	representation of integers between 0 and 81129638414606681695789005144064.
@@ -763,11 +766,27 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 			DoubleDouble magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
 			DoubleDouble accumulator(0.0);
 			while (p != significandEnd) {
-				if (*p != '.') {
-					accumulator = multiplyAndAdd(accumulator, magnitude, (*p - '0'));
-					magnitude = magnitude / 10;
+				if (*p == '.') {
+					++p;
+					continue;
 				}
-				++p;
+
+				unsigned int chunkValue = 0;
+				int chunkDigits = 0;
+				const Char* chunkEnd = p;
+				while (chunkEnd != significandEnd && *chunkEnd != '.' && chunkDigits < PARSE_CHUNK_DIGITS) {
+					chunkValue = chunkValue * 10 + (*chunkEnd - '0');
+					++chunkEnd;
+					++chunkDigits;
+				}
+
+				assert(chunkDigits > 0);
+				const int pow10Chunk = PARSE_CHUNK_POW10[chunkDigits];
+				const DoubleDouble nextMagnitude = magnitude / pow10Chunk;
+				const DoubleDouble chunkMagnitude = nextMagnitude * 10;
+				accumulator = multiplyAndAdd(accumulator, chunkMagnitude, static_cast<double>(chunkValue));
+				magnitude = nextMagnitude;
+				p = chunkEnd;
 			}
 			const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
 			value = scaleAndRound<T>(accumulator, factor);
