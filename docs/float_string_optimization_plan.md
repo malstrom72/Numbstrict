@@ -45,6 +45,36 @@ The latest release benchmark on the current `work` branch produces the following
 - Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString`, `output/release/compareWithRyu 10000000`.
 - Outcome: Baseline tables above; fuzz test passes with no mismatches.
 
+### 2025-09-22 – Callgrind instrumentation run (count = 10,000)
+- Commands: `timeout 180 ./build.sh`, `valgrind --tool=callgrind --callgrind-out-file=docs/profiles/callgrind.benchmarkToString.count10000.out output/release/benchmarkToString count=10000`.
+- Dataset: 10,000-value sample emitted by `benchmarkToString` under instrumentation.
+- Benchmark timings (instrumented):
+
+| Benchmark | Time (ms) | Time (ns/value) |
+| --- | --- | --- |
+| Numbstrict::doubleToString | 652.326 | 65,232.6 |
+| Ryu d2s | 34.146 | 3,414.6 |
+| std::ostringstream<double> | 487.088 | 48,708.8 |
+| Numbstrict::stringToDouble | 122.295 | 12,229.5 |
+| std::strtod | 107.357 | 10,735.7 |
+| std::istringstream<double> | 328.276 | 32,827.6 |
+| Numbstrict::floatToString | 373.131 | 37,313.1 |
+| Ryu f2s | 20.983 | 2,098.3 |
+| std::ostringstream<float> | 282.037 | 28,203.7 |
+| Numbstrict::stringToFloat | 80.019 | 8,001.9 |
+| std::strtof | 66.873 | 6,687.3 |
+| std::istringstream<float> | 235.012 | 23,501.2 |
+
+- Instruction hotspots:
+  - `Numbstrict::DoubleDouble::operator+` accounts for 21.6% of total instructions, making it the single largest internal hotspot.
+  - `Numbstrict::realToString<double>` and `Numbstrict::realToString<float>` together consume ~51% of all instructions, with digit emission loops dominating their cost.
+  - `Numbstrict::DoubleDouble::operator/(int)` contributes ~5% of instructions, reaffirming the need to replace repeated `/ 10` divisions.
+  - `scaleAndRound<double>` and `scaleAndRound<float>` jointly add ~5.9% of instructions, highlighting redundant scaling and rounding work per digit.
+  - Floating-point environment helpers such as `fegetenv` still show up, indicating there is remaining overhead to trim even after batching scopes.
+
+## Profiling Log
+- 2025-09-22: Stored Callgrind capture at `docs/profiles/callgrind.benchmarkToString.count10000.out` for drill-down analysis of the instrumented benchmark run described above.
+
 ## Optimization Backlog
 - [ ] Batch `StandardFPEnvScope` usage so hot loops amortize floating-point environment setup without breaking denormal handling.
 - [ ] Replace per-digit `DoubleDouble / 10` divisions with cached magnitudes sourced from `EXP10_TABLE`.
@@ -53,6 +83,10 @@ The latest release benchmark on the current `work` branch produces the following
 - [ ] Replace `frexp` exponent estimation with direct IEEE exponent extraction.
 - [ ] Cache rounding intermediates so the formatter avoids duplicate `scaleAndRound` work inside the digit loop.
 - [ ] Profile and tune the `compareWithRyu` harness to reduce measurement noise while keeping coverage intact.
+- [ ] Fuse multiply/add sequences or introduce dedicated helpers to reduce the number of `DoubleDouble::operator+` calls in the formatter digit loop.
+- [ ] Provide a cheaper ordered comparison for `DoubleDouble` magnitude checks to shrink `operator<` cost inside `realToString`.
+- [ ] Investigate restructuring `scaleAndRound` to reuse intermediate results across digits or leverage integer arithmetic to cut its 6% instruction share.
+- [ ] Audit floating-point environment entry/exit paths after batching to eliminate the remaining `fegetenv`/`fesetenv` calls that still appear in the profile.
 
 ## Completed Experiments
 ### Quotient-Based Digit Extraction (recorded 2025-09-21)
