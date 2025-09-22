@@ -27,6 +27,7 @@
 #include <cstring>
 #include <type_traits>
 #include <iomanip>
+#include <cstdint>
 #include "Numbstrict.h"
 
 namespace Numbstrict {
@@ -642,6 +643,47 @@ static const int PARSE_CHUNK_POW10[9] = { 1, 10, 100, 1000, 10000, 100000, 10000
 
 template<typename T> static T scaleAndRound(const DoubleDouble &acc, double factor);
 
+template<typename T> struct FPExponentTraits { };
+
+template<> struct FPExponentTraits<double> {
+        typedef uint64_t UInt;
+        static const int MANTISSA_BITS = 52;
+        static const int EXPONENT_BIAS = 1023;
+        static const UInt EXPONENT_MASK = 0x7FF0000000000000ull;
+        static const UInt MANTISSA_MASK = 0x000FFFFFFFFFFFFFull;
+        static const UInt TOP_MANTISSA_BIT = UInt(1) << (MANTISSA_BITS - 1);
+};
+
+template<> struct FPExponentTraits<float> {
+        typedef uint32_t UInt;
+        static const int MANTISSA_BITS = 23;
+        static const int EXPONENT_BIAS = 127;
+        static const UInt EXPONENT_MASK = 0x7F800000u;
+        static const UInt MANTISSA_MASK = 0x007FFFFFu;
+        static const UInt TOP_MANTISSA_BIT = UInt(1) << (MANTISSA_BITS - 1);
+};
+
+template<typename T> static int extractBinaryExponent(T value) {
+        typedef FPExponentTraits<T> Traits;
+        typename Traits::UInt bits;
+        static_assert(sizeof (bits) == sizeof (value), "bit casting assumption broken");
+        std::memcpy(&bits, &value, sizeof (bits));
+        const int exponentField = static_cast<int>((bits & Traits::EXPONENT_MASK) >> Traits::MANTISSA_BITS);
+        if (exponentField != 0) {
+                return exponentField - Traits::EXPONENT_BIAS + 1;
+        }
+        typename Traits::UInt mantissa = bits & Traits::MANTISSA_MASK;
+        if (mantissa == 0) {
+                return 0;
+        }
+        int shift = 0;
+        while ((mantissa & Traits::TOP_MANTISSA_BIT) == 0) {
+                mantissa <<= 1;
+                ++shift;
+        }
+        return 1 - Traits::EXPONENT_BIAS - shift;
+}
+
 /**
 	If we just do (high + low) first, that sum is rounded to 53 bits once, possibly nudging the result slightly upward.
 	Then when we scale down into the subnormal range (right-shift the mantissa) we hit what looks like an exact halfway
@@ -899,8 +941,7 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 	}
 
 	// frexp is fast and precise and gives log2(x), log10(x) = log2(x) / log2(10)
-	int base2Exponent;
-	(void) frexp(absValue, &base2Exponent);
+        const int base2Exponent = extractBinaryExponent(absValue);
 	int exponent = std::max(static_cast<int>(ceil(0.30102999566398119521 * (base2Exponent - 1))) - 1
 			, static_cast<int>(Traits<T>::MIN_EXPONENT));
 	if (exponent < Traits<T>::MAX_EXPONENT) {

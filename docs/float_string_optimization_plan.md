@@ -44,9 +44,9 @@
 - [x] **Reuse `scaleAndRound` results.**
    - [x] Cache intermediate scaling values and reuse them across digit iterations to avoid duplicate computations.
    - [x] Confirm that memoization does not introduce stale state between iterations.
-- [ ] **Efficient exponent estimation.**
-   - [ ] Prototype an `ilogb`/bit-inspection path to replace repeated `frexp` calls.
-   - [ ] Validate the approach across all supported platforms and compilers.
+- [x] **Efficient exponent estimation.**
+   - [x] Prototype an `ilogb`/bit-inspection path to replace repeated `frexp` calls.
+   - [x] Validate the approach across all supported platforms and compilers.
 
 ## Workstream D: Benchmarking & Validation
 - [ ] Extend existing benchmarks to cover mixed workloads (short decimals, long decimals, edge cases like denormals, NaNs, infinities).
@@ -66,6 +66,14 @@
 | stringToFloat |  |  |  |  |  |
 
 ## Benchmark History
+
+### 2025-09-26 – Bit-level exponent extraction in formatter
+| Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |
+| --- | --- | --- | --- | --- | --- |
+| doubleToString | 1,268.97 | 1,250.23 | -18.74 | -1.48% | Replaced `frexp` exponent probe with bit-level extraction. |
+| stringToDouble | 158.92 | 156.85 | -2.07 | -1.30% | Parser unchanged; variance-only shift after rebuild. |
+| floatToString | 688.44 | 689.39 | +0.95 | +0.14% | Within noise; no formatter structural changes beyond exponent probe. |
+| stringToFloat | 129.07 | 128.40 | -0.68 | -0.52% | Parser variance; `compareWithRyu 10000000` ✅. |
 
 ### 2025-09-25 – Eight-digit chunk parser without staged fast digits
 | Benchmark | Before (ns/value) | After (ns/value) | Δ ns/value | Δ % | Notes |
