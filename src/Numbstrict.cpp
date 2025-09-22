@@ -27,7 +27,6 @@
 #include <cstring>
 #include <type_traits>
 #include <iomanip>
-#include <cstdint>
 #include "Numbstrict.h"
 
 namespace Numbstrict {
@@ -342,245 +341,68 @@ static const Char* parseUnsignedInt(const Char* p, const Char* e, unsigned int& 
 #endif
 
 class StandardFPEnvScope {
-	public:
-		StandardFPEnvScope();
-		~StandardFPEnvScope();
-	private:
-		bool shouldSkipEnter() const;
-		void enter();
-		void leave();
-		bool active_;
-		bool prevWasDefault_;
-		static thread_local int depth_;
-		static thread_local bool normalized_;
+public:
+	StandardFPEnvScope() {
+	#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+		const unsigned int COMMON = _EM_INEXACT|_EM_UNDERFLOW|_EM_OVERFLOW|_EM_ZERODIVIDE|_EM_INVALID|_EM_DENORMAL|_RC_NEAR;
+		unsigned int cur;
+	#if defined(_M_IX86)
+		{ int ok = __control87_2(0,0,&prevX87_,&prevMXCSR_); assert(ok); unsigned int t; ok = __control87_2(COMMON|_PC_53, _MCW_EM|_MCW_RC|_MCW_PC, &t, 0); assert(ok); }
+		cur = prevMXCSR_;
+	#else
+		prevMXCSR_ = _mm_getcsr(); cur = prevMXCSR_; prevX87_ = _control87(0,0); _control87(COMMON, _MCW_EM|_MCW_RC);
+	#endif
+		cur &= ~(_MM_FLUSH_ZERO_MASK|_MM_DENORMALS_ZERO_MASK);
+		cur = (cur & ~_MM_ROUND_MASK) | _MM_ROUND_NEAREST;
+		_mm_setcsr(cur);
+	#elif defined(__aarch64__)
+		int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
+	#if defined(__has_builtin) && __has_builtin(__builtin_aarch64_get_fpcr) && __has_builtin(__builtin_aarch64_set_fpcr)
+		prevFPCR_ = __builtin_aarch64_get_fpcr(); unsigned long long cur = prevFPCR_; cur &= ~(1ull<<24); cur &= ~(3ull<<22); __builtin_aarch64_set_fpcr(cur);
+	#else
+		asm volatile("mrs %0, fpcr" : "=r"(prevFPCR_)); unsigned long long cur = prevFPCR_; cur &= ~(1ull<<24); cur &= ~(3ull<<22); asm volatile("msr fpcr, %0" :: "r"(cur));
+	#endif
+	#elif defined(__arm__)
+		int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
+		asm volatile("vmrs %0, fpscr" : "=r"(prevFPSCR_)); unsigned int cur = prevFPSCR_; cur &= ~(1u<<24); cur &= ~(3u<<22); asm volatile("vmsr fpscr, %0" :: "r"(cur));
+	#else
+		int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
+	#endif
+	}
+	~StandardFPEnvScope() {
+	#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+	#if defined(_M_IX86)
+		{ unsigned int t; __control87_2(prevX87_, _MCW_EM|_MCW_RC|_MCW_PC, &t, 0); }
+	#else
+		_control87(prevX87_, _MCW_EM|_MCW_RC);
+	#endif
+		_mm_setcsr(prevMXCSR_);
+	#elif defined(__aarch64__)
+	#if defined(__has_builtin) && __has_builtin(__builtin_aarch64_set_fpcr)
+		__builtin_aarch64_set_fpcr(prevFPCR_);
+	#else
+		asm volatile("msr fpcr, %0" :: "r"(prevFPCR_));
+	#endif
+		fesetenv(&prevEnv_);
+	#elif defined(__arm__)
+		asm volatile("vmsr fpscr, %0" :: "r"(prevFPSCR_)); fesetenv(&prevEnv_);
+	#else
+		fesetenv(&prevEnv_);
+	#endif
+	}
+private:
 #if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-		static bool isDefaultMXCSR(unsigned int mxcsr);
-		static bool isDefaultX87(unsigned int ctrl);
+	unsigned int prevX87_, prevMXCSR_;
 #elif defined(__aarch64__)
-		static bool isDefaultEnv(const fenv_t& env);
-		static bool isDefaultFPCR(unsigned long long fpcr);
+	fenv_t prevEnv_, dummyEnv_;
+	unsigned long long prevFPCR_;
 #elif defined(__arm__)
-		static bool isDefaultEnv(const fenv_t& env);
-		static bool isDefaultFPSCR(unsigned int fpscr);
+	fenv_t prevEnv_, dummyEnv_;
+	unsigned int prevFPSCR_;
 #else
-		static bool isDefaultEnv(const fenv_t& env);
-#endif
-#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-		unsigned int prevX87_, prevMXCSR_;
-#elif defined(__aarch64__)
-		fenv_t prevEnv_, dummyEnv_;
-		unsigned long long prevFPCR_;
-#elif defined(__arm__)
-		fenv_t prevEnv_, dummyEnv_;
-		unsigned int prevFPSCR_;
-#else
-		fenv_t prevEnv_, dummyEnv_;
+	fenv_t prevEnv_, dummyEnv_;
 #endif
 };
-
-StandardFPEnvScope::StandardFPEnvScope() : active_(false), prevWasDefault_(false) {
-	if (depth_++ == 0) {
-		if (!shouldSkipEnter()) {
-			active_ = true;
-			enter();
-		}
-	}
-}
-
-StandardFPEnvScope::~StandardFPEnvScope() {
-	if (active_) {
-		leave();
-	}
-	assert(depth_ > 0);
-	--depth_;
-}
-
-bool StandardFPEnvScope::shouldSkipEnter() const {
-	if (!normalized_) {
-		return false;
-	}
-#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-	if (!isDefaultMXCSR(_mm_getcsr())) {
-		return false;
-	}
-	if (!isDefaultX87(_control87(0, 0))) {
-		return false;
-	}
-	return true;
-#elif defined(__aarch64__)
-	fenv_t currentEnv;
-	int r = fegetenv(&currentEnv);
-	assert(r == 0);
-	(void) r;
-	if (!isDefaultEnv(currentEnv)) {
-		return false;
-	}
-#if defined(__has_builtin) && __has_builtin(__builtin_aarch64_get_fpcr)
-	unsigned long long fpcr = __builtin_aarch64_get_fpcr();
-#else
-	unsigned long long fpcr;
-	asm volatile("mrs %0, fpcr" : "=r"(fpcr));
-#endif
-	return isDefaultFPCR(fpcr);
-#elif defined(__arm__)
-	fenv_t currentEnv;
-	int r = fegetenv(&currentEnv);
-	assert(r == 0);
-	(void) r;
-	if (!isDefaultEnv(currentEnv)) {
-		return false;
-	}
-	unsigned int fpscr;
-	asm volatile("vmrs %0, fpscr" : "=r"(fpscr));
-	return isDefaultFPSCR(fpscr);
-#else
-	fenv_t currentEnv;
-	int r = fegetenv(&currentEnv);
-	assert(r == 0);
-	(void) r;
-	return isDefaultEnv(currentEnv);
-#endif
-}
-
-void StandardFPEnvScope::enter() {
-#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-	const unsigned int COMMON = _EM_INEXACT|_EM_UNDERFLOW|_EM_OVERFLOW|_EM_ZERODIVIDE|_EM_INVALID|_EM_DENORMAL|_RC_NEAR;
-	unsigned int cur;
-#if defined(_M_IX86)
-	{ int ok = __control87_2(0,0,&prevX87_,&prevMXCSR_); assert(ok); unsigned int t; ok = __control87_2(COMMON|_PC_53, _MCW_EM|_MCW_RC|_MCW_PC, &t, 0); assert(ok); }
-	prevWasDefault_ = isDefaultMXCSR(prevMXCSR_) && isDefaultX87(prevX87_);
-	cur = prevMXCSR_;
-#else
-	prevMXCSR_ = _mm_getcsr(); cur = prevMXCSR_; prevX87_ = _control87(0,0);
-	prevWasDefault_ = isDefaultMXCSR(prevMXCSR_) && isDefaultX87(prevX87_);
-	_control87(COMMON, _MCW_EM|_MCW_RC);
-#endif
-	cur &= ~(_MM_FLUSH_ZERO_MASK|_MM_DENORMALS_ZERO_MASK);
-	cur = (cur & ~_MM_ROUND_MASK) | _MM_ROUND_NEAREST;
-	_mm_setcsr(cur);
-#elif defined(__aarch64__)
-	int r; r = fegetenv(&prevEnv_); assert(r==0); prevWasDefault_ = isDefaultEnv(prevEnv_); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
-#if defined(__has_builtin) && __has_builtin(__builtin_aarch64_get_fpcr) && __has_builtin(__builtin_aarch64_set_fpcr)
-	prevFPCR_ = __builtin_aarch64_get_fpcr();
-	prevWasDefault_ = prevWasDefault_ && isDefaultFPCR(prevFPCR_);
-	unsigned long long cur = prevFPCR_; cur &= ~(1ull<<24); cur &= ~(3ull<<22); __builtin_aarch64_set_fpcr(cur);
-#else
-	asm volatile("mrs %0, fpcr" : "=r"(prevFPCR_));
-	prevWasDefault_ = prevWasDefault_ && isDefaultFPCR(prevFPCR_);
-	unsigned long long cur = prevFPCR_; cur &= ~(1ull<<24); cur &= ~(3ull<<22); asm volatile("msr fpcr, %0" :: "r"(cur));
-#endif
-#elif defined(__arm__)
-	int r; r = fegetenv(&prevEnv_); assert(r==0); prevWasDefault_ = isDefaultEnv(prevEnv_); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
-	asm volatile("vmrs %0, fpscr" : "=r"(prevFPSCR_));
-	prevWasDefault_ = prevWasDefault_ && isDefaultFPSCR(prevFPSCR_);
-	unsigned int cur = prevFPSCR_; cur &= ~(1u<<24); cur &= ~(3u<<22); asm volatile("vmsr fpscr, %0" :: "r"(cur));
-#else
-	int r; r = fegetenv(&prevEnv_); assert(r==0); prevWasDefault_ = isDefaultEnv(prevEnv_); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
-#endif
-	normalized_ = true;
-}
-
-void StandardFPEnvScope::leave() {
-#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-#if defined(_M_IX86)
-	{ unsigned int t; __control87_2(prevX87_, _MCW_EM|_MCW_RC|_MCW_PC, &t, 0); }
-#else
-	_control87(prevX87_, _MCW_EM|_MCW_RC);
-#endif
-	_mm_setcsr(prevMXCSR_);
-#elif defined(__aarch64__)
-#if defined(__has_builtin) && __has_builtin(__builtin_aarch64_set_fpcr)
-	__builtin_aarch64_set_fpcr(prevFPCR_);
-#else
-	asm volatile("msr fpcr, %0" :: "r"(prevFPCR_));
-#endif
-	fesetenv(&prevEnv_);
-#elif defined(__arm__)
-	asm volatile("vmsr fpscr, %0" :: "r"(prevFPSCR_)); fesetenv(&prevEnv_);
-#else
-	fesetenv(&prevEnv_);
-#endif
-	normalized_ = prevWasDefault_;
-}
-
-#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-bool StandardFPEnvScope::isDefaultMXCSR(unsigned int mxcsr) {
-	unsigned int normalized = mxcsr & ~(_MM_FLUSH_ZERO_MASK|_MM_DENORMALS_ZERO_MASK);
-	normalized = (normalized & ~_MM_ROUND_MASK) | _MM_ROUND_NEAREST;
-	return normalized == mxcsr;
-}
-
-bool StandardFPEnvScope::isDefaultX87(unsigned int ctrl) {
-	const unsigned int mask = _MCW_EM|_MCW_RC
-#if defined(_M_IX86)
-		| _MCW_PC
-#endif
-	;
-	const unsigned int target = (_EM_INEXACT|_EM_UNDERFLOW|_EM_OVERFLOW|_EM_ZERODIVIDE|_EM_INVALID|_EM_DENORMAL|_RC_NEAR)
-#if defined(_M_IX86)
-		| _PC_53
-#endif
-	;
-	return (ctrl & mask) == (target & mask);
-}
-#elif defined(__aarch64__)
-bool StandardFPEnvScope::isDefaultEnv(const fenv_t& env) {
-	static thread_local bool captured = false;
-	static thread_local fenv_t defaultEnv;
-	if (!captured) {
-		fenv_t restore;
-		int r = fegetenv(&restore); assert(r == 0);
-		r = fesetenv(FE_DFL_ENV); assert(r == 0);
-		r = fegetenv(&defaultEnv); assert(r == 0);
-		r = fesetenv(&restore); assert(r == 0);
-		captured = true;
-	}
-	return std::memcmp(&env, &defaultEnv, sizeof(fenv_t)) == 0;
-}
-
-bool StandardFPEnvScope::isDefaultFPCR(unsigned long long fpcr) {
-	return ((fpcr & (1ull<<24)) == 0) && ((fpcr & (3ull<<22)) == 0);
-}
-#elif defined(__arm__)
-bool StandardFPEnvScope::isDefaultEnv(const fenv_t& env) {
-	static thread_local bool captured = false;
-	static thread_local fenv_t defaultEnv;
-	if (!captured) {
-		fenv_t restore;
-		int r = fegetenv(&restore); assert(r == 0);
-		r = fesetenv(FE_DFL_ENV); assert(r == 0);
-		r = fegetenv(&defaultEnv); assert(r == 0);
-		r = fesetenv(&restore); assert(r == 0);
-		captured = true;
-	}
-	return std::memcmp(&env, &defaultEnv, sizeof(fenv_t)) == 0;
-}
-
-bool StandardFPEnvScope::isDefaultFPSCR(unsigned int fpscr) {
-	return ((fpscr & (1u<<24)) == 0) && ((fpscr & (3u<<22)) == 0);
-}
-#else
-bool StandardFPEnvScope::isDefaultEnv(const fenv_t& env) {
-	static thread_local bool captured = false;
-	static thread_local fenv_t defaultEnv;
-	if (!captured) {
-		fenv_t restore;
-		int r = fegetenv(&restore); assert(r == 0);
-		r = fesetenv(FE_DFL_ENV); assert(r == 0);
-		r = fegetenv(&defaultEnv); assert(r == 0);
-		r = fesetenv(&restore); assert(r == 0);
-		captured = true;
-	}
-	return std::memcmp(&env, &defaultEnv, sizeof(fenv_t)) == 0;
-}
-#endif
-
-thread_local int StandardFPEnvScope::depth_ = 0;
-thread_local bool StandardFPEnvScope::normalized_ = false;
-
-FloatStringBatchGuard::FloatStringBatchGuard() : scope_(new StandardFPEnvScope()) { }
-
-FloatStringBatchGuard::~FloatStringBatchGuard() { delete scope_; }
 
 const int NEGATIVE_E_NOTATION_START = -6;
 const int POSITIVE_E_NOTATION_START = 10;
@@ -606,18 +428,6 @@ struct DoubleDouble {
 		const double overflow = floor(lowTimesFactor);
 		return DoubleDouble((high * factor) + overflow, lowTimesFactor - overflow);
 	}
-	DoubleDouble operator-(const DoubleDouble& other) const {
-		double highDiff = high - other.high;
-		double lowDiff = low - other.low;
-		if (lowDiff < 0.0) {
-			lowDiff += 1.0;
-			highDiff -= 1.0;
-		}
-		return DoubleDouble(highDiff, lowDiff);
-	}
-	bool operator==(const DoubleDouble& other) const {
-		return high == other.high && low == other.low;
-	}
 	DoubleDouble operator/(int divisor) const {
 		const double floored = floor(high / divisor);
 		const double remainder = high - floored * divisor;
@@ -639,50 +449,11 @@ static DoubleDouble multiplyAndAdd(const DoubleDouble& term, const DoubleDouble&
 	return DoubleDouble(factorA.high * factorB + term.high + overflow, fmaLow - overflow);
 }
 
-static const int PARSE_CHUNK_POW10[9] = { 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000 };
+static double multiplyAndAdd(double term, double factorA, double factorB) {
+	return term + factorA * factorB;
+}
 
 template<typename T> static T scaleAndRound(const DoubleDouble &acc, double factor);
-
-template<typename T> struct FPExponentTraits { };
-
-template<> struct FPExponentTraits<double> {
-        typedef uint64_t UInt;
-        static const int MANTISSA_BITS = 52;
-        static const int EXPONENT_BIAS = 1023;
-        static const UInt EXPONENT_MASK = 0x7FF0000000000000ull;
-        static const UInt MANTISSA_MASK = 0x000FFFFFFFFFFFFFull;
-        static const UInt TOP_MANTISSA_BIT = UInt(1) << (MANTISSA_BITS - 1);
-};
-
-template<> struct FPExponentTraits<float> {
-        typedef uint32_t UInt;
-        static const int MANTISSA_BITS = 23;
-        static const int EXPONENT_BIAS = 127;
-        static const UInt EXPONENT_MASK = 0x7F800000u;
-        static const UInt MANTISSA_MASK = 0x007FFFFFu;
-        static const UInt TOP_MANTISSA_BIT = UInt(1) << (MANTISSA_BITS - 1);
-};
-
-template<typename T> static int extractBinaryExponent(T value) {
-        typedef FPExponentTraits<T> Traits;
-        typename Traits::UInt bits;
-        static_assert(sizeof (bits) == sizeof (value), "bit casting assumption broken");
-        std::memcpy(&bits, &value, sizeof (bits));
-        const int exponentField = static_cast<int>((bits & Traits::EXPONENT_MASK) >> Traits::MANTISSA_BITS);
-        if (exponentField != 0) {
-                return exponentField - Traits::EXPONENT_BIAS + 1;
-        }
-        typename Traits::UInt mantissa = bits & Traits::MANTISSA_MASK;
-        if (mantissa == 0) {
-                return 0;
-        }
-        int shift = 0;
-        while ((mantissa & Traits::TOP_MANTISSA_BIT) == 0) {
-                mantissa <<= 1;
-                ++shift;
-        }
-        return 1 - Traits::EXPONENT_BIAS - shift;
-}
 
 /**
 	If we just do (high + low) first, that sum is rounded to 53 bits once, possibly nudging the result slightly upward.
@@ -884,31 +655,17 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 		} else if (exponent > Traits<T>::MAX_EXPONENT) {
 			value = std::numeric_limits<T>::infinity();
 		} else {
-					assert(Traits<double>::MIN_EXPONENT <= exponent && exponent <= Traits<double>::MAX_EXPONENT);
-					DoubleDouble magnitudeTimesTen = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT] * 10;
-					DoubleDouble accumulator(0.0);
-					while (p != significandEnd) {
-						if (*p == '.') {
-							++p;
-							continue;
-						}
-						int chunkValue = 0;
-						int chunkDigits = 0;
-						const Char* chunkEnd = p;
-						while (chunkEnd != significandEnd && chunkDigits < 8 && *chunkEnd != '.') {
-							chunkValue = chunkValue * 10 + (*chunkEnd - '0');
-							++chunkEnd;
-							++chunkDigits;
-						}
-						// `magnitudeTimesTen` tracks the current digit magnitude scaled by ten so a single division
-						// yields the weighting for the chunk's most significant digit without an extra multiply.
-						const DoubleDouble chunkMagnitude = magnitudeTimesTen / PARSE_CHUNK_POW10[chunkDigits];
-						accumulator = multiplyAndAdd(accumulator, chunkMagnitude, chunkValue);
-						magnitudeTimesTen = chunkMagnitude;
-						p = chunkEnd;
-					}
-
-					const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
+			assert(Traits<double>::MIN_EXPONENT <= exponent && exponent <= Traits<double>::MAX_EXPONENT);
+			DoubleDouble magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
+			DoubleDouble accumulator(0.0);
+			while (p != significandEnd) {
+				if (*p != '.') {
+					accumulator = multiplyAndAdd(accumulator, magnitude, (*p - '0'));
+					magnitude = magnitude / 10;
+				}
+				++p;
+			}
+			const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
 			value = scaleAndRound<T>(accumulator, factor);
 		}
 	}
@@ -941,7 +698,8 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 	}
 
 	// frexp is fast and precise and gives log2(x), log10(x) = log2(x) / log2(10)
-        const int base2Exponent = extractBinaryExponent(absValue);
+	int base2Exponent;
+	(void) frexp(absValue, &base2Exponent);
 	int exponent = std::max(static_cast<int>(ceil(0.30102999566398119521 * (base2Exponent - 1))) - 1
 			, static_cast<int>(Traits<T>::MIN_EXPONENT));
 	if (exponent < Traits<T>::MAX_EXPONENT) {
@@ -978,57 +736,29 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 			*p++ = '.';
 		}
 		
-		DoubleDouble remaining = normalized - accumulator;
-		double magnitudeValue = static_cast<double>(magnitude);
-		double approx = 0.0;
-		if (magnitudeValue > 0.0) {
-			approx = static_cast<double>(remaining) / magnitudeValue;
-		}
+		// Incrementally find the max digit that keeps accumulator < normalized target (instead of using division).
+		DoubleDouble next = accumulator + magnitude;
 		int digit = 0;
-		if (approx > 0.0) {
-			digit = static_cast<int>(approx);
-		}
-		if (digit > 9) {
-			digit = 9;
-		}
-		
-		DoubleDouble candidate = multiplyAndAdd(accumulator, magnitude, digit);
-		while (normalized < candidate && digit > 0) {
-			candidate = candidate - magnitude;
-			--digit;
-		}
-		
-		DoubleDouble next = candidate + magnitude;
-		while (digit < 9 && !(normalized < next)) {
-			candidate = next;
+		while (next < normalized && digit < 9) {
+			accumulator = next;
 			next = next + magnitude;
 			++digit;
 		}
+
+		// Correct behavior is to never reach higher than digit 9.
+		assert(next >= normalized);
 		
-		const DoubleDouble halfMagnitude = magnitude / 2;
-		reconstructed = scaleAndRound<T>(candidate, factor);
-		bool computedNext = false;
-		T roundedCandidate = reconstructed;
-		if (reconstructed != absValue) {
-			roundedCandidate = scaleAndRound<T>(next, factor);
-			computedNext = true;
-			if (roundedCandidate == absValue) {
-				reconstructed = roundedCandidate;
-				++digit;
-				assert(digit < 10);
-			}
-		} else if ((candidate + halfMagnitude) < normalized && absValue != std::numeric_limits<T>::max()) {
-			if (!computedNext) {
-				roundedCandidate = scaleAndRound<T>(next, factor);
-				computedNext = true;
-			}
-			reconstructed = roundedCandidate;
+		// Decide between digit and digit+1 under final rounding; then optional bump if strictly past half-step.
+		reconstructed = scaleAndRound<T>(accumulator, factor);
+		const T r1 = scaleAndRound<T>(accumulator + magnitude, factor);
+		if ((reconstructed != absValue && r1 == absValue) || (reconstructed == absValue
+				&& accumulator + magnitude / 2 < normalized && absValue != std::numeric_limits<T>::max())) {
+			reconstructed = r1;
 			++digit;
 			assert(digit < 10);
 		}
-		
+	
 		*p++ = '0' + digit;
-		accumulator = candidate;
 		magnitude = magnitude / 10;
 		
 		// p < buffer + 27 is an extra precaution if the correct value is never reached (e.g. because of too aggressive
