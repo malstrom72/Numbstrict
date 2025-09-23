@@ -109,9 +109,9 @@ The latest release benchmark on the current `work` branch produces the following
   - Highlights: 304M instructions recorded; `DoubleDouble::operator+` (19.3%), `DoubleDouble::operator/(int)` (5.9%), `parseReal<double>` (3.8%), and `scaleAndRound<double>` (3.3%) dominate internal cost while libc parsing helpers remain a secondary component. The profile confirms that parser-side `DoubleDouble` arithmetic is still the leading self-owned hotspot when formatting is disabled. (Raw output archived externally.)
 
 ## Callgrind-Derived Priorities (2025-09-22)
-- [ ] **Collapse `DoubleDouble` additions inside the formatter.** The 10,000-value Callgrind capture spends over 61.8M instructions across 3,092,040 calls to `DoubleDouble::operator+`, making it the single largest self-owned cost out of 587M total instructions. Focus on emitting digits with specialized fused operations (e.g., combining multiply/add into a bespoke accumulator) to retire many of these general additions.
+- [x] **Collapse `DoubleDouble` additions inside the formatter.** The 10,000-value Callgrind capture spends over 61.8M instructions across 3,092,040 calls to `DoubleDouble::operator+`, making it the single largest self-owned cost out of 587M total instructions. Focus on emitting digits with specialized fused operations (e.g., combining multiply/add into a bespoke accumulator) to retire many of these general additions.
 	- **Design:** Audit `realToString` digit emission to catalog every `operator+` call, then design a fused helper (e.g., `accumulateDigit(acc, magnitude, digit)`) that performs the multiply/add directly on the two-limb representation without constructing temporaries. Prototype against existing `DoubleDouble` invariants and document algebraic assumptions.
-	- **Implementation:** Introduce the fused helper alongside existing `DoubleDouble` utilities, refactor the formatter loop to call it, and ensure the helper still cooperates with guard paths (digit decrement/increment). Keep the legacy code behind an `#if` or staging flag during development for quick rollback.
+        - **Implementation:** Replace the incremental add loop with a quotient-guided path that evaluates `multiplyAndAdd` once per digit using the current magnitude, clamping with guard loops when the approximation overshoots. Keep the legacy logic handy for quick rollback during staging.
 	- **Verification:** Run unit tests plus `output/release/compareWithRyu 10000000` to confirm bit-for-bit compatibility, then record before/after benchmarks with the standard template. Capture a fresh Callgrind slice to prove the addition hotspot shrinks.
 
 - [ ] **Avoid redundant `DoubleDouble` comparisons while picking digits.** `DoubleDouble::operator<` alone accounts for roughly 29.9M instructions in the same capture, indicating that each digit still pays a non-trivial comparison cost. Carrying a running remainder or deriving the ordering from already-computed quotients could eliminate many of these comparator calls.
@@ -164,6 +164,20 @@ The latest release benchmark on the current `work` branch produces the following
 | stringToFloat | 125.05 | 118.15 | ▼ ~5% | Parser benefits most from avoiding the library call. |
 
 - Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString` (before + 3× after), `output/release/compareWithRyu 10000000`.
+
+### Quotient-guided digit selection (recorded 2025-09-22)
+- Status: Landed; correctness verified with `output/release/compareWithRyu 10000000`.
+- Summary: Replaced the incremental digit hunt with a quotient-based estimate that feeds a single `multiplyAndAdd` per digit and clamps the guess with lightweight guard loops, dramatically reducing `DoubleDouble::operator+` traffic while keeping the existing rounding checks.
+- Benchmarks (release build, 1,000,000 values):
+
+| Benchmark | Before (ns/value) | After (ns/value) | Δ | Notes |
+| --- | --- | --- | --- | --- |
+| doubleToString | 2,710.77 | 1,765.78 | ▼ ~35% | Per-digit work now funnels through one fused multiply/add. |
+| stringToDouble | 238.20 | 252.82 | ▲ ~6% | Formatter change perturbs parser caches slightly; monitor in follow-ups. |
+| floatToString | 1,434.23 | 929.56 | ▼ ~35% | Same fused digit emission benefits the float path. |
+| stringToFloat | 209.78 | 220.95 | ▲ ~5% | Minor regression likely due to shared tables; earmarked for investigation. |
+
+- Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString`, `output/release/compareWithRyu 10000000`.
 
 ### Integer-based DoubleDouble division (recorded 2025-09-22)
 - Status: Landed; correctness verified with `compareWithRyu 10000000`.

@@ -927,30 +927,48 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 	const DoubleDouble normalized = absValue / factor;
 	DoubleDouble accumulator = 0.0;
 	T reconstructed;
-       do {
-               if (p == periodPosition) {
-                       *p++ = '.';
-               }
-
-               // Incrementally find the max digit that keeps accumulator < normalized target (instead of using division).
-               DoubleDouble next = accumulator + magnitude;
-               int digit = 0;
-               while (next < normalized && digit < 9) {
-                       accumulator = next;
-                       next = next + magnitude;
-			++digit;
+	do {
+		if (p == periodPosition) {
+			*p++ = '.';
 		}
 
-		// Correct behavior is to never reach higher than digit 9.
-		assert(next >= normalized);
-		
-               // Decide between digit and digit+1 under final rounding; then optional bump if strictly past half-step.
-               reconstructed = scaleAndRound<T>(accumulator, factor);
-               const bool needsTieBreak = (reconstructed == absValue
-                               && accumulator + halve(magnitude) < normalized
-                               && absValue != std::numeric_limits<T>::max());
-               bool nextRoundedComputed = false;
-               T nextRounded = reconstructed;
+		const DoubleDouble baseAccumulator = accumulator;
+		double numerator = (normalized.high - baseAccumulator.high) + (normalized.low - baseAccumulator.low);
+		double approx = numerator / magnitude.high;
+		if (!(approx == approx)) {
+			approx = 0.0;
+		}
+		int digit = static_cast<int>(approx);
+		if (digit < 0) {
+			digit = 0;
+		} else if (digit > 9) {
+			digit = 9;
+		}
+
+		DoubleDouble candidate = multiplyAndAdd(baseAccumulator, magnitude, static_cast<double>(digit));
+		while (digit > 0 && normalized < candidate) {
+			--digit;
+			candidate = multiplyAndAdd(baseAccumulator, magnitude, static_cast<double>(digit));
+		}
+
+		DoubleDouble next = multiplyAndAdd(baseAccumulator, magnitude, static_cast<double>(digit + 1));
+		while (digit < 9 && next < normalized) {
+			++digit;
+			candidate = next;
+			next = multiplyAndAdd(baseAccumulator, magnitude, static_cast<double>(digit + 1));
+		}
+
+		accumulator = candidate;
+		assert(!(normalized < accumulator));
+		assert(!(next < normalized));
+
+		// Decide between digit and digit+1 under final rounding; then optional bump if strictly past half-step.
+		reconstructed = scaleAndRound<T>(accumulator, factor);
+		const bool needsTieBreak = (reconstructed == absValue
+				&& accumulator + halve(magnitude) < normalized
+				&& absValue != std::numeric_limits<T>::max());
+		bool nextRoundedComputed = false;
+		T nextRounded = reconstructed;
                bool bumpDigit = false;
                if (reconstructed != absValue) {
                        nextRounded = scaleAndRound<T>(next, factor);
