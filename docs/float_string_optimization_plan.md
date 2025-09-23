@@ -377,6 +377,19 @@ addition instead of recomputing it for the `digit+1` candidate.
 
 - Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString` (before and after change), `output/release/compareWithRyu 10000000` (post-revert sanity check).
 
+### Formatter remainder tracking (attempted 2025-09-22)
+- Summary: Carried a running `DoubleDouble` remainder so digit estimation and rounding guards could reuse the same value instead of recomputing `normalized - accumulator` each iteration.
+- Outcome: Updating the remainder introduced an extra high-precision subtract per digit, regressing double formatting throughput by ~8%. The parser saw small gains, but the formatter slowdown outweighed them, so the change was reverted.
+
+| Benchmark | Before (ns/value) | After (ns/value) | Δ | Notes |
+| --- | --- | --- | --- | --- |
+| doubleToString | 1,707.10 | 1,841.00 | ▲ ~7.9% | Extra subtract per digit outweighed comparison savings |
+| stringToDouble | 247.82 | 237.61 | ▼ ~4.1% | Slight parser win from reusing the remainder | 
+| floatToString | 887.81 | 869.37 | ▼ ~2.1% | Minor improvement but not enough to offset double regression |
+| stringToFloat | 208.79 | 187.07 | ▼ ~10.4% | Parser path benefited from cached remainder |
+
+- Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString` (before and after change), `output/release/compareWithRyu 10000000` (post-revert verification).
+
 ### Double Staging Accumulator (attempted 2025-09-22)
 - Summary: Batched up to 18 significant digits into a `double` before updating the `DoubleDouble` accumulator to cut per-digit `multiplyAndAdd` calls.
 - Outcome: `output/release/compareWithRyu 10000000` failed on fragile input `0x3eb0c6f7a0b5ed8c`, returning the next-lower ULP. Reverted immediately despite observing benchmark shifts (before: 3203.12 / 783.13 / 1723.49 / 575.14 ns/value; after: 3116.94 / 849.31 / 1743.29 / 559.14 ns/value for doubleToString/stringToDouble/floatToString/stringToFloat).
