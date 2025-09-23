@@ -1,0 +1,409 @@
+# callgrind format
+version: 1
+creator: callgrind-3.22.0
+pid: 5748
+cmd:  output/release/benchmarkToString double count=10000
+part: 1
+
+
+desc: I1 cache: 
+desc: D1 cache: 
+desc: LL cache: 
+
+desc: Timerange: Basic block 0 - 63361347
+desc: Trigger: Program termination
+
+positions: line
+events: Ir
+summary: 21165118
+
+
+ob=(8) /workspace/Numbstrict/output/release/benchmarkToString
+fl=(213) ???
+fn=(1822) double Numbstrict::stringToReal<double>(char const*, char const*, char const**)
+0 130000
+cfn=(1824) char const* Numbstrict::skipWhite<char const*>(char const*, char const*)
+calls=10000 0 
+0 100000
+0 40000
+cfn=(1826) char const* Numbstrict::parseReal<double>(char const*, char const*, double&)
+calls=10000 0 
+0 20665118
+0 50000
+cfn=(1824)
+calls=10000 0 
+0 70000
+0 110000
+
+fn=(1824)
+0 170000
+
+fn=(1826)
+0 180000
+cfn=(1328) Numbstrict::StandardFPEnvScope::StandardFPEnvScope()
+calls=10000 0 
+0 730000
+0 174993
+cob=(2) /usr/lib/x86_64-linux-gnu/libc.so.6
+cfi=(205) ./string/../sysdeps/x86_64/multiarch/strcmp-avx2.S
+cfn=(1132) __strncmp_avx2
+calls=10000 206 
+0 257367
+0 10000
+0 59996
+cob=(2)
+cfi=(205)
+cfn=(1132)
+calls=9998 206 
+0 257308
+0 9998
+0 2204710
+cfn=(1576) Numbstrict::DoubleDouble::DoubleDouble(double)
+calls=9991 0 
+0 239784
+0 3651844
+cob=(3) /usr/lib/x86_64-linux-gnu/libm.so.6
+cfi=(218) ./math/../sysdeps/x86_64/fpu/multiarch/s_floor-sse4_1.S
+cfn=(1346) __floor_sse41
+calls=163739 21 
+0 491217
+0 163739
+0 3929736
+cfn=(1342) Numbstrict::DoubleDouble::operator/(int) const
+calls=163739 0 
+0 6385821
+0 898254
+cfn=(1582) double Numbstrict::scaleAndRound<double>(Numbstrict::DoubleDouble const&, double)
+calls=9991 0 
+0 300387
+0 139964
+cob=(3)
+cfi=(216) ./math/../sysdeps/x86_64/fpu/fesetenv.c
+cfn=(1336) fesetenv
+calls=10000 31 
+0 450000
+0 10000
+0 120000
+
+fn=(1818) numbstrictStringToDouble(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)
+cfn=(1820) Numbstrict::stringToDouble(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&, unsigned long*)
+calls=10000 0 
+0 21165118
+
+fn=(1310) (below main)
+cob=(2)
+cfi=(214) ./csu/../csu/libc-start.c
+cfn=(1312) __libc_start_main@@GLIBC_2.34
+calls=1 242 
+0 21165118
+
+fn=(1820)
+cfn=(1822)
+calls=10000 0 
+0 21165118
+
+fn=(1328)
+0 40000
+cob=(3)
+cfi=(215) ./math/../sysdeps/x86_64/fpu/fegetenv.c
+cfn=(1332) fegetenv
+calls=30001 23 
+0 60000
+0 10000
+0 20000
+cob=(3)
+cfi=(216)
+cfn=(1336)
+calls=30001 31 
+0 340000
+0 10000
+0 30000
+cob=(3)
+cfi=(217) ./math/../sysdeps/x86_64/fpu/feholdexcpt.c
+cfn=(1340) feholdexcept
+calls=30001 23 
+0 210000
+0 10000
+
+fn=(1342)
+0 2456085
+cob=(3)
+cfi=(218)
+cfn=(1346)
+calls=506489 21 
+0 491217
+0 163739
+0 3274780
+
+fn=(1360) main
+cfn=(1816) void runStringToRealBenchmark<double, double (*)(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)>(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > > const&, char const*, double (*)(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&))
+calls=1 0 
+0 21165118
+
+fn=(1576)
+0 89919
+cob=(3)
+cfi=(218)
+cfn=(1346)
+calls=49955 21 
+0 29973
+0 9991
+0 109901
+
+fn=(1582)
+0 229805
+cob=(3)
+cfi=(237) ./math/../sysdeps/ieee754/dbl-64/s_frexp.c
+cfn=(1570) frexp
+calls=177 36 
+0 96
+0 3
+0 15
+cob=(3)
+cfi=(239) ./math/./s_ldexp_template.c
+cfn=(1586) ldexp
+calls=177 22 
+0 150
+0 3
+0 15
+cob=(3)
+cfi=(218)
+cfn=(1346)
+calls=177 21 
+0 9
+0 3
+0 21
+cob=(3)
+cfi=(239)
+cfn=(1586)
+calls=177 22 
+0 113
+0 3
+0 43
+cob=(3)
+cfi=(239)
+cfn=(1586)
+calls=177 22 
+0 162
+0 3
+0 69943
+
+fn=(1816)
+cfn=(1818)
+calls=10000 0 
+0 21165118
+
+ob=(2)
+fl=(219) ./csu/../sysdeps/nptl/libc_start_call_main.h
+fn=(1352) (below main)
+cob=(8)
+cfi=(213)
+cfn=(1360)
+calls=1 0 
+58 21165118
+
+fl=(205)
+fn=(1132)
+206 19998
++24 19998
++5 19998
++14 19998
++25 19998
++1 19998
++1 19998
++2 19998
++1 19998
++4 19398
++4 19398
++2 19398
++2 19398
++3 19398
++2 19398
++1 19398
++11 19391
++10 19391
++1 19391
++3 19391
++4 38782
++5 19398
++1 19398
++1 19398
++4 7
++1 14
+957 1266
++1 1266
++1 1266
++1 1266
++2 1266
++3 1266
++1 1266
++4 1266
++1 1266
++9 600
++4 600
++1 600
++8 478
++1 478
++1 478
++1 478
++1 478
++1 478
++2 478
++47 600
++1 600
++3 600
++1 600
++1 600
++3 1200
++7 600
++1 600
++1 600
++1 600
++34 122
++1 122
++2 86
++1 86
++1 86
++1 86
++1 86
++1 86
++1 86
++45 36
++1 36
++2 36
++1 36
++1 36
++1 36
++1 36
++1 36
++1 36
++1 36
+
+fl=(214)
+fn=(1312)
+cfi=(219)
+cfn=(1352)
+calls=1 29 
+360 21165118
+
+ob=(3)
+fl=(217)
+fn=(1340)
+23 70000
++5 30000
++6 40000
++1 10000
++3 60000
+
+fl=(240) ./math/../sysdeps/ieee754/dbl-64/s_scalbn.c
+fn=(1588) __scalbn
+30 8
++3 8
+-3 8
++4 16
++1 16
++6 16
++1 16
++2 48
++5 16
++1 25
++1 5
++1 6
++3 3
+-1 3
++1 9
++1 6
++1 3
+
+fl=(239)
+fn=(1586)
+22 9
++1 91
++4 1
+-5 16
++2 8
+cfi=(240)
+cfn=(1588)
+calls=526 +6 
+* 212
++1 72
++2 16
+
+fl=(218)
+fn=(1346)
+21 337472
++1 337472
++1 337472
+
+fl=(215)
+fn=(1332)
+23 10000
++9 10000
+-8 30000
++8 10000
+
+fl=(216)
+fn=(1336)
+31 140000
++7 40000
++3 40000
++27 10000
+-25 10000
++25 10000
+-6 20000
++30 10000
+-3 10000
++14 10000
+-11 20000
++7 20000
+-7 10000
++5 30000
++5 10000
+-5 10000
++1 10000
++4 10000
+-4 10000
++1 40000
+-39 10000
++46 20000
++5 30000
+-51 10000
++46 20000
++5 90000
+-66 10000
++6 10000
+-5 10000
++1 10000
+-2 10000
++6 10000
+-6 20000
++3 20000
++12 40000
+
+fl=(237)
+fn=(1570)
+36 3
++2 3
+-2 3
++3 9
++3 27
++3 3
++1 6
++10 3
++6 3
+-6 12
++8 3
+-14 6
++1 9
++1 6
+
+ob=(1) /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+fl=(1) ???
+fn=(0) 0x000000000001f540
+cob=(8)
+cfi=(213)
+cfn=(1310)
+calls=1 0 
+0 21165118
+
+totals: 21165118

@@ -340,72 +340,180 @@ static const Char* parseUnsignedInt(const Char* p, const Char* e, unsigned int& 
 #include <float.h>       // _control87 on MSVC
 #endif
 
-class StandardFPEnvScope {
-public:
-	StandardFPEnvScope() {
-	#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-		const unsigned int COMMON = _EM_INEXACT|_EM_UNDERFLOW|_EM_OVERFLOW|_EM_ZERODIVIDE|_EM_INVALID|_EM_DENORMAL|_RC_NEAR;
-		unsigned int cur;
-	#if defined(_M_IX86)
-		{ int ok = __control87_2(0,0,&prevX87_,&prevMXCSR_); assert(ok); unsigned int t; ok = __control87_2(COMMON|_PC_53, _MCW_EM|_MCW_RC|_MCW_PC, &t, 0); assert(ok); }
-		cur = prevMXCSR_;
-	#else
-		prevMXCSR_ = _mm_getcsr(); cur = prevMXCSR_; prevX87_ = _control87(0,0); _control87(COMMON, _MCW_EM|_MCW_RC);
-	#endif
-		cur &= ~(_MM_FLUSH_ZERO_MASK|_MM_DENORMALS_ZERO_MASK);
-		cur = (cur & ~_MM_ROUND_MASK) | _MM_ROUND_NEAREST;
-		_mm_setcsr(cur);
-	#elif defined(__aarch64__)
-		int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
-	#if defined(__has_builtin) && __has_builtin(__builtin_aarch64_get_fpcr) && __has_builtin(__builtin_aarch64_set_fpcr)
-		prevFPCR_ = __builtin_aarch64_get_fpcr(); unsigned long long cur = prevFPCR_; cur &= ~(1ull<<24); cur &= ~(3ull<<22); __builtin_aarch64_set_fpcr(cur);
-	#else
-		asm volatile("mrs %0, fpcr" : "=r"(prevFPCR_)); unsigned long long cur = prevFPCR_; cur &= ~(1ull<<24); cur &= ~(3ull<<22); asm volatile("msr fpcr, %0" :: "r"(cur));
-	#endif
-	#elif defined(__arm__)
-		int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
-		asm volatile("vmrs %0, fpscr" : "=r"(prevFPSCR_)); unsigned int cur = prevFPSCR_; cur &= ~(1u<<24); cur &= ~(3u<<22); asm volatile("vmsr fpscr, %0" :: "r"(cur));
-	#else
-		int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
-	#endif
-	}
-	~StandardFPEnvScope() {
-	#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-	#if defined(_M_IX86)
-		{ unsigned int t; __control87_2(prevX87_, _MCW_EM|_MCW_RC|_MCW_PC, &t, 0); }
-	#else
-		_control87(prevX87_, _MCW_EM|_MCW_RC);
-	#endif
-		_mm_setcsr(prevMXCSR_);
-	#elif defined(__aarch64__)
-	#if defined(__has_builtin) && __has_builtin(__builtin_aarch64_set_fpcr)
-		__builtin_aarch64_set_fpcr(prevFPCR_);
-	#else
-		asm volatile("msr fpcr, %0" :: "r"(prevFPCR_));
-	#endif
-		fesetenv(&prevEnv_);
-	#elif defined(__arm__)
-		asm volatile("vmsr fpscr, %0" :: "r"(prevFPSCR_)); fesetenv(&prevEnv_);
-	#else
-		fesetenv(&prevEnv_);
-	#endif
-	}
-private:
+struct StandardFPEnvThreadState {
+	int standardDepth;
+	int batchDepth;
 #if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
-	unsigned int prevX87_, prevMXCSR_;
+	unsigned int prevX87_;
+	unsigned int prevMXCSR_;
 #elif defined(__aarch64__)
-	fenv_t prevEnv_, dummyEnv_;
+	fenv_t prevEnv_;
+	fenv_t dummyEnv_;
 	unsigned long long prevFPCR_;
 #elif defined(__arm__)
-	fenv_t prevEnv_, dummyEnv_;
+	fenv_t prevEnv_;
+	fenv_t dummyEnv_;
 	unsigned int prevFPSCR_;
 #else
-	fenv_t prevEnv_, dummyEnv_;
+	fenv_t prevEnv_;
+	fenv_t dummyEnv_;
 #endif
 };
 
+static thread_local StandardFPEnvThreadState g_standardFPEnvState = {
+	0,
+	0,
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+	0u,
+	0u
+#elif defined(__aarch64__)
+	{},
+	{},
+	0ull
+#elif defined(__arm__)
+	{},
+	{},
+	0u
+#else
+	{},
+	{}
+#endif
+};
+
+static void enterStandardFPEnv(StandardFPEnvThreadState& state) {
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+	const unsigned int COMMON = _EM_INEXACT|_EM_UNDERFLOW|_EM_OVERFLOW|_EM_ZERODIVIDE|_EM_INVALID|_EM_DENORMAL|_RC_NEAR;
+	unsigned int cur;
+#if defined(_M_IX86)
+	{ int ok = __control87_2(0,0,&state.prevX87_,&state.prevMXCSR_); assert(ok); unsigned int t; ok = __control87_2(COMMON|_PC_53, _MCW_EM|_MCW_RC|_MCW_PC, &t, 0); assert(ok); }
+	cur = state.prevMXCSR_;
+#else
+	state.prevMXCSR_ = _mm_getcsr();
+	cur = state.prevMXCSR_;
+	state.prevX87_ = _control87(0,0);
+	_control87(COMMON, _MCW_EM|_MCW_RC);
+#endif
+	cur &= ~(_MM_FLUSH_ZERO_MASK|_MM_DENORMALS_ZERO_MASK);
+	cur = (cur & ~_MM_ROUND_MASK) | _MM_ROUND_NEAREST;
+	_mm_setcsr(cur);
+#elif defined(__aarch64__)
+	int r;
+	r = fegetenv(&state.prevEnv_);
+	assert(r == 0);
+	r = fesetenv(FE_DFL_ENV);
+	assert(r == 0);
+	feholdexcept(&state.dummyEnv_);
+#if defined(__has_builtin) && __has_builtin(__builtin_aarch64_get_fpcr) && __has_builtin(__builtin_aarch64_set_fpcr)
+	state.prevFPCR_ = __builtin_aarch64_get_fpcr();
+	unsigned long long cur = state.prevFPCR_;
+	cur &= ~(1ull << 24);
+	cur &= ~(3ull << 22);
+	__builtin_aarch64_set_fpcr(cur);
+#else
+	asm volatile("mrs %0, fpcr" : "=r"(state.prevFPCR_));
+	unsigned long long cur = state.prevFPCR_;
+	cur &= ~(1ull << 24);
+	cur &= ~(3ull << 22);
+	asm volatile("msr fpcr, %0" :: "r"(cur));
+#endif
+#elif defined(__arm__)
+	int r;
+	r = fegetenv(&state.prevEnv_);
+	assert(r == 0);
+	r = fesetenv(FE_DFL_ENV);
+	assert(r == 0);
+	feholdexcept(&state.dummyEnv_);
+	asm volatile("vmrs %0, fpscr" : "=r"(state.prevFPSCR_));
+	unsigned int cur = state.prevFPSCR_;
+	cur &= ~(1u << 24);
+	cur &= ~(3u << 22);
+	asm volatile("vmsr fpscr, %0" :: "r"(cur));
+#else
+	int r;
+	r = fegetenv(&state.prevEnv_);
+	assert(r == 0);
+	r = fesetenv(FE_DFL_ENV);
+	assert(r == 0);
+	feholdexcept(&state.dummyEnv_);
+#endif
+}
+
+static void leaveStandardFPEnv(StandardFPEnvThreadState& state) {
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+#if defined(_M_IX86)
+	{ unsigned int t; __control87_2(state.prevX87_, _MCW_EM|_MCW_RC|_MCW_PC, &t, 0); }
+#else
+	_control87(state.prevX87_, _MCW_EM|_MCW_RC);
+#endif
+	_mm_setcsr(state.prevMXCSR_);
+#elif defined(__aarch64__)
+#if defined(__has_builtin) && __has_builtin(__builtin_aarch64_set_fpcr)
+	__builtin_aarch64_set_fpcr(state.prevFPCR_);
+#else
+	asm volatile("msr fpcr, %0" :: "r"(state.prevFPCR_));
+#endif
+	fesetenv(&state.prevEnv_);
+#elif defined(__arm__)
+	asm volatile("vmsr fpscr, %0" :: "r"(state.prevFPSCR_));
+	fesetenv(&state.prevEnv_);
+#else
+	fesetenv(&state.prevEnv_);
+#endif
+}
+
+class StandardFPEnvScope {
+public:
+	StandardFPEnvScope() : ownsNormalization(false) {
+		if (g_standardFPEnvState.standardDepth++ == 0) {
+			if (g_standardFPEnvState.batchDepth == 0) {
+				enterStandardFPEnv(g_standardFPEnvState);
+				ownsNormalization = true;
+			}
+		}
+	}
+
+	~StandardFPEnvScope() {
+		if (--g_standardFPEnvState.standardDepth == 0) {
+			if (ownsNormalization) {
+				leaveStandardFPEnv(g_standardFPEnvState);
+			}
+		}
+	}
+
+private:
+	bool ownsNormalization;
+};
+
+FloatStringBatchGuard::FloatStringBatchGuard() : ownsNormalization(false) {
+	if (g_standardFPEnvState.batchDepth++ == 0) {
+		if (g_standardFPEnvState.standardDepth == 0) {
+			enterStandardFPEnv(g_standardFPEnvState);
+			ownsNormalization = true;
+		}
+	}
+}
+
+FloatStringBatchGuard::~FloatStringBatchGuard() {
+	if (--g_standardFPEnvState.batchDepth == 0) {
+		if (ownsNormalization) {
+			leaveStandardFPEnv(g_standardFPEnvState);
+		}
+	}
+}
+
 const int NEGATIVE_E_NOTATION_START = -6;
 const int POSITIVE_E_NOTATION_START = 10;
+
+const int PARSE_CHUNK_DIGITS = 6;
+const int PARSE_CHUNK_POW10[PARSE_CHUNK_DIGITS + 1] = {
+	1,
+	10,
+	100,
+	1000,
+	10000,
+	100000,
+	1000000
+};
 
 /*
 	Helper class for high-precision double <=> string conversion routines. 52*2 bits of two doubles allows accurate
@@ -429,9 +537,16 @@ struct DoubleDouble {
 		return DoubleDouble((high * factor) + overflow, lowTimesFactor - overflow);
 	}
 	DoubleDouble operator/(int divisor) const {
-		const double floored = floor(high / divisor);
-		const double remainder = high - floored * divisor;
-		return DoubleDouble(floored, (low + remainder) / divisor);
+		assert(divisor > 0);
+		assert(high >= 0.0);
+		const unsigned int positiveDivisor = static_cast<unsigned int>(divisor);
+		const uint64_t integerHigh = static_cast<uint64_t>(high);
+		const uint64_t quotient = integerHigh / positiveDivisor;
+		const uint64_t remainderInt = integerHigh - quotient * positiveDivisor;
+		const double floored = static_cast<double>(quotient);
+		const double remainder = static_cast<double>(remainderInt);
+		const double fractional = high - static_cast<double>(integerHigh);
+		return DoubleDouble(floored, (low + remainder + fractional) / divisor);
 	}
 	bool operator<(const DoubleDouble& other) const {
 		return high < other.high || (high == other.high && low < other.low);
@@ -656,14 +771,29 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 			value = std::numeric_limits<T>::infinity();
 		} else {
 			assert(Traits<double>::MIN_EXPONENT <= exponent && exponent <= Traits<double>::MAX_EXPONENT);
-			DoubleDouble magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
+			DoubleDouble magnitudeTimesTen = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT] * 10;
 			DoubleDouble accumulator(0.0);
 			while (p != significandEnd) {
-				if (*p != '.') {
-					accumulator = multiplyAndAdd(accumulator, magnitude, (*p - '0'));
-					magnitude = magnitude / 10;
-				}
-				++p;
+					if (*p == '.') {
+							++p;
+							continue;
+					}
+
+					unsigned int chunkValue = 0;
+					int chunkDigits = 0;
+					const Char* chunkEnd = p;
+					while (chunkEnd != significandEnd && *chunkEnd != '.' && chunkDigits < PARSE_CHUNK_DIGITS) {
+							chunkValue = chunkValue * 10 + (*chunkEnd - '0');
+							++chunkEnd;
+							++chunkDigits;
+					}
+
+					assert(chunkDigits > 0);
+					const int pow10Chunk = PARSE_CHUNK_POW10[chunkDigits];
+					const DoubleDouble chunkMagnitude = magnitudeTimesTen / pow10Chunk;
+					accumulator = multiplyAndAdd(accumulator, chunkMagnitude, static_cast<double>(chunkValue));
+					magnitudeTimesTen = chunkMagnitude;
+					p = chunkEnd;
 			}
 			const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
 			value = scaleAndRound<T>(accumulator, factor);
@@ -731,26 +861,26 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 	const DoubleDouble normalized = absValue / factor;
 	DoubleDouble accumulator = 0.0;
 	T reconstructed;
-	do {
-		if (p == periodPosition) {
-			*p++ = '.';
-		}
-		
-		// Incrementally find the max digit that keeps accumulator < normalized target (instead of using division).
-		DoubleDouble next = accumulator + magnitude;
-		int digit = 0;
-		while (next < normalized && digit < 9) {
-			accumulator = next;
-			next = next + magnitude;
+       do {
+               if (p == periodPosition) {
+                       *p++ = '.';
+               }
+
+               // Incrementally find the max digit that keeps accumulator < normalized target (instead of using division).
+               DoubleDouble next = accumulator + magnitude;
+               int digit = 0;
+               while (next < normalized && digit < 9) {
+                       accumulator = next;
+                       next = next + magnitude;
 			++digit;
 		}
 
 		// Correct behavior is to never reach higher than digit 9.
 		assert(next >= normalized);
 		
-		// Decide between digit and digit+1 under final rounding; then optional bump if strictly past half-step.
-		reconstructed = scaleAndRound<T>(accumulator, factor);
-		const T r1 = scaleAndRound<T>(accumulator + magnitude, factor);
+               // Decide between digit and digit+1 under final rounding; then optional bump if strictly past half-step.
+               reconstructed = scaleAndRound<T>(accumulator, factor);
+               const T r1 = scaleAndRound<T>(next, factor);
 		if ((reconstructed != absValue && r1 == absValue) || (reconstructed == absValue
 				&& accumulator + magnitude / 2 < normalized && absValue != std::numeric_limits<T>::max())) {
 			reconstructed = r1;
