@@ -139,7 +139,7 @@ The latest release benchmark on the current `work` branch produces the following
 - [x] Replace per-digit `DoubleDouble / 10` divisions with cached magnitudes sourced from `EXP10_TABLE` (163,739 divides per 10,000 samples consume 6.39M instructions in the double parser alone). Addressed by chunking digits into four-digit groups so each block shares one divide (2025-09-22).
 - [ ] Carry a running remainder in `realToString` to eliminate redundant subtraction when estimating digits.
 - [ ] Extend the staged-digit parser to operate on multiple base-1e9 chunks without precision loss (six-digit chunking landed; evaluate safe path to 1e9).
-- [ ] Replace `frexp` exponent estimation with direct IEEE exponent extraction.
+- [x] Replace `frexp` exponent estimation with direct IEEE exponent extraction.
 - [ ] Cache rounding intermediates so the formatter avoids duplicate `scaleAndRound` work inside the digit loop.
 - [ ] Profile and tune the `compareWithRyu` harness to reduce measurement noise while keeping coverage intact.
 - [x] Fuse multiply/add sequences or introduce dedicated helpers to reduce the number of `DoubleDouble::operator+` calls in the formatter digit loop.
@@ -151,6 +151,20 @@ The latest release benchmark on the current `work` branch produces the following
 - [ ] Investigate lighter-weight magnitude comparisons or cached thresholds to cut `DoubleDouble::operator<` overhead in parse loops.
 
 ## Completed Experiments
+### Direct exponent extraction (recorded 2025-09-22)
+- Status: Landed; correctness verified with `output/release/compareWithRyu 10000000`.
+- Summary: Replaced the formatter’s `frexp` call with a bit-level exponent extractor so `realToString` avoids a libc round-trip while still handling subnormals correctly.
+- Benchmarks (release build, 1,000,000 values; after = median of three runs):
+
+| Benchmark | Before (ns/value) | After (ns/value) | Δ | Notes |
+| --- | --- | --- | --- | --- |
+| doubleToString | 2,037.80 | 2,058.24 | ▲ ~1% | Slight regression within noise; monitor in future runs. |
+| stringToDouble | 140.99 | 134.89 | ▼ ~4% | Faster exponent setup shaves parser overhead. |
+| floatToString | 1,058.56 | 1,047.26 | ▼ ~1% | Minor formatter win from dropping `frexp`. |
+| stringToFloat | 125.05 | 118.15 | ▼ ~5% | Parser benefits most from avoiding the library call. |
+
+- Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString` (before + 3× after), `output/release/compareWithRyu 10000000`.
+
 ### Integer-based DoubleDouble division (recorded 2025-09-22)
 - Status: Landed; correctness verified with `compareWithRyu 10000000`.
 - Summary: Replaced the generic floor-based `DoubleDouble::operator/(int)` path with an integer quotient/remainder implementation so per-digit divisions in parsing and formatting avoid redundant floating math.

@@ -23,6 +23,7 @@
 #include <cfenv>
 #include <limits>
 #include <algorithm>
+#include <stdint.h>
 #include <iostream>
 #include <cstring>
 #include <type_traits>
@@ -100,6 +101,60 @@ template<typename T, typename F> T rewrap(F i) {
 		// T is unsigned type. No problem.
 		return ui;
 	}
+}
+
+template<typename T, typename F>
+T bitCast(const F& value) {
+	static_assert(sizeof (T) == sizeof (F), "bitCast size mismatch");
+	T result;
+	memcpy(&result, &value, sizeof (result));
+	return result;
+}
+
+template<typename T> struct IEEEBinaryTraits { };
+
+template<> struct IEEEBinaryTraits<double> {
+	typedef uint64_t Bits;
+	enum {
+		MANTISSA_BITS = 52,
+		EXPONENT_BITS = 11,
+		EXPONENT_BIAS = 1023,
+		MIN_NORMAL_EXPONENT = -1022
+	};
+};
+
+template<> struct IEEEBinaryTraits<float> {
+	typedef uint32_t Bits;
+	enum {
+		MANTISSA_BITS = 23,
+		EXPONENT_BITS = 8,
+		EXPONENT_BIAS = 127,
+		MIN_NORMAL_EXPONENT = -126
+	};
+};
+
+template<typename T>
+int extractBinaryExponent(const T value) {
+	typedef IEEEBinaryTraits<T> Traits;
+	typedef typename Traits::Bits Bits;
+	const Bits bits = bitCast<Bits>(value);
+	const Bits exponentMask = ((static_cast<Bits>(1) << Traits::EXPONENT_BITS) - 1) << Traits::MANTISSA_BITS;
+	const Bits mantissaMask = (static_cast<Bits>(1) << Traits::MANTISSA_BITS) - 1;
+	const Bits exponentField = (bits & exponentMask) >> Traits::MANTISSA_BITS;
+	if (exponentField != 0) {
+		return static_cast<int>(exponentField) - Traits::EXPONENT_BIAS + 1;
+	}
+	Bits mantissa = bits & mantissaMask;
+	if (mantissa == 0) {
+		return 0;
+	}
+	const Bits topBit = static_cast<Bits>(1) << (Traits::MANTISSA_BITS - 1);
+	int shifts = 0;
+	while ((mantissa & topBit) == 0) {
+		mantissa <<= 1;
+		++shifts;
+	}
+	return Traits::MIN_NORMAL_EXPONENT - shifts;
 }
 
 template<typename I> I skipWhite(I p, const I e) {
@@ -839,9 +894,8 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 		return p + 3;
 	}
 
-	// frexp is fast and precise and gives log2(x), log10(x) = log2(x) / log2(10)
-	int base2Exponent;
-	(void) frexp(absValue, &base2Exponent);
+	// Extract the base-2 exponent directly so log10(x) = log2(x) / log2(10)
+	const int base2Exponent = extractBinaryExponent(absValue);
 	int exponent = std::max(static_cast<int>(ceil(0.30102999566398119521 * (base2Exponent - 1))) - 1
 			, static_cast<int>(Traits<T>::MIN_EXPONENT));
 	if (exponent < Traits<T>::MAX_EXPONENT) {
