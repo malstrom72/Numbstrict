@@ -771,30 +771,29 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 			value = std::numeric_limits<T>::infinity();
 		} else {
 			assert(Traits<double>::MIN_EXPONENT <= exponent && exponent <= Traits<double>::MAX_EXPONENT);
-			DoubleDouble magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
+			DoubleDouble magnitudeTimesTen = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT] * 10;
 			DoubleDouble accumulator(0.0);
 			while (p != significandEnd) {
-				if (*p == '.') {
-					++p;
-					continue;
-				}
+					if (*p == '.') {
+							++p;
+							continue;
+					}
 
-				unsigned int chunkValue = 0;
-				int chunkDigits = 0;
-				const Char* chunkEnd = p;
-				while (chunkEnd != significandEnd && *chunkEnd != '.' && chunkDigits < PARSE_CHUNK_DIGITS) {
-					chunkValue = chunkValue * 10 + (*chunkEnd - '0');
-					++chunkEnd;
-					++chunkDigits;
-				}
+					unsigned int chunkValue = 0;
+					int chunkDigits = 0;
+					const Char* chunkEnd = p;
+					while (chunkEnd != significandEnd && *chunkEnd != '.' && chunkDigits < PARSE_CHUNK_DIGITS) {
+							chunkValue = chunkValue * 10 + (*chunkEnd - '0');
+							++chunkEnd;
+							++chunkDigits;
+					}
 
-				assert(chunkDigits > 0);
-				const int pow10Chunk = PARSE_CHUNK_POW10[chunkDigits];
-				const DoubleDouble nextMagnitude = magnitude / pow10Chunk;
-				const DoubleDouble chunkMagnitude = nextMagnitude * 10;
-				accumulator = multiplyAndAdd(accumulator, chunkMagnitude, static_cast<double>(chunkValue));
-				magnitude = nextMagnitude;
-				p = chunkEnd;
+					assert(chunkDigits > 0);
+					const int pow10Chunk = PARSE_CHUNK_POW10[chunkDigits];
+					const DoubleDouble chunkMagnitude = magnitudeTimesTen / pow10Chunk;
+					accumulator = multiplyAndAdd(accumulator, chunkMagnitude, static_cast<double>(chunkValue));
+					magnitudeTimesTen = chunkMagnitude;
+					p = chunkEnd;
 			}
 			const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
 			value = scaleAndRound<T>(accumulator, factor);

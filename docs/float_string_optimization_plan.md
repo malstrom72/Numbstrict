@@ -178,6 +178,20 @@ The latest release benchmark on the current `work` branch produces the following
 
 - Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString`, `output/release/compareWithRyu 10000000`.
 
+### Chunk magnitude reuse in parser loop (recorded 2025-09-22)
+- Status: Landed; correctness verified with `output/release/compareWithRyu 10000000`.
+- Summary: Pre-scaled the parser chunk magnitude outside the digit loop so each batch reuses the divided magnitude instead of multiplying by 10 every iteration, keeping the single `DoubleDouble` divide per block.
+- Benchmarks (release build, 1,000,000 values):
+
+| Benchmark | Before (ns/value) | After (ns/value) | Δ | Notes |
+| --- | --- | --- | --- | --- |
+| doubleToString | 2,157.89 | 2,216.53 | ▲ ~3% | Minor regression within benchmark noise; formatter untouched |
+| stringToDouble | 209.93 | 158.01 | ▼ ~25% | Removing the per-chunk multiply speeds the parser |
+| floatToString | 1,138.21 | 1,139.72 | ▲ ~0% | No material change to formatter |
+| stringToFloat | 169.30 | 137.17 | ▼ ~19% | Same reuse benefits the float parser |
+
+- Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString`, `output/release/compareWithRyu 10000000`.
+
 ### Float Environment Batch Guard (recorded 2025-09-22)
 - Status: Landed; correctness verified with `compareWithRyu 10000000`.
 - Summary: Introduced a thread-local floating-point environment state and the public `FloatStringBatchGuard`, then wrapped the benchmark harness so runs normalize the environment once per batch instead of per conversion.
