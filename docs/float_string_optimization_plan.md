@@ -99,6 +99,19 @@ The latest release benchmark on the current `work` branch produces the following
 
 - Fuzzing: `output/release/compareWithRyu 10000000` passed without mismatches (10,000,000 iterations).
 
+### 2025-09-25 – Release benchmark and perf sampling snapshot
+- Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString`, `/usr/lib/linux-tools-6.8.0-84/perf record -F 999 --call-graph dwarf -- output/release/benchmarkToString`.
+- Dataset: 1,000,000 mixed values (release build).
+
+| Benchmark | Time (ns/value) | Reference |
+| --- | --- | --- |
+| Numbstrict::doubleToString | 1,115.52 | Ryu d2s 62.57 / `std::ostringstream<double>` 902.12 |
+| Numbstrict::stringToDouble | 163.90 | `std::strtod` 218.17 / `std::istringstream<double>` 525.77 |
+| Numbstrict::floatToString | 600.87 | Ryu f2s 42.09 / `std::ostringstream<float>` 465.38 |
+| Numbstrict::stringToFloat | 133.04 | `std::strtof` 110.26 / `std::istringstream<float>` 352.84 |
+
+- Notes: Formatter timings are the median of two consecutive runs (the follow-up run under perf sampled at 1 kHz recorded 1,179.8 ns/value for the formatter due to profiling overhead). Parsing results remained stable across both runs.
+
 ## Profiling Log
 - 2025-09-22: Captured a Callgrind profile for the full benchmark run (archived outside the repo to avoid large binary artifacts) for drill-down analysis of the instrumented benchmark described above.
 - 2025-09-22: Captured parse-only Callgrind runs with instrumentation toggled on inside `stringToReal<double>` and `stringToReal<float>`.
@@ -107,6 +120,11 @@ The latest release benchmark on the current `work` branch produces the following
 - 2025-09-22: Profiled the benchmark with `mode=stringToReal` to capture combined parsing hotspots under instrumentation.
   - Command: `valgrind --tool=callgrind --callgrind-out-file=/tmp/callgrind.stringToReal.count10000.out output/release/benchmarkToString count=10000 mode=stringToReal`.
   - Highlights: 304M instructions recorded; `DoubleDouble::operator+` (19.3%), `DoubleDouble::operator/(int)` (5.9%), `parseReal<double>` (3.8%), and `scaleAndRound<double>` (3.3%) dominate internal cost while libc parsing helpers remain a secondary component. The profile confirms that parser-side `DoubleDouble` arithmetic is still the leading self-owned hotspot when formatting is disabled. (Raw output archived externally.)
+
+- 2025-09-25: Captured a release `perf` sampling profile while running `benchmarkToString` over the 1,000,000-value dataset (`/usr/lib/linux-tools-6.8.0-84/perf record -F 999 --call-graph dwarf -- output/release/benchmarkToString`).
+  - Samples: 7,344 across 59 MB of trace data (no lost samples).
+  - Top self-time (no children): `Numbstrict::multiplyAndAdd` 12.2%, `DoubleDouble::operator/(int)` 8.5%, `realToString<double>` 7.3%, libc `__printf_fp_buffer_1` 5.5%, and `realToString<float>` 4.0%.
+  - Interpretation: Formatter digit math (`multiplyAndAdd`, `DoubleDouble::operator/(int)`) remains the dominant self-owned cost, matching the Callgrind guidance while confirming that libc formatting still accounts for ~5% of total CPU during the benchmark's reference comparisons.
 
 ## Callgrind-Derived Priorities (2025-09-22)
 - [x] **Collapse `DoubleDouble` additions inside the formatter.** The 10,000-value Callgrind capture spends over 61.8M instructions across 3,092,040 calls to `DoubleDouble::operator+`, making it the single largest self-owned cost out of 587M total instructions. Focus on emitting digits with specialized fused operations (e.g., combining multiply/add into a bespoke accumulator) to retire many of these general additions.
@@ -384,11 +402,23 @@ addition instead of recomputing it for the `digit+1` candidate.
 | Benchmark | Before (ns/value) | After (ns/value) | Δ | Notes |
 | --- | --- | --- | --- | --- |
 | doubleToString | 1,707.10 | 1,841.00 | ▲ ~7.9% | Extra subtract per digit outweighed comparison savings |
-| stringToDouble | 247.82 | 237.61 | ▼ ~4.1% | Slight parser win from reusing the remainder | 
+| stringToDouble | 247.82 | 237.61 | ▼ ~4.1% | Slight parser win from reusing the remainder |
 | floatToString | 887.81 | 869.37 | ▼ ~2.1% | Minor improvement but not enough to offset double regression |
 | stringToFloat | 208.79 | 187.07 | ▼ ~10.4% | Parser path benefited from cached remainder |
 
 - Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString` (before and after change), `output/release/compareWithRyu 10000000` (post-revert verification).
+
+### 2025-09-25 – Remainder cache revisit (rolled back)
+- Summary: Re-ran the cached remainder experiment using a dedicated subtract helper and tie checks derived from the stored remainder. The formatter still regressed once the helper executed on every digit, so the change was rolled back immediately.
+
+| Benchmark | Before (ns/value) | After (ns/value) | Δ | Notes |
+| --- | --- | --- | --- | --- |
+| doubleToString | 1,144.95 | 1,303.14 | ▲ ~14% | Per-digit subtract dominated any comparison savings. |
+| stringToDouble | 158.76 | 157.48 | ▼ ~1% | Parser noise-level change. |
+| floatToString | 599.28 | 626.50 | ▲ ~5% | Same overhead surfaced on the float formatter. |
+| stringToFloat | 132.12 | 134.79 | ▲ ~2% | Parser path saw no real benefit. |
+
+- Commands: `timeout 180 ./build.sh`, `output/release/benchmarkToString`, `output/release/compareWithRyu 10000000`.
 
 ### Double Staging Accumulator (attempted 2025-09-22)
 - Summary: Batched up to 18 significant digits into a `double` before updating the `DoubleDouble` accumulator to cut per-digit `multiplyAndAdd` calls.
