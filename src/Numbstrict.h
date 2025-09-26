@@ -342,6 +342,14 @@ String intToString(int value);
 String intToHexString(unsigned int value, int minLength = 8);
 int stringToInt(const String& s, size_t* nextOffset = 0);
 
+class FloatStringBatchGuard {
+	public:
+		FloatStringBatchGuard();
+		~FloatStringBatchGuard();
+	private:
+		bool ownsNormalization;
+};
+
 String floatToString(float value);
 float stringToFloat(const String& s, size_t* nextOffset = 0);
 String doubleToString(double value);

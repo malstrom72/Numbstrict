@@ -20,6 +20,9 @@ static void printUsage(const char* exe) {
 	std::cout << "Options:" << std::endl;
 	std::cout << "\tfloat				  Only run float benchmarks" << std::endl;
 	std::cout << "\tdouble				  Only run double benchmarks" << std::endl;
+	std::cout << "\tmode=realToString	  Only run real-to-string benchmarks" << std::endl;
+	std::cout << "\tmode=stringToReal	  Only run string-to-real benchmarks" << std::endl;
+	std::cout << "\tmode=both		  Run both benchmark directions (default)" << std::endl;
 	std::cout << "\tcount=<value>		  Number of values to convert (default 1000000)" << std::endl;
 	std::cout << "\tseed=<value>		  Seed for random value generation (default 123456789)" << std::endl;
 	std::cout << "\t-h | -? | --help	  Show this help" << std::endl;
@@ -138,12 +141,20 @@ static std::string standardToString(T value) {
 }
 
 template<typename T, typename Func>
-static void runBenchmark(const std::vector<T>& values, const char* label, Func func) {
+static void runBenchmark(const std::vector<T>& values, const char* label, Func func, bool useBatchGuard = false) {
 	const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
 	size_t totalLength = 0;
-	for (size_t i = 0; i < values.size(); ++i) {
-		auto text = func(values[i]);
-		totalLength += text.size();
+	if (useBatchGuard) {
+		Numbstrict::FloatStringBatchGuard guard;
+		for (size_t i = 0; i < values.size(); ++i) {
+			auto text = func(values[i]);
+			totalLength += text.size();
+		}
+	} else {
+		for (size_t i = 0; i < values.size(); ++i) {
+			auto text = func(values[i]);
+			totalLength += text.size();
+		}
 	}
 	const std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 	g_sink = totalLength;
@@ -157,12 +168,20 @@ static void runBenchmark(const std::vector<T>& values, const char* label, Func f
 }
 
 template<typename T, typename Func>
-static void runStringToRealBenchmark(const std::vector<Numbstrict::String>& values, const char* label, Func func) {
+static void runStringToRealBenchmark(const std::vector<Numbstrict::String>& values, const char* label, Func func, bool useBatchGuard = false) {
 	const std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
 	size_t checksum = 0;
-	for (size_t i = 0; i < values.size(); ++i) {
-		const T parsed = func(values[i]);
-		checksum += toSinkValue(parsed);
+	if (useBatchGuard) {
+		Numbstrict::FloatStringBatchGuard guard;
+		for (size_t i = 0; i < values.size(); ++i) {
+			const T parsed = func(values[i]);
+			checksum += toSinkValue(parsed);
+		}
+	} else {
+		for (size_t i = 0; i < values.size(); ++i) {
+			const T parsed = func(values[i]);
+			checksum += toSinkValue(parsed);
+		}
 	}
 	const std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 	g_sink = checksum;
@@ -180,6 +199,8 @@ int main(int argc, const char** argv) {
 	uint64_t seed = 123456789ull;
 	bool runFloat = true;
 	bool runDouble = true;
+	bool runRealToString = true;
+	bool runStringToReal = true;
 
 	for (int i = 1; i < argc; ++i) {
 		std::string arg(argv[i]);
@@ -187,6 +208,22 @@ int main(int argc, const char** argv) {
 			runDouble = false;
 		} else if (arg == "double") {
 			runFloat = false;
+		} else if (arg.compare(0, 5, "mode=") == 0) {
+				const std::string mode = arg.substr(5);
+				if (mode == "realToString") {
+						runRealToString = true;
+						runStringToReal = false;
+				} else if (mode == "stringToReal") {
+						runRealToString = false;
+						runStringToReal = true;
+				} else if (mode == "both") {
+						runRealToString = true;
+						runStringToReal = true;
+				} else {
+						std::cout << "Unknown mode: " << mode << std::endl;
+						printUsage(argv[0]);
+						return 1;
+				}
 		} else if (arg.compare(0, 6, "count=") == 0) {
 			count = static_cast<size_t>(std::strtoull(arg.c_str() + 6, 0, 10));
 		} else if (arg.compare(0, 5, "seed=") == 0) {
@@ -206,39 +243,54 @@ int main(int argc, const char** argv) {
 		runDouble = true;
 	}
 
+	if (!runRealToString && !runStringToReal) {
+		runRealToString = true;
+		runStringToReal = true;
+	}
+
 	if (runDouble) {
 		std::vector<double> values = generateValues<double>(count, seed);
 		std::cout << "double benchmarks (" << values.size() << " values)" << std::endl;
-		runBenchmark(values, "Numbstrict::doubleToString", numbstrictDoubleToString);
-		runBenchmark(values, "Ryu d2s", ryuDoubleToString);
-		runBenchmark(values, "std::ostringstream<double>", standardToString<double>);
-		std::vector<Numbstrict::String> doubleStrings;
-		doubleStrings.reserve(values.size());
-		for (size_t i = 0; i < values.size(); ++i) {
-			doubleStrings.push_back(numbstrictDoubleToString(values[i]));
+		if (runRealToString) {
+			runBenchmark(values, "Numbstrict::doubleToString", numbstrictDoubleToString, true);
+			runBenchmark(values, "Ryu d2s", ryuDoubleToString);
+			runBenchmark(values, "std::ostringstream<double>", standardToString<double>);
 		}
-		std::cout << "string to double benchmarks" << std::endl;
-		runStringToRealBenchmark<double>(doubleStrings, "Numbstrict::stringToDouble", numbstrictStringToDouble);
-		runStringToRealBenchmark<double>(doubleStrings, "std::strtod", stdStrtod);
-		runStringToRealBenchmark<double>(doubleStrings, "std::istringstream<double>", stringstreamStringToDouble);
-		std::cout << std::endl;
+		if (runStringToReal) {
+			std::vector<Numbstrict::String> doubleStrings;
+			doubleStrings.reserve(values.size());
+			for (size_t i = 0; i < values.size(); ++i) {
+				doubleStrings.push_back(numbstrictDoubleToString(values[i]));
+			}
+			std::cout << "string to double benchmarks" << std::endl;
+			runStringToRealBenchmark<double>(doubleStrings, "Numbstrict::stringToDouble", numbstrictStringToDouble, true);
+			runStringToRealBenchmark<double>(doubleStrings, "std::strtod", stdStrtod);
+			runStringToRealBenchmark<double>(doubleStrings, "std::istringstream<double>", stringstreamStringToDouble);
+		}
+		if (runFloat && (runRealToString || runStringToReal)) {
+			std::cout << std::endl;
+		}
 	}
 
 	if (runFloat) {
 		std::vector<float> values = generateValues<float>(count, seed);
 		std::cout << "float benchmarks (" << values.size() << " values)" << std::endl;
-		runBenchmark(values, "Numbstrict::floatToString", numbstrictFloatToString);
-		runBenchmark(values, "Ryu f2s", ryuFloatToString);
-		runBenchmark(values, "std::ostringstream<float>", standardToString<float>);
-		std::vector<Numbstrict::String> floatStrings;
-		floatStrings.reserve(values.size());
-		for (size_t i = 0; i < values.size(); ++i) {
-			floatStrings.push_back(numbstrictFloatToString(values[i]));
+		if (runRealToString) {
+			runBenchmark(values, "Numbstrict::floatToString", numbstrictFloatToString, true);
+			runBenchmark(values, "Ryu f2s", ryuFloatToString);
+			runBenchmark(values, "std::ostringstream<float>", standardToString<float>);
 		}
-		std::cout << "string to float benchmarks" << std::endl;
-		runStringToRealBenchmark<float>(floatStrings, "Numbstrict::stringToFloat", numbstrictStringToFloat);
-		runStringToRealBenchmark<float>(floatStrings, "std::strtof", stdStrtof);
-		runStringToRealBenchmark<float>(floatStrings, "std::istringstream<float>", stringstreamStringToFloat);
+		if (runStringToReal) {
+			std::vector<Numbstrict::String> floatStrings;
+			floatStrings.reserve(values.size());
+			for (size_t i = 0; i < values.size(); ++i) {
+				floatStrings.push_back(numbstrictFloatToString(values[i]));
+			}
+			std::cout << "string to float benchmarks" << std::endl;
+			runStringToRealBenchmark<float>(floatStrings, "Numbstrict::stringToFloat", numbstrictStringToFloat, true);
+			runStringToRealBenchmark<float>(floatStrings, "std::strtof", stdStrtof);
+			runStringToRealBenchmark<float>(floatStrings, "std::istringstream<float>", stringstreamStringToFloat);
+		}
 	}
 
 	return 0;
