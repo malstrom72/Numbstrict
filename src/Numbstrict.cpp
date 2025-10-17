@@ -27,6 +27,9 @@
 #include <cstring>
 #include <type_traits>
 #include <iomanip>
+#include <cstdint>
+#include <cstdlib>
+#include <utility>
 #include "Numbstrict.h"
 
 namespace Numbstrict {
@@ -1805,6 +1808,206 @@ bool unitTest() {
 	assert(stringToDouble("inf") == std::numeric_limits<double>::infinity());
 	assert(doubleToString(std::numeric_limits<double>::quiet_NaN()) == "nan");
 	assert(isNaN(stringToDouble("nan")));
+
+	auto isDecimalTieEquivalent = [](const String& aText, const String& bText) -> bool {
+		if ((aText.size() && aText[0] == '-') != (bText.size() && bText[0] == '-')) return false;
+		auto split = [](const String& s) {
+			const size_t e = s.find('e');
+			const String m = (e == String::npos ? s : s.substr(0, e));
+			const String x = (e == String::npos ? String() : s.substr(e));
+			return std::pair<String, String>(m, x);
+		};
+		const String positiveA = (aText.size() && aText[0] == '-') ? aText.substr(1) : aText;
+		const String positiveB = (bText.size() && bText[0] == '-') ? bText.substr(1) : bText;
+		const std::pair<String, String> pa = split(positiveA);
+		const std::pair<String, String> pb = split(positiveB);
+		const String& ma = pa.first;
+		const String& xa = pa.second;
+		const String& mb = pb.first;
+		const String& xb = pb.second;
+		if (xa != xb) return false;
+		if (ma.size() != mb.size()) return false;
+		if (ma.empty()) return false;
+		size_t diff = 0;
+		size_t pos = 0;
+		for (size_t i = 0; i < ma.size(); ++i) {
+			if (ma[i] != mb[i]) {
+				++diff;
+				pos = i;
+			}
+		}
+		if (diff != 1) return false;
+		if (ma[pos] < '0' || ma[pos] > '9' || mb[pos] < '0' || mb[pos] > '9') return false;
+		const int da = ma[pos] - '0';
+		const int db = mb[pos] - '0';
+		return std::abs(da - db) == 1;
+	};
+
+	{
+		struct FragileDoubleCase {
+			uint64_t bits;
+			const char* expected;
+		};
+		static const FragileDoubleCase kFragileDoubleCases[] = {
+			{ 0x0000000000000000ull, "0.0" },
+			{ 0x0000000000000001ull, "5.0e-324" },
+			{ 0x0000000000000002ull, "1.0e-323" },
+			{ 0x000ffffffffffff8ull, "2.2250738585071974e-308" },
+			{ 0x000ffffffffffff9ull, "2.225073858507198e-308" },
+			{ 0x000ffffffffffffaull, "2.2250738585071984e-308" },
+			{ 0x000ffffffffffffbull, "2.225073858507199e-308" },
+			{ 0x000ffffffffffffcull, "2.2250738585071994e-308" },
+			{ 0x000ffffffffffffdull, "2.2250738585072e-308" },
+			{ 0x000ffffffffffffeull, "2.2250738585072004e-308" },
+			{ 0x000fffffffffffffull, "2.225073858507201e-308" },
+			{ 0x0010000000000000ull, "2.2250738585072014e-308" },
+			{ 0x0010000000000001ull, "2.225073858507202e-308" },
+			{ 0x0010000000000002ull, "2.2250738585072024e-308" },
+			{ 0x0010000000000003ull, "2.225073858507203e-308" },
+			{ 0x0010000000000004ull, "2.2250738585072034e-308" },
+			{ 0x0010000000000005ull, "2.225073858507204e-308" },
+			{ 0x0010000000000006ull, "2.2250738585072043e-308" },
+			{ 0x0010000000000007ull, "2.225073858507205e-308" },
+			{ 0x0010000000000008ull, "2.2250738585072053e-308" },
+			{ 0x3e7ad7f29abcaf47ull, "9.999999999999998e-8" },
+			{ 0x3e7ad7f29abcaf49ull, "1.0000000000000001e-7" },
+			{ 0x3eb0c6f7a0b5ed8cull, "9.999999999999997e-7" },
+			{ 0x3eb0c6f7a0b5ed8eull, "0.0000010000000000000002" },
+			{ 0x4202a05f1fffffffull, "9999999999.999998" },
+			{ 0x4202a05f20000001ull, "1.0000000000000002e+10" },
+			// Just below powers of two (rounding carry into exponent)
+			{ 0x3fffffffffffffffull, "1.9999999999999998" },
+			{ 0x400fffffffffffffull, "3.9999999999999996" },
+			{ 0x401fffffffffffffull, "7.999999999999999" },
+			{ 0x402fffffffffffffull, "15.999999999999998" },
+			{ 0x403fffffffffffffull, "31.999999999999996" },
+			{ 0x7feffffffffffffeull, "1.7976931348623155e+308" },
+			{ 0x7fefffffffffffffull, "1.7976931348623157e+308" },
+			{ 0x7ff0000000000000ull, "inf" },
+			{ 0x8000000000000001ull, "-5.0e-324" },
+			{ 0x8000000000000002ull, "-1.0e-323" },
+			{ 0x8009d1f053c113dcull, "-1.3656492814424367e-308" },
+			{ 0x800ffffffffffffeull, "-2.2250738585072004e-308" },
+			{ 0x800fffffffffffffull, "-2.225073858507201e-308" },
+			{ 0x8010000000000000ull, "-2.2250738585072014e-308" },
+			{ 0x8010000000000001ull, "-2.225073858507202e-308" },
+			{ 0xbe7ad7f29abcaf47ull, "-9.999999999999998e-8" },
+			{ 0xbe7ad7f29abcaf49ull, "-1.0000000000000001e-7" },
+			{ 0xbeb0c6f7a0b5ed8cull, "-9.999999999999997e-7" },
+			{ 0xbeb0c6f7a0b5ed8eull, "-0.0000010000000000000002" },
+			{ 0xc202a05f1fffffffull, "-9999999999.999998" },
+			{ 0xc202a05f20000001ull, "-1.0000000000000002e+10" },
+			{ 0xffeffffffffffffeull, "-1.7976931348623155e+308" },
+			{ 0xffefffffffffffffull, "-1.7976931348623157e+308" },
+			{ 0xfff0000000000000ull, "-inf" },
+		};
+		auto toDoubleBits = [](double number) -> uint64_t {
+			uint64_t bits = 0;
+			std::memcpy(&bits, &number, sizeof bits);
+			return bits;
+		};
+		for (const FragileDoubleCase& entry : kFragileDoubleCases) {
+			double value;
+			std::memcpy(&value, &entry.bits, sizeof value);
+			const String text = doubleToString(value);
+			if (text != entry.expected) {
+				const double oursParsed = std::strtod(text.c_str(), nullptr);
+				const double expectedParsed = std::strtod(entry.expected, nullptr);
+				assert(toDoubleBits(oursParsed) == entry.bits);
+				assert(toDoubleBits(expectedParsed) == entry.bits);
+				assert(isDecimalTieEquivalent(text, entry.expected));
+			}
+			const double parsed = stringToDouble(entry.expected);
+			uint64_t parsedBits = toDoubleBits(parsed);
+			assert(parsedBits == entry.bits);
+			const double roundTrip = stringToDouble(text);
+			parsedBits = toDoubleBits(roundTrip);
+			assert(parsedBits == entry.bits);
+		}
+	}
+
+
+	{
+		struct FragileFloatCase {
+			uint32_t bits;
+			const char* expected;
+			const char* source;
+		};
+		static const FragileFloatCase kFragileFloatCases[] = {
+			{ 0x00000000u, "0.0", "0.0" },
+			{ 0x00000001u, "1.0e-45", "1.0e-45" },
+			{ 0x00000002u, "3.0e-45", "3.0e-45" },
+			{ 0x007ffffeu, "1.1754941e-38", "1.1754941e-38" },
+			{ 0x007fffffu, "1.1754942e-38", "1.1754942e-38" },
+			{ 0x00800000u, "1.1754944e-38", "1.1754944e-38" },
+			{ 0x00800001u, "1.1754945e-38", "1.1754945e-38" },
+			{ 0x33d6bf94u, "9.9999994e-8", "9.9999994e-8" },
+			{ 0x33d6bf96u, "1.0000001e-7", "1.0000001e-7" },
+			{ 0x358637bcu, "9.999999e-7", "9.999999e-7" },
+			{ 0x358637beu, "0.0000010000001", "0.0000010000001" },
+			{ 0x501502f8u, "9999999000.0", "9999999000.0" },
+			{ 0x501502fau, "1.0000001e+10", "1.0000001e+10" },
+			// Just below powers of two (rounding carry into exponent)
+			{ 0x3f7fffffu, "0.99999994", "0.99999994" },
+			{ 0x3fffffffu, "1.9999999", "1.9999999" },
+			{ 0x407fffffu, "3.9999998", "3.9999998" },
+			{ 0x40ffffffu, "7.9999995", "7.9999995" },
+			{ 0x417fffffu, "15.999999", "15.999999" },
+			{ 0x427fffffu, "63.999996", "63.999996" },
+			// Force-overflow parse probes: long decimals that round up at power-of-two boundaries
+			{ 0x3f800000u, "1.0", "0.9999999701976776123046875" },
+			{ 0x40000000u, "2.0", "1.999999940395355224609375" },
+			{ 0x40800000u, "4.0", "3.99999988079071044921875" },
+			{ 0x41000000u, "8.0", "7.9999997615814208984375" },
+			{ 0x7f800000u, "inf", "inf" },
+			{ 0x80000001u, "-1.0e-45", "-1.0e-45" },
+			{ 0x80000002u, "-3.0e-45", "-3.0e-45" },
+			{ 0x807ffffeu, "-1.1754941e-38", "-1.1754941e-38" },
+			{ 0x807fffffu, "-1.1754942e-38", "-1.1754942e-38" },
+			{ 0x80800000u, "-1.1754944e-38", "-1.1754944e-38" },
+			{ 0x80800001u, "-1.1754945e-38", "-1.1754945e-38" },
+			{ 0x8d2eaca7u, "-5.382571e-31", "-5.382571e-31" },
+			{ 0x95ae43feu, "-7.0385313e-26", "-7.0385313e-26" },
+			{ 0xb3d6bf94u, "-9.9999994e-8", "-9.9999994e-8" },
+			{ 0xb3d6bf96u, "-1.0000001e-7", "-1.0000001e-7" },
+			{ 0xb58637bcu, "-9.999999e-7", "-9.999999e-7" },
+			{ 0xb58637beu, "-0.0000010000001", "-0.0000010000001" },
+			{ 0xd01502f8u, "-9999999000.0", "-9999999000.0" },
+			{ 0xd01502fau, "-1.0000001e+10", "-1.0000001e+10" },
+			{ 0xeb000000u, "-1.5474251e+26", "-1.5474251e+26" },
+			{ 0xd3329163u, "-7.6694336e+11", "-7.669433611830981e+11" },
+			{ 0xff800000u, "-inf", "-inf" },
+		};
+		auto toFloatBits = [](float number) -> uint32_t {
+			uint32_t bits = 0;
+			std::memcpy(&bits, &number, sizeof bits);
+			return bits;
+		};
+		for (const FragileFloatCase& entry : kFragileFloatCases) {
+			float value;
+			std::memcpy(&value, &entry.bits, sizeof value);
+			const String text = floatToString(value);
+			if (text != entry.expected) {
+				const float oursParsed = std::strtof(text.c_str(), nullptr);
+				const float expectedParsed = std::strtof(entry.expected, nullptr);
+				assert(toFloatBits(oursParsed) == entry.bits);
+				assert(toFloatBits(expectedParsed) == entry.bits);
+				assert(isDecimalTieEquivalent(text, entry.expected));
+			}
+			const float parsed = stringToFloat(entry.expected);
+			uint32_t parsedBits = toFloatBits(parsed);
+			assert(parsedBits == entry.bits);
+			if (entry.source && entry.source[0]) {
+				const float parsedSource = stringToFloat(entry.source);
+				parsedBits = toFloatBits(parsedSource);
+				assert(parsedBits == entry.bits);
+			}
+			const float roundTrip = stringToFloat(text);
+			parsedBits = toFloatBits(roundTrip);
+			assert(parsedBits == entry.bits);
+		}
+	}
+
 
 	assert(floatToString(0.0f) == "0.0");
 	assert(stringToFloat("0.0") == 0.0f);
