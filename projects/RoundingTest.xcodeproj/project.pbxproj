@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		F710CF572E71A92000A9CC8D /* Numbstrict.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F710CF562E71A92000A9CC8D /* Numbstrict.cpp */; };
-		F77980412E75AC6C0054250F /* compareWithRyu.cpp in Sources */ = {isa = PBXBuildFile; fileRef = F77980402E75AC6C0054250F /* compareWithRyu.cpp */; };
 		F77980542E75ACF00054250F /* s2d.c in Sources */ = {isa = PBXBuildFile; fileRef = F77980522E75ACF00054250F /* s2d.c */; };
 		F77980552E75ACF00054250F /* generic_128.c in Sources */ = {isa = PBXBuildFile; fileRef = F779804E2E75ACF00054250F /* generic_128.c */; };
 		F77980562E75ACF00054250F /* d2fixed.c in Sources */ = {isa = PBXBuildFile; fileRef = F77980432E75ACF00054250F /* d2fixed.c */; };
@@ -34,7 +33,6 @@
 		F710CF552E71A92000A9CC8D /* Numbstrict.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = Numbstrict.h; path = ../src/Numbstrict.h; sourceTree = SOURCE_ROOT; };
 		F710CF562E71A92000A9CC8D /* Numbstrict.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = Numbstrict.cpp; path = ../src/Numbstrict.cpp; sourceTree = SOURCE_ROOT; };
 		F710CF582E71A92A00A9CC8D /* RoundingTest.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = RoundingTest.cpp; sourceTree = "<group>"; };
-		F77980402E75AC6C0054250F /* compareWithRyu.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = compareWithRyu.cpp; path = ../tests/compareWithRyu.cpp; sourceTree = SOURCE_ROOT; };
 		F77980422E75ACF00054250F /* common.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = common.h; path = ../externals/ryu/ryu/common.h; sourceTree = SOURCE_ROOT; };
 		F77980432E75ACF00054250F /* d2fixed.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; name = d2fixed.c; path = ../externals/ryu/ryu/d2fixed.c; sourceTree = SOURCE_ROOT; };
 		F77980442E75ACF00054250F /* d2fixed_full_table.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = d2fixed_full_table.h; path = ../externals/ryu/ryu/d2fixed_full_table.h; sourceTree = SOURCE_ROOT; };
@@ -87,7 +85,6 @@
 				F77980512E75ACF00054250F /* ryu_parse.h */,
 				F77980522E75ACF00054250F /* s2d.c */,
 				F77980532E75ACF00054250F /* s2f.c */,
-				F77980402E75AC6C0054250F /* compareWithRyu.cpp */,
 				F710CF552E71A92000A9CC8D /* Numbstrict.h */,
 				F710CF562E71A92000A9CC8D /* Numbstrict.cpp */,
 				F710CF582E71A92A00A9CC8D /* RoundingTest.cpp */,
@@ -162,10 +159,9 @@
 		F710CF472E71A6D300A9CC8D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
-			files = (
-				F77980412E75AC6C0054250F /* compareWithRyu.cpp in Sources */,
-				F710CF572E71A92000A9CC8D /* Numbstrict.cpp in Sources */,
-				F77980542E75ACF00054250F /* s2d.c in Sources */,
+                        files = (
+                                F710CF572E71A92000A9CC8D /* Numbstrict.cpp in Sources */,
+                                F77980542E75ACF00054250F /* s2d.c in Sources */,
 				F77980552E75ACF00054250F /* generic_128.c in Sources */,
 				F77980562E75ACF00054250F /* d2fixed.c in Sources */,
 				F77980572E75ACF00054250F /* d2s.c in Sources */,
