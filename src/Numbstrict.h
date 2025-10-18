@@ -8,10 +8,10 @@
 #include <exception>
 #include <memory>
 #include <cstdint>
+#include <ostream>	// for std::basic_ostream and iostream state used by operator<<
 
 namespace Numbstrict {
 
-class Element;
 class Parser;
 typedef char Char;
 typedef unsigned char UChar;
@@ -20,9 +20,8 @@ typedef std::basic_string<Char> String;	// notice: not utf8, assumed ISO-8859-1!
 typedef std::basic_string<WideChar> WideString;
 typedef std::basic_string<Char>::const_iterator StringIt;
 typedef std::basic_string<WideChar>::const_iterator WideStringIt;
-typedef std::vector<Element> Array;
-typedef std::map<String, Element> Struct;	// standard struct handles only iso-8859-1 keys
-typedef std::map<WideString, Element> WideStruct;	// a wide struct can handle any unicode keys
+typedef std::pair<String, String> SourceAndFile;
+typedef std::pair<int, int> LineAndColumn;
 
 struct Exception : public std::exception { virtual ~Exception() throw() { } };
 
@@ -63,8 +62,54 @@ class ParsingError : public Exception {
 		const size_t offset;
 		const int line;
 		const int column;
-		mutable std::string errorString;
+	mutable std::string errorString;
 };
+
+/**
+	An Element represents the entire source code text or a partially parsed or composed piece of it. It maintains a
+	shared pointer to the original source String (and optional filename) and iterators that designates a range within
+	that source.
+
+	Use to<type>() to attempt parsing the Element source code into one of the supported types: Array, Struct, String,
+	WideString, double, float, int, bool and Variant.
+
+	Use one of the overloaded global compose() functions to create an Element from one of the supported types.
+	
+	Use code() to extract the Numbstrict source code string or substring for this element.
+
+	An Element can be used to construct a Parser object for more parsing options, e.g. for parsing without throwing an
+	exception on error.
+**/
+class Element {
+	public:
+		Element() { }
+		Element(const String& code, const String& filename = String())
+				: s(std::make_shared<SourceAndFile>(code, filename)), b(s->first.begin()), e(s->first.end()) { }
+		Element(const Element& parent, const StringIt begin, const StringIt end) : s(parent.s), b(begin), e(end) { }
+		bool exists() const { return static_cast<bool>(s); }
+		StringIt begin() const { assert(exists()); return b; }
+		StringIt end() const { assert(exists()); return e; }
+		template<typename T> T to() const;
+		template<typename T> T toOptional(const T& defaultValue = T()) const;
+		template<typename T> bool tryToParse(T& target) const;       // expects convertible to `T`; false on failure
+		template<typename T> bool tryToParseQuoted(T& target) const;
+		template<typename T> bool tryToParseBracketed(T& target) const;
+		String code() const { if (!exists()) { throw UndefinedElementError(); }; return String(b, e); }
+		String optionalCode(const String& defaultCode = String()) const { return (!exists() ? defaultCode : code()); }
+		String filename() const { assert(exists()); return s->second; }
+		size_t offset(const StringIt p) const { assert(exists()); return p - s->first.begin(); }	// `p` = source iterator
+		LineAndColumn lineAndColumn(StringIt p) const;	// `p` = source iterator
+	
+	protected:
+		std::shared_ptr<SourceAndFile> s;
+		StringIt b;
+		StringIt e;
+};
+
+// Now that Element is a complete type, containers of Element are well-formed.
+typedef std::vector<Element> Array;
+typedef std::map<String, Element> Struct;	// standard struct handles only iso-8859-1 keys
+typedef std::map<WideString, Element> WideStruct;	// a wide struct can handle any unicode keys
 
 /**
 	Notice that type is deduced from text contents and there may be ambiguities, e.g. an empty struct might be
@@ -94,48 +139,6 @@ struct Variant {
 	};
 };
 
-typedef std::pair<String, String> SourceAndFile;
-typedef std::pair<int, int> LineAndColumn;
-
-/**
-	An Element represents the entire source code text or a partially parsed or composed piece of it. It maintains a
-	shared pointer to the original source String (and optional filename) and iterators that designates a range within
-	that source.
-
-	Use to<type>() to attempt parsing the Element source code into one of the supported types: Array, Struct, String,
-	WideString, double, float, int, bool and Variant.
-
-	Use one of the overloaded global compose() functions to create an Element from one of the supported types.
-	
-	Use code() to extract the Numbstrict source code string or substring for this element.
-
-	An Element can be used to construct a Parser object for more parsing options, e.g. for parsing without throwing an
-	exception on error.
-**/
-class Element {
-	public:
-		Element() { }
-		Element(const String& code, const String& filename = String())
-				: s(std::make_shared<SourceAndFile>(code, filename)), b(s->first.begin()), e(s->first.end()) { }
-		Element(const Element& parent, const StringIt begin, const StringIt end) : s(parent.s), b(begin), e(end) { }
-		bool exists() const { return static_cast<bool>(s); }
-		StringIt begin() const { assert(exists()); return b; }
-		StringIt end() const { assert(exists()); return e; }
-		template<typename T> T to() const;
-		template<typename T> T toOptional(const T& defaultValue = T()) const;
-		template<typename T> bool tryToParse(T& target) const;       // expects convertible to `T`; false on failure
-		String code() const { if (!exists()) { throw UndefinedElementError(); }; return String(b, e); }
-		String optionalCode(const String& defaultCode = String()) const { return (!exists() ? defaultCode : code()); }
-		String filename() const { assert(exists()); return s->second; }
-		size_t offset(const StringIt p) const { assert(exists()); return p - s->first.begin(); }    // `p` = source iterator
-		LineAndColumn lineAndColumn(StringIt p) const;                // `p` = source iterator
-	
-	protected:
-		std::shared_ptr<SourceAndFile> s;
-		StringIt b;
-		StringIt e;
-};
-
 class Parser {
 	friend bool unitTest();
 	
@@ -143,8 +146,9 @@ class Parser {
 		Parser(const Element& source);
 		StringIt getFailPoint() const;
 
-		// Parses whitespaces and comments and returns true if entire string was parsed.
-		bool isEmpty();
+		bool isEmpty();		// Parses whitespaces and comments and returns true if entire string was parsed.
+		bool isBracketed();	// Parses whitespaces and comments and returns true if next character is '{'.
+		bool isQuoted();	// Parses whitespaces and comments and returns true if next character is " or '.
 
 		bool tryToParse(Array& toArray);	// expects '{ }' array; false on failure
 		bool tryToParse(Struct& toStruct);	// expects '{ : }' struct; false on failure
@@ -233,6 +237,22 @@ template<typename T> bool Element::tryToParse(T& target) const { // expects conv
 		throw UndefinedElementError();
 	}
 	return Parser(*this).tryToParse(target);
+}
+
+template<typename T> bool Element::tryToParseQuoted(T& target) const {
+	if (!exists()) {
+		throw UndefinedElementError();
+	}
+	Parser parser(*this);
+	return parser.isQuoted() && parser.tryToParse(target);
+}
+
+template<typename T> bool Element::tryToParseBracketed(T& target) const {
+	if (!exists()) {
+		throw UndefinedElementError();
+	}
+	Parser parser(*this);
+	return parser.isBracketed() && parser.tryToParse(target);
 }
 
 template<typename T> bool Parser::tryToParse(std::vector<T>& toVector) { // expects '{ }' array; false on failure
@@ -344,6 +364,7 @@ String floatToString(float value);
 float stringToFloat(const String& s, size_t* nextOffset = 0);
 String doubleToString(double value);
 double stringToDouble(const String& s, size_t* nextOffset = 0);
+
 
 String quoteString(const String& s, Char quoteChar = '\"');
 String unquoteString(const String& s, size_t* nextOffset = 0);

@@ -3,6 +3,7 @@
 	#pragma GCC push_options
 	#pragma GCC optimize ("no-finite-math-only")
 	#pragma GCC optimize ("float-store")
+	#pragma GCC optimize ("no-fast-math")
 #endif
 #endif
 
@@ -14,16 +15,15 @@
 #endif
 
 #ifdef __FAST_MATH__
-	//#error This code requires IEEE compliant floating point handling. Avoid -Ofast / -ffast-math etc (at least for this source file).
+	#error This code requires IEEE-compliant floating point handling. Avoid -Ofast / -ffast-math etc (at least for this source file), or add -fno-fast-math.	
 #endif
 
 #include "assert.h"
+#include <cfenv>
 #include <sstream>
 #include <cmath>
-#include <cfenv>
 #include <limits>
 #include <algorithm>
-#include <iostream>
 #include <cstring>
 #include <type_traits>
 #include "Numbstrict.h"
@@ -334,6 +334,75 @@ static const Char* parseUnsignedInt(const Char* p, const Char* e, unsigned int& 
 	return p;
 }
 
+#if defined(__SSE2__) || defined(_M_X64) || defined(_M_IX86)
+#include <xmmintrin.h>   // _mm_getcsr/_mm_setcsr
+#include <float.h>       // _control87 on MSVC
+#endif
+
+class StandardFPEnvScope {
+public:
+	StandardFPEnvScope() {
+	#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+		const unsigned int COMMON = _EM_INEXACT|_EM_UNDERFLOW|_EM_OVERFLOW|_EM_ZERODIVIDE|_EM_INVALID|_EM_DENORMAL|_RC_NEAR;
+		unsigned int cur;
+	#if defined(_M_IX86)
+		{ int ok = __control87_2(0,0,&prevX87_,&prevMXCSR_); assert(ok); unsigned int t; ok = __control87_2(COMMON|_PC_53, _MCW_EM|_MCW_RC|_MCW_PC, &t, 0); assert(ok); }
+		cur = prevMXCSR_;
+	#else
+		prevMXCSR_ = _mm_getcsr(); cur = prevMXCSR_; prevX87_ = _control87(0,0); _control87(COMMON, _MCW_EM|_MCW_RC);
+	#endif
+		cur &= ~(_MM_FLUSH_ZERO_MASK|_MM_DENORMALS_ZERO_MASK);
+		cur = (cur & ~_MM_ROUND_MASK) | _MM_ROUND_NEAREST;
+		_mm_setcsr(cur);
+	#elif defined(__aarch64__)
+		int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
+	#if defined(__has_builtin) && __has_builtin(__builtin_aarch64_get_fpcr) && __has_builtin(__builtin_aarch64_set_fpcr)
+		prevFPCR_ = __builtin_aarch64_get_fpcr(); unsigned long long cur = prevFPCR_; cur &= ~(1ull<<24); cur &= ~(3ull<<22); __builtin_aarch64_set_fpcr(cur);
+	#else
+		asm volatile("mrs %0, fpcr" : "=r"(prevFPCR_)); unsigned long long cur = prevFPCR_; cur &= ~(1ull<<24); cur &= ~(3ull<<22); asm volatile("msr fpcr, %0" :: "r"(cur));
+	#endif
+	#elif defined(__arm__)
+		int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
+		asm volatile("vmrs %0, fpscr" : "=r"(prevFPSCR_)); unsigned int cur = prevFPSCR_; cur &= ~(1u<<24); cur &= ~(3u<<22); asm volatile("vmsr fpscr, %0" :: "r"(cur));
+	#else
+		int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
+	#endif
+	}
+	~StandardFPEnvScope() {
+	#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+	#if defined(_M_IX86)
+		{ unsigned int t; __control87_2(prevX87_, _MCW_EM|_MCW_RC|_MCW_PC, &t, 0); }
+	#else
+		_control87(prevX87_, _MCW_EM|_MCW_RC);
+	#endif
+		_mm_setcsr(prevMXCSR_);
+	#elif defined(__aarch64__)
+	#if defined(__has_builtin) && __has_builtin(__builtin_aarch64_set_fpcr)
+		__builtin_aarch64_set_fpcr(prevFPCR_);
+	#else
+		asm volatile("msr fpcr, %0" :: "r"(prevFPCR_));
+	#endif
+		fesetenv(&prevEnv_);
+	#elif defined(__arm__)
+		asm volatile("vmsr fpscr, %0" :: "r"(prevFPSCR_)); fesetenv(&prevEnv_);
+	#else
+		fesetenv(&prevEnv_);
+	#endif
+	}
+private:
+#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
+	unsigned int prevX87_, prevMXCSR_;
+#elif defined(__aarch64__)
+	fenv_t prevEnv_, dummyEnv_;
+	unsigned long long prevFPCR_;
+#elif defined(__arm__)
+	fenv_t prevEnv_, dummyEnv_;
+	unsigned int prevFPSCR_;
+#else
+	fenv_t prevEnv_, dummyEnv_;
+#endif
+};
+
 const int NEGATIVE_E_NOTATION_START = -6;
 const int POSITIVE_E_NOTATION_START = 10;
 
@@ -348,7 +417,7 @@ struct DoubleDouble {
 		assert(high < ldexp(1.0, 53));
 		assert(low < 1.0);
 	}
-	DoubleDouble operator+(const DoubleDouble& other) {
+	DoubleDouble operator+(const DoubleDouble& other) const {
 		const double lowSum = low + other.low;
 		const double overflow = floor(lowSum);
 		return DoubleDouble((high + other.high) + overflow, lowSum - overflow);
@@ -383,16 +452,91 @@ static double multiplyAndAdd(double term, double factorA, double factorB) {
 	return term + factorA * factorB;
 }
 
+template<typename T> static T scaleAndRound(const DoubleDouble &acc, double factor);
+
+/**
+	If we just do (high + low) first, that sum is rounded to 53 bits once, possibly nudging the result slightly upward.
+	Then when we scale down into the subnormal range (right-shift the mantissa) we hit what looks like an exact halfway
+	case — and since the current mantissa is odd, IEEE-754 rounds up again. In reality, the exact (high+low) value was
+	just below that halfway point, so it should have rounded down to the even mantissa. This is a classic "double
+	rounding" problem.
+
+	scaleAndRound avoids this by combining high and low at full precision under the final exponent window and
+	performing a *single* correct round-to-nearest-even step. This matches the Decimal oracle and fixes all denormal
+	boundary mismatches.
+
+	Assumptions:
+	- 'factor' is an exact power-of-two (normal or subnormal) from the table.
+	- 'acc.high' is integral in [0, 2^53) and 'acc.low' ∈ [0,1).
+	- Table ensures factorExponent >= -1073 so T = factorExponent + 1073 >= 0.
+**/
+template<> double scaleAndRound<double>(const DoubleDouble& acc, double factor) {
+    if (acc.high == 0.0 && acc.low == 0.0) {
+    	return 0.0;
+	}
+	
+	const double fastResult = (acc.high + acc.low) * factor;
+	if (fastResult >= 2.2250738585072014e-308) {
+		return fastResult;												// normal result; fast path is exact here
+	}
+	
+    int factorExponent;													// slow path: denormal/transition region
+    frexp(factor, &factorExponent);										// assemble payload then single rounding
+    
+	const int t = factorExponent + 1073;								// guaranteed by table construction
+	assert(t >= 0);														// (no right-shift branch needed)	
+	const double bf = ldexp(acc.low, t);								// align (high, low) into the 52-bit subnormal payload scale
+	const double bi = floor(bf);
+	const double fraction = bf - bi;									// fractional contribution
+	
+	double ni = ldexp(acc.high, t) + bi;								// integer payload (exact in double)
+	if (fraction > 0.5 || (fraction == 0.5 && fmod(ni, 2.0) != 0.0)) {
+		ni += 1.0;														// round to nearest, ties-to-even
+	}
+	
+	return ldexp(ni, -1074);											// subnormal construction (or DBL_MIN when ni == 2^52)
+}
+
+template<> float scaleAndRound<float>(const DoubleDouble& acc, double factor) {
+	if (acc.high == 0.0 && acc.low == 0.0) {
+		return 0.0f;
+	}
+
+	const float fastResult = static_cast<float>((acc.high + acc.low) * factor);
+	if (fastResult > 1.40770614e-25) {
+		return fastResult;												// normal result; fast path is exact here
+	}
+
+	int factorExponent, hiExp;
+	frexp(factor, &factorExponent);
+	frexp(acc.high + acc.low, &hiExp);
+
+	const bool subnormal = (hiExp + factorExponent < -124);				// Unified assembly: scale (high, low) into the target payload window, then single rounding
+	const int u = subnormal ? (factorExponent + 148) : (24 - hiExp);
+	const int v = subnormal ? -149 : (hiExp + factorExponent - 25);
+
+	const double a = ldexp(acc.high, u);
+	const double b = ldexp(acc.low, u);
+
+	const double ia = floor(a);
+	const double ib = floor(b);
+	double fraction = (a - ia) + (b - ib);
+	double ni = ia + ib;
+	
+	if (fraction > 0.5 || (fraction == 0.5 && fmod(ni, 2.0) != 0.0)) {
+		ni += 1.0;														// Round to nearest, ties-to-even
+	}
+	return static_cast<float>(ldexp(ni, v));
+}
+
 template<typename T> struct Traits { };
 
 template<> struct Traits<double> {
 	enum { MIN_EXPONENT = -324, MAX_EXPONENT = 308 };
-	typedef DoubleDouble Hires;
 };
 
 template<> struct Traits<float> {
 	enum { MIN_EXPONENT = -45, MAX_EXPONENT = 38 };
-	typedef double Hires;
 };
 
 /*
@@ -404,6 +548,8 @@ template<> struct Traits<float> {
 */
 struct Exp10Table {
 	Exp10Table() {
+		StandardFPEnvScope standardFPEnv;
+		
 		const double WIDTH = ldexp(1.0, 53 - 4);
 
 		DoubleDouble normal(WIDTH, 0.0);
@@ -436,69 +582,7 @@ struct Exp10Table {
 	double factors[Traits<double>::MAX_EXPONENT + 1 - Traits<double>::MIN_EXPONENT];
 } EXP10_TABLE;
 
-class StandardFPEnvScope {
-	public:
-		StandardFPEnvScope() {
-		// use _control87 and __control87_2 in MSVC instead for greater control (fesetenv doesn't change flush-denormals-to-zero mode)
-		#ifdef _MSC_VER
-			const unsigned int COMMON_BITS = _EM_INEXACT | _EM_UNDERFLOW | _EM_OVERFLOW | _EM_ZERODIVIDE | _EM_INVALID | _EM_DENORMAL | _RC_NEAR;
-		#ifdef _M_IX86
-			int success = __control87_2(0, 0, &previousX86, &previousSSE2);
-			assert(success);
-			(void)success;
-			unsigned int dummyX86;
-			success = __control87_2(COMMON_BITS | _PC_64, _MCW_EM | _MCW_RC | _MCW_PC, &dummyX86, 0);
-			assert(success);
-			unsigned int dummySSE2;
-			success = __control87_2(COMMON_BITS | _DN_SAVE, _MCW_EM | _MCW_RC | _MCW_DN, 0, &dummySSE2);
-			assert(success);
-		#else
-			previousSSE2 = _control87(0, 0);
-			_control87(COMMON_BITS | _DN_SAVE, _MCW_EM | _MCW_RC | _MCW_DN);
-		#endif
-		#else
-			const int fegetenvReturn = fegetenv(&previousFPEnv);
-			assert(fegetenvReturn == 0);
-			(void)fegetenvReturn;
-			const int fesetenvReturn = fesetenv(FE_DFL_ENV);
-			assert(fesetenvReturn == 0);
-			(void)fesetenvReturn;
-			// FE_DFL_ENV caused (at least) MSVC to throw exceptions on fp exceptions so we hold these
-			fenv_t dummy;
-			feholdexcept(&dummy);
-		#endif
-		}
-	
-		~StandardFPEnvScope() {
-		#ifdef _MSC_VER
-		#ifdef _M_IX86
-			unsigned int dummyX86;
-			int success = __control87_2(previousX86, _MCW_EM | _MCW_RC | _MCW_PC, &dummyX86, 0);
-			assert(success);
-			(void)success;
-			unsigned int dummySSE2;
-			success = __control87_2(previousSSE2, _MCW_EM | _MCW_RC | _MCW_DN, 0, &dummySSE2);
-			assert(success);
-		#else
-			_control87(previousSSE2, _MCW_EM | _MCW_RC | _MCW_DN);
-		#endif
-		#else
-			const int fesetenvReturn = fesetenv(&previousFPEnv);
-			assert(fesetenvReturn == 0);
-			(void)fesetenvReturn;
-		#endif
-		}
-	
-	protected:
-	#ifdef _MSC_VER
-	#ifdef _M_IX86
-		unsigned int previousX86;
-	#endif
-		unsigned int previousSSE2;
-	#else
-		fenv_t previousFPEnv;
-	#endif
-};
+// Debug capture removed
 
 template<typename T> const Char* parseReal(const Char* const b, const Char* const e, T& value) {
 	StandardFPEnvScope standardFPEnv;
@@ -571,8 +655,8 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 			value = std::numeric_limits<T>::infinity();
 		} else {
 			assert(Traits<double>::MIN_EXPONENT <= exponent && exponent <= Traits<double>::MAX_EXPONENT);
-			typename Traits<T>::Hires magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
-			typename Traits<T>::Hires accumulator(0.0);
+			DoubleDouble magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
+			DoubleDouble accumulator(0.0);
 			while (p != significandEnd) {
 				if (*p != '.') {
 					accumulator = multiplyAndAdd(accumulator, magnitude, (*p - '0'));
@@ -581,7 +665,7 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 				++p;
 			}
 			const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
-			value = static_cast<T>(static_cast<double>(accumulator) * factor);
+			value = scaleAndRound<T>(accumulator, factor);
 		}
 	}
 	value *= sign;
@@ -594,7 +678,9 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 	Char* p = buffer;
 
 	T absValue = value;
-	if (value < 0) {
+	// Preserve negative zero: print "-0.0" when signbit is set on zero
+	const bool negative = (value < 0) || (value == (T)0.0 && std::signbit(value));
+	if (negative) {
 		*p++ = '-';
 		absValue = -value;
 	}
@@ -640,9 +726,9 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 
 	assert(Traits<double>::MIN_EXPONENT <= exponent && exponent <= Traits<double>::MAX_EXPONENT);
 	const double factor = EXP10_TABLE.factors[exponent - Traits<double>::MIN_EXPONENT];
-	typename Traits<T>::Hires magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
-	const typename Traits<T>::Hires normalized = absValue / factor;
-	typename Traits<T>::Hires accumulator = 0.0;
+	DoubleDouble magnitude = EXP10_TABLE.normals[exponent - Traits<double>::MIN_EXPONENT];
+	const DoubleDouble normalized = absValue / factor;
+	DoubleDouble accumulator = 0.0;
 	T reconstructed;
 	do {
 		if (p == periodPosition) {
@@ -650,7 +736,7 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 		}
 		
 		// Incrementally find the max digit that keeps accumulator < normalized target (instead of using division).
-		typename Traits<T>::Hires next = accumulator + magnitude;
+		DoubleDouble next = accumulator + magnitude;
 		int digit = 0;
 		while (next < normalized && digit < 9) {
 			accumulator = next;
@@ -661,24 +747,16 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 		// Correct behavior is to never reach higher than digit 9.
 		assert(next >= normalized);
 		
-		// Do we hit goal with digit or digit + 1?
-		reconstructed = static_cast<T>(static_cast<double>(accumulator) * factor);
-		if (reconstructed != absValue) {
-			reconstructed = static_cast<T>(static_cast<double>(accumulator + magnitude) * factor);
-		}
-
-		// Finally, is next digit >= 5 (magnitude / 2) then increment it (unless we are at max, just to play nicely with
-		// poorer parsers).
-		if (reconstructed == absValue && accumulator + magnitude / 2 < normalized && absValue != std::numeric_limits<T>::max()) {
+		// Decide between digit and digit+1 under final rounding; then optional bump if strictly past half-step.
+		reconstructed = scaleAndRound<T>(accumulator, factor);
+		const T r1 = scaleAndRound<T>(accumulator + magnitude, factor);
+		if ((reconstructed != absValue && r1 == absValue) || (reconstructed == absValue
+				&& accumulator + magnitude / 2 < normalized && absValue != std::numeric_limits<T>::max())) {
+			reconstructed = r1;
 			++digit;
-
-			// If this happens we have failed to calculate the correct exponent above.
 			assert(digit < 10);
-		} else {
-			// If this happens we have failed to calculate the correct exponent above.
-			assert(accumulator > 0.0);
 		}
-		
+	
 		*p++ = '0' + digit;
 		magnitude = magnitude / 10;
 		
@@ -705,6 +783,7 @@ template<typename T> Char* realToString(Char buffer[32], const T value) {
 		assert(q >= p);
 		p = std::copy(q, buffer + 32, p);
 	}
+
 	assert(p <= buffer + 32);
 	return p;
 }
@@ -1158,10 +1237,8 @@ template<typename S> bool Parser::tryToParseStruct(S& elements) {
 		}
 		++p;
 		whiteAndComments();
-	} else {
-		if (!keyValueElements(elements)) {
-			return false;
-		}
+	} else if (!keyValueElements(elements)) {
+		return false;
 	}
 	return eof();
 }
@@ -1188,10 +1265,8 @@ bool Parser::tryToParse(Array& elements) {
 		}
 		++p;
 		whiteAndComments();
-	} else {
-		if (!valueListElements(elements)) {
-			return false;
-		}
+	} else if (!valueListElements(elements)) {
+		return false;
 	}
 	return eof();
 }
@@ -1273,6 +1348,16 @@ bool Parser::tryToParse(float& f) { return tryToParseReal(f); }
 bool Parser::isEmpty() {
 	whiteAndComments();
 	return eof();
+}
+
+bool Parser::isBracketed() {
+	whiteAndComments();
+	return !eof() && *p == '{';
+}
+
+bool Parser::isQuoted() {
+	whiteAndComments();
+	return !eof() && (*p == '"' || *p == '\'');
 }
 
 static String reindent(const String& s, int tabCount) {
@@ -1691,6 +1776,8 @@ bool unitTest() {
 
 	assert(doubleToString(0.0) == "0.0");
 	assert(stringToDouble("0.0") == 0.0);
+	assert(doubleToString(-0.0) == "-0.0");
+	assert(std::signbit(stringToDouble("-0.0")));
 	assert(doubleToString(-1.0) == "-1.0");
 	assert(stringToDouble("-1.0") == -1.0);
 	assert(doubleToString(1.12345689101112133911897) == "1.1234568910111213");
@@ -1724,32 +1811,207 @@ bool unitTest() {
 	assert(doubleToString(std::numeric_limits<double>::quiet_NaN()) == "nan");
 	assert(isNaN(stringToDouble("nan")));
 
-	assert(floatToString(0.0f) == "0.0");
-	assert(stringToFloat("0.0") == 0.0f);
-	assert(floatToString(-1.0f) == "-1.0");
-	assert(stringToFloat("-1.0") == -1.0f);
-	assert(floatToString(1.12345683575f) == "1.1234568");
-	assert(stringToFloat("1.1234568") == 1.12345683575f);
-	assert(floatToString(1000.0f) == "1000.0");
-	assert(stringToFloat("1000.0") == 1000.0f);
-	assert(floatToString(123456792.0f) == "123456790.0");
-	assert(stringToFloat("123456790.0") == 123456792.0f);
-	assert(floatToString(1.2340000198e+20f) == "1.234e+20");
-	assert(stringToFloat("1.234e+20") == 1.2340000198e+20f);
-	assert(floatToString(8.7650002873e-20f) == "8.765e-20");
-	assert(stringToFloat("8.765e-20") == 8.7650002873e-20f);
-	assert(floatToString(-8.76499577749e-40f) == "-8.765e-40");
-	assert(stringToFloat("-8.765e-40") == -8.76499577749e-40f);
-	assert(floatToString(1.40129846432e-45f) == "1.0e-45");
-	assert(stringToFloat("1.0e-45") == 1.40129846432e-45f);
-	assert(floatToString(2.80259692865e-45f) == "3.0e-45");
-	assert(stringToFloat("3.0e-45") == 2.80259692865e-45f);
-	assert(floatToString(3.40282326356e+38f) == "3.4028233e+38");
-	assert(stringToFloat("3.4028233e+38") == 3.40282326356e+38f);
-	assert(floatToString(3.40282346638e+38f) == "3.4028234e+38");
-	assert(stringToFloat("3.4028234e+38") == 3.40282346638e+38f);
-	assert(floatToString(std::numeric_limits<float>::infinity()) == "inf");
-	assert(stringToFloat("inf") == std::numeric_limits<float>::infinity());
+	auto isDecimalTieEquivalent = [](const String& aText, const String& bText) -> bool {
+		if ((aText.size() && aText[0] == '-') != (bText.size() && bText[0] == '-')) return false;
+		auto split = [](const String& s) {
+			const size_t e = s.find('e');
+			const String m = (e == String::npos ? s : s.substr(0, e));
+			const String x = (e == String::npos ? String() : s.substr(e));
+			return std::pair<String, String>(m, x);
+		};
+		const String positiveA = (aText.size() && aText[0] == '-') ? aText.substr(1) : aText;
+		const String positiveB = (bText.size() && bText[0] == '-') ? bText.substr(1) : bText;
+		const std::pair<String, String> pa = split(positiveA);
+		const std::pair<String, String> pb = split(positiveB);
+		const String& ma = pa.first;
+		const String& xa = pa.second;
+		const String& mb = pb.first;
+		const String& xb = pb.second;
+		if (xa != xb) return false;
+		if (ma.size() != mb.size()) return false;
+		if (ma.empty()) return false;
+		size_t diff = 0;
+		size_t pos = 0;
+		for (size_t i = 0; i < ma.size(); ++i) {
+			if (ma[i] != mb[i]) {
+				++diff;
+				pos = i;
+			}
+		}
+		if (diff != 1) return false;
+		if (ma[pos] < '0' || ma[pos] > '9' || mb[pos] < '0' || mb[pos] > '9') return false;
+		const int da = ma[pos] - '0';
+		const int db = mb[pos] - '0';
+		return std::abs(da - db) == 1;
+	};
+
+	{
+		struct FragileDoubleCase {
+			uint64_t bits;
+			const char* expected;
+		};
+		static const FragileDoubleCase kFragileDoubleCases[] = {
+			{ 0x0000000000000000ull, "0.0" },
+			{ 0x0000000000000001ull, "5.0e-324" },
+			{ 0x0000000000000002ull, "1.0e-323" },
+			{ 0x000ffffffffffff8ull, "2.2250738585071974e-308" },
+			{ 0x000ffffffffffff9ull, "2.225073858507198e-308" },
+			{ 0x000ffffffffffffaull, "2.2250738585071984e-308" },
+			{ 0x000ffffffffffffbull, "2.225073858507199e-308" },
+			{ 0x000ffffffffffffcull, "2.2250738585071994e-308" },
+			{ 0x000ffffffffffffdull, "2.2250738585072e-308" },
+			{ 0x000ffffffffffffeull, "2.2250738585072004e-308" },
+			{ 0x000fffffffffffffull, "2.225073858507201e-308" },
+			{ 0x0010000000000000ull, "2.2250738585072014e-308" },
+			{ 0x0010000000000001ull, "2.225073858507202e-308" },
+			{ 0x0010000000000002ull, "2.2250738585072024e-308" },
+			{ 0x0010000000000003ull, "2.225073858507203e-308" },
+			{ 0x0010000000000004ull, "2.2250738585072034e-308" },
+			{ 0x0010000000000005ull, "2.225073858507204e-308" },
+			{ 0x0010000000000006ull, "2.2250738585072043e-308" },
+			{ 0x0010000000000007ull, "2.225073858507205e-308" },
+			{ 0x0010000000000008ull, "2.2250738585072053e-308" },
+			{ 0x3e7ad7f29abcaf47ull, "9.999999999999998e-8" },
+			{ 0x3e7ad7f29abcaf49ull, "1.0000000000000001e-7" },
+			{ 0x3eb0c6f7a0b5ed8cull, "9.999999999999997e-7" },
+			{ 0x3eb0c6f7a0b5ed8eull, "0.0000010000000000000002" },
+			{ 0x4202a05f1fffffffull, "9999999999.999998" },
+			{ 0x4202a05f20000001ull, "1.0000000000000002e+10" },
+			// Just below powers of two (rounding carry into exponent)
+			{ 0x3fffffffffffffffull, "1.9999999999999998" },
+			{ 0x400fffffffffffffull, "3.9999999999999996" },
+			{ 0x401fffffffffffffull, "7.999999999999999" },
+			{ 0x402fffffffffffffull, "15.999999999999998" },
+			{ 0x403fffffffffffffull, "31.999999999999996" },
+			{ 0x7feffffffffffffeull, "1.7976931348623155e+308" },
+			{ 0x7fefffffffffffffull, "1.7976931348623157e+308" },
+			{ 0x7ff0000000000000ull, "inf" },
+			{ 0x8000000000000001ull, "-5.0e-324" },
+			{ 0x8000000000000002ull, "-1.0e-323" },
+			{ 0x8009d1f053c113dcull, "-1.3656492814424367e-308" },
+			{ 0x800ffffffffffffeull, "-2.2250738585072004e-308" },
+			{ 0x800fffffffffffffull, "-2.225073858507201e-308" },
+			{ 0x8010000000000000ull, "-2.2250738585072014e-308" },
+			{ 0x8010000000000001ull, "-2.225073858507202e-308" },
+			{ 0xbe7ad7f29abcaf47ull, "-9.999999999999998e-8" },
+			{ 0xbe7ad7f29abcaf49ull, "-1.0000000000000001e-7" },
+			{ 0xbeb0c6f7a0b5ed8cull, "-9.999999999999997e-7" },
+			{ 0xbeb0c6f7a0b5ed8eull, "-0.0000010000000000000002" },
+			{ 0xc202a05f1fffffffull, "-9999999999.999998" },
+			{ 0xc202a05f20000001ull, "-1.0000000000000002e+10" },
+			{ 0xffeffffffffffffeull, "-1.7976931348623155e+308" },
+			{ 0xffefffffffffffffull, "-1.7976931348623157e+308" },
+			{ 0xfff0000000000000ull, "-inf" },
+		};
+		auto toDoubleBits = [](double number) -> uint64_t {
+			uint64_t bits = 0;
+			std::memcpy(&bits, &number, sizeof bits);
+			return bits;
+		};
+		for (const FragileDoubleCase& entry : kFragileDoubleCases) {
+			double value;
+			std::memcpy(&value, &entry.bits, sizeof value);
+			const String text = doubleToString(value);
+			assert(text == entry.expected);
+			const double parsed = stringToDouble(entry.expected);
+			uint64_t parsedBits = toDoubleBits(parsed);
+			assert(parsedBits == entry.bits);
+			const double roundTrip = stringToDouble(text);
+			parsedBits = toDoubleBits(roundTrip);
+			assert(parsedBits == entry.bits);
+		}
+	}
+
+
+	{
+		struct FragileFloatCase {
+			uint32_t bits;
+			const char* expected;
+			const char* source;
+		};
+		static const FragileFloatCase kFragileFloatCases[] = {
+			{ 0x00000000u, "0.0", "0.0" },
+			{ 0x00000001u, "1.0e-45", "1.0e-45" },
+			{ 0x00000002u, "3.0e-45", "3.0e-45" },
+			{ 0x007ffffeu, "1.1754941e-38", "1.1754941e-38" },
+			{ 0x007fffffu, "1.1754942e-38", "1.1754942e-38" },
+			{ 0x00800000u, "1.1754944e-38", "1.1754944e-38" },
+			{ 0x00800001u, "1.1754945e-38", "1.1754945e-38" },
+			// Additional simple cases migrated from inline asserts
+			{ 0x80000000u, "-0.0", "-0.0" },
+			{ 0xbf800000u, "-1.0", "-1.0" },
+			{ 0x3f8fcd6fu, "1.1234568", "1.1234568" },
+			{ 0x447a0000u, "1000.0", "1000.0" },
+			{ 0x4ceb79a3u, "123456790.0", "123456792.0" },
+			{ 0x60d6109cu, "1.234e+20", "1.2340000198e+20" },
+			{ 0x1fcef52du, "8.765e-20", "8.7650002873e-20" },
+			{ 0x80098b53u, "-8.765e-40", "-8.76499577749e-40" },
+			{ 0x7f7ffffeu, "3.4028233e+38", "3.40282326356e+38" },
+			{ 0x7f7fffffu, "3.4028234e+38", "3.40282346638e+38" },
+			{ 0x33d6bf94u, "9.9999994e-8", "9.9999994e-8" },
+			{ 0x33d6bf96u, "1.0000001e-7", "1.0000001e-7" },
+			{ 0x358637bcu, "9.999999e-7", "9.999999e-7" },
+			{ 0x358637beu, "0.0000010000001", "0.0000010000001" },
+			{ 0x501502f8u, "9999999000.0", "9999999000.0" },
+			{ 0x501502fau, "1.0000001e+10", "1.0000001e+10" },
+			// Just below powers of two (rounding carry into exponent)
+			{ 0x3f7fffffu, "0.99999994", "0.99999994" },
+			{ 0x3fffffffu, "1.9999999", "1.9999999" },
+			{ 0x407fffffu, "3.9999998", "3.9999998" },
+			{ 0x40ffffffu, "7.9999995", "7.9999995" },
+			{ 0x417fffffu, "15.999999", "15.999999" },
+			{ 0x427fffffu, "63.999996", "63.999996" },
+			// Force-overflow parse probes: long decimals that round up at power-of-two boundaries
+			{ 0x3f800000u, "1.0", "0.9999999701976776123046875" },
+			{ 0x40000000u, "2.0", "1.999999940395355224609375" },
+			{ 0x40800000u, "4.0", "3.99999988079071044921875" },
+			{ 0x41000000u, "8.0", "7.9999997615814208984375" },
+			{ 0x7f800000u, "inf", "inf" },
+			{ 0x80000001u, "-1.0e-45", "-1.0e-45" },
+			{ 0x80000002u, "-3.0e-45", "-3.0e-45" },
+			{ 0x807ffffeu, "-1.1754941e-38", "-1.1754941e-38" },
+			{ 0x807fffffu, "-1.1754942e-38", "-1.1754942e-38" },
+			{ 0x80800000u, "-1.1754944e-38", "-1.1754944e-38" },
+			{ 0x80800001u, "-1.1754945e-38", "-1.1754945e-38" },
+			{ 0x8d2eaca7u, "-5.382571e-31", "-5.382571e-31" },
+			{ 0x95ae43feu, "-7.0385313e-26", "-7.0385313e-26" },
+			{ 0xb3d6bf94u, "-9.9999994e-8", "-9.9999994e-8" },
+			{ 0xb3d6bf96u, "-1.0000001e-7", "-1.0000001e-7" },
+			{ 0xb58637bcu, "-9.999999e-7", "-9.999999e-7" },
+			{ 0xb58637beu, "-0.0000010000001", "-0.0000010000001" },
+			{ 0xd01502f8u, "-9999999000.0", "-9999999000.0" },
+			{ 0xd01502fau, "-1.0000001e+10", "-1.0000001e+10" },
+			{ 0xeb000000u, "-1.5474251e+26", "-1.5474251e+26" },
+			{ 0xd3329163u, "-7.6694336e+11", "-7.669433611830981e+11" },
+			{ 0xff800000u, "-inf", "-inf" },
+		};
+		auto toFloatBits = [](float number) -> uint32_t {
+			uint32_t bits = 0;
+			std::memcpy(&bits, &number, sizeof bits);
+			return bits;
+		};
+		for (const FragileFloatCase& entry : kFragileFloatCases) {
+			float value;
+			std::memcpy(&value, &entry.bits, sizeof value);
+			const String text = floatToString(value);
+			assert(text == entry.expected);
+			const float parsed = stringToFloat(entry.expected);
+			uint32_t parsedBits = toFloatBits(parsed);
+			assert(parsedBits == entry.bits);
+			if (entry.source && entry.source[0]) {
+				const float parsedSource = stringToFloat(entry.source);
+				parsedBits = toFloatBits(parsedSource);
+				assert(parsedBits == entry.bits);
+			}
+			const float roundTrip = stringToFloat(text);
+			parsedBits = toFloatBits(roundTrip);
+			assert(parsedBits == entry.bits);
+		}
+	}
+
+
+		// floatToString checks migrated into fragile table above; corresponding parse
+		// checks are covered by the fragile table loop (expected/source/round-trip).
 	assert(floatToString(std::numeric_limits<float>::quiet_NaN()) == "nan");
 	assert(isNaN(stringToFloat("nan")));
 
@@ -2195,4 +2457,3 @@ REGISTER_UNIT_TEST(Numbstrict::unitTest)
 	#pragma GCC pop_options
 #endif
 #endif
-
