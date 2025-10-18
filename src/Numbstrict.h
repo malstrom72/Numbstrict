@@ -124,6 +124,8 @@ class Element {
 		template<typename T> T to() const;
 		template<typename T> T toOptional(const T& defaultValue = T()) const;
 		template<typename T> bool tryToParse(T& target) const;
+		template<typename T> bool tryToParseQuoted(T& target) const;
+		template<typename T> bool tryToParseBracketed(T& target) const;
 		String code() const { if (!exists()) { throw UndefinedElementError(); }; return String(b, e); }
 		String optionalCode(const String& defaultCode = String()) const { return (!exists() ? defaultCode : code()); }
 		String filename() const { assert(exists()); return s->second; }
@@ -143,8 +145,9 @@ class Parser {
 		Parser(const Element& source);
 		StringIt getFailPoint() const;
 
-		// Parses whitespaces and comments and returns true if entire string was parsed.
-		bool isEmpty();
+		bool isEmpty();		// Parses whitespaces and comments and returns true if entire string was parsed.
+		bool isBracketed();	// Parses whitespaces and comments and returns true if next character is '{'.
+		bool isQuoted();	// Parses whitespaces and comments and returns true if next character is " or '.
 
 		bool tryToParse(Array& toArray);
 		bool tryToParse(Struct& toStruct);
@@ -233,6 +236,22 @@ template<typename T> bool Element::tryToParse(T& target) const {
 		throw UndefinedElementError();
 	}
 	return Parser(*this).tryToParse(target);
+}
+
+template<typename T> bool Element::tryToParseQuoted(T& target) const {
+	if (!exists()) {
+		throw UndefinedElementError();
+	}
+	Parser parser(*this);
+	return parser.isQuoted() && parser.tryToParse(target);
+}
+
+template<typename T> bool Element::tryToParseBracketed(T& target) const {
+	if (!exists()) {
+		throw UndefinedElementError();
+	}
+	Parser parser(*this);
+	return parser.isBracketed() && parser.tryToParse(target);
 }
 
 template<typename T> bool Parser::tryToParse(std::vector<T>& toVector) {
