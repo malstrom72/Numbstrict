@@ -21,6 +21,11 @@
 #include "assert.h"
 #include <cfenv>
 #include <sstream>
+#include <cmath>
+#include <limits>
+#include <algorithm>
+#include <cstring>
+#include <type_traits>
 #include "Numbstrict.h"
 
 namespace Numbstrict {
