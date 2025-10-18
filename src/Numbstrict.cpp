@@ -19,18 +19,8 @@
 #endif
 
 #include "assert.h"
-#include <sstream>
-#include <cmath>
 #include <cfenv>
-#include <limits>
-#include <algorithm>
-#include <iostream>
-#include <cstring>
-#include <type_traits>
-#include <iomanip>
-#include <cstdint>
-#include <cstdlib>
-#include <utility>
+#include <sstream>
 #include "Numbstrict.h"
 
 namespace Numbstrict {
