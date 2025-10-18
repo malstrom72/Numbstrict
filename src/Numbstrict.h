@@ -65,9 +65,6 @@ class ParsingError : public Exception {
 	mutable std::string errorString;
 };
 
-typedef std::pair<String, String> SourceAndFile;
-typedef std::pair<int, int> LineAndColumn;
-
 /**
 	An Element represents the entire source code text or a partially parsed or composed piece of it. It maintains a
 	shared pointer to the original source String (and optional filename) and iterators that designates a range within
@@ -94,14 +91,14 @@ class Element {
 		StringIt end() const { assert(exists()); return e; }
 		template<typename T> T to() const;
 		template<typename T> T toOptional(const T& defaultValue = T()) const;
-		template<typename T> bool tryToParse(T& target) const;
+		template<typename T> bool tryToParse(T& target) const;       // expects convertible to `T`; false on failure
 		template<typename T> bool tryToParseQuoted(T& target) const;
 		template<typename T> bool tryToParseBracketed(T& target) const;
 		String code() const { if (!exists()) { throw UndefinedElementError(); }; return String(b, e); }
 		String optionalCode(const String& defaultCode = String()) const { return (!exists() ? defaultCode : code()); }
 		String filename() const { assert(exists()); return s->second; }
-		size_t offset(const StringIt p) const { assert(exists()); return p - s->first.begin(); }
-		LineAndColumn lineAndColumn(StringIt p) const;
+		size_t offset(const StringIt p) const { assert(exists()); return p - s->first.begin(); }	// `p` = source iterator
+		LineAndColumn lineAndColumn(StringIt p) const;	// `p` = source iterator
 	
 	protected:
 		std::shared_ptr<SourceAndFile> s;
