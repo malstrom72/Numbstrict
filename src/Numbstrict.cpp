@@ -3,6 +3,7 @@
 	#pragma GCC push_options
 	#pragma GCC optimize ("no-finite-math-only")
 	#pragma GCC optimize ("float-store")
+	#pragma GCC optimize ("no-fast-math")
 #endif
 #endif
 
@@ -14,7 +15,7 @@
 #endif
 
 #ifdef __FAST_MATH__
-	//#error This code requires IEEE compliant floating point handling. Avoid -Ofast / -ffast-math etc (at least for this source file).
+	#error This code requires IEEE-compliant floating point handling. Avoid -Ofast / -ffast-math etc (at least for this source file), or add -fno-fast-math.	
 #endif
 
 #include "assert.h"
@@ -1241,10 +1242,8 @@ template<typename S> bool Parser::tryToParseStruct(S& elements) {
 		}
 		++p;
 		whiteAndComments();
-	} else {
-		if (!keyValueElements(elements)) {
-			return false;
-		}
+	} else if (!keyValueElements(elements)) {
+		return false;
 	}
 	return eof();
 }
@@ -1271,10 +1270,8 @@ bool Parser::tryToParse(Array& elements) {
 		}
 		++p;
 		whiteAndComments();
-	} else {
-		if (!valueListElements(elements)) {
-			return false;
-		}
+	} else if (!valueListElements(elements)) {
+		return false;
 	}
 	return eof();
 }
@@ -1356,6 +1353,16 @@ bool Parser::tryToParse(float& f) { return tryToParseReal(f); }
 bool Parser::isEmpty() {
 	whiteAndComments();
 	return eof();
+}
+
+bool Parser::isBracketed() {
+	whiteAndComments();
+	return !eof() && *p == '{';
+}
+
+bool Parser::isQuoted() {
+	whiteAndComments();
+	return !eof() && (*p == '"' || *p == '\'');
 }
 
 static String reindent(const String& s, int tabCount) {
