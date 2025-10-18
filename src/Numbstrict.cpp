@@ -1912,13 +1912,7 @@ bool unitTest() {
 			double value;
 			std::memcpy(&value, &entry.bits, sizeof value);
 			const String text = doubleToString(value);
-			if (text != entry.expected) {
-				const double oursParsed = std::strtod(text.c_str(), nullptr);
-				const double expectedParsed = std::strtod(entry.expected, nullptr);
-				assert(toDoubleBits(oursParsed) == entry.bits);
-				assert(toDoubleBits(expectedParsed) == entry.bits);
-				assert(isDecimalTieEquivalent(text, entry.expected));
-			}
+			assert(text == entry.expected);
 			const double parsed = stringToDouble(entry.expected);
 			uint64_t parsedBits = toDoubleBits(parsed);
 			assert(parsedBits == entry.bits);
@@ -1943,6 +1937,17 @@ bool unitTest() {
 			{ 0x007fffffu, "1.1754942e-38", "1.1754942e-38" },
 			{ 0x00800000u, "1.1754944e-38", "1.1754944e-38" },
 			{ 0x00800001u, "1.1754945e-38", "1.1754945e-38" },
+			// Additional simple cases migrated from inline asserts
+			{ 0x80000000u, "-0.0", "-0.0" },
+			{ 0xbf800000u, "-1.0", "-1.0" },
+			{ 0x3f8fcd6fu, "1.1234568", "1.1234568" },
+			{ 0x447a0000u, "1000.0", "1000.0" },
+			{ 0x4ceb79a3u, "123456790.0", "123456792.0" },
+			{ 0x60d6109cu, "1.234e+20", "1.2340000198e+20" },
+			{ 0x1fcef52du, "8.765e-20", "8.7650002873e-20" },
+			{ 0x80098b53u, "-8.765e-40", "-8.76499577749e-40" },
+			{ 0x7f7ffffeu, "3.4028233e+38", "3.40282326356e+38" },
+			{ 0x7f7fffffu, "3.4028234e+38", "3.40282346638e+38" },
 			{ 0x33d6bf94u, "9.9999994e-8", "9.9999994e-8" },
 			{ 0x33d6bf96u, "1.0000001e-7", "1.0000001e-7" },
 			{ 0x358637bcu, "9.999999e-7", "9.999999e-7" },
@@ -1989,13 +1994,7 @@ bool unitTest() {
 			float value;
 			std::memcpy(&value, &entry.bits, sizeof value);
 			const String text = floatToString(value);
-			if (text != entry.expected) {
-				const float oursParsed = std::strtof(text.c_str(), nullptr);
-				const float expectedParsed = std::strtof(entry.expected, nullptr);
-				assert(toFloatBits(oursParsed) == entry.bits);
-				assert(toFloatBits(expectedParsed) == entry.bits);
-				assert(isDecimalTieEquivalent(text, entry.expected));
-			}
+			assert(text == entry.expected);
 			const float parsed = stringToFloat(entry.expected);
 			uint32_t parsedBits = toFloatBits(parsed);
 			assert(parsedBits == entry.bits);
@@ -2011,34 +2010,8 @@ bool unitTest() {
 	}
 
 
-	assert(floatToString(0.0f) == "0.0");
-	assert(stringToFloat("0.0") == 0.0f);
-	assert(floatToString(-0.0f) == "-0.0");
-	assert(std::signbit(stringToFloat("-0.0")));
-	assert(floatToString(-1.0f) == "-1.0");
-	assert(stringToFloat("-1.0") == -1.0f);
-	assert(floatToString(1.12345683575f) == "1.1234568");
-	assert(stringToFloat("1.1234568") == 1.12345683575f);
-	assert(floatToString(1000.0f) == "1000.0");
-	assert(stringToFloat("1000.0") == 1000.0f);
-	assert(floatToString(123456792.0f) == "123456790.0");
-	assert(stringToFloat("123456790.0") == 123456792.0f);
-	assert(floatToString(1.2340000198e+20f) == "1.234e+20");
-	assert(stringToFloat("1.234e+20") == 1.2340000198e+20f);
-	assert(floatToString(8.7650002873e-20f) == "8.765e-20");
-	assert(stringToFloat("8.765e-20") == 8.7650002873e-20f);
-	assert(floatToString(-8.76499577749e-40f) == "-8.765e-40");
-	assert(stringToFloat("-8.765e-40") == -8.76499577749e-40f);
-	assert(floatToString(1.40129846432e-45f) == "1.0e-45");
-	assert(stringToFloat("1.0e-45") == 1.40129846432e-45f);
-	assert(floatToString(2.80259692865e-45f) == "3.0e-45");
-	assert(stringToFloat("3.0e-45") == 2.80259692865e-45f);
-	assert(floatToString(3.40282326356e+38f) == "3.4028233e+38");
-	assert(stringToFloat("3.4028233e+38") == 3.40282326356e+38f);
-	assert(floatToString(3.40282346638e+38f) == "3.4028234e+38");
-	assert(stringToFloat("3.4028234e+38") == 3.40282346638e+38f);
-	assert(floatToString(std::numeric_limits<float>::infinity()) == "inf");
-	assert(stringToFloat("inf") == std::numeric_limits<float>::infinity());
+		// floatToString checks migrated into fragile table above; corresponding parse
+		// checks are covered by the fragile table loop (expected/source/round-trip).
 	assert(floatToString(std::numeric_limits<float>::quiet_NaN()) == "nan");
 	assert(isNaN(stringToFloat("nan")));
 
