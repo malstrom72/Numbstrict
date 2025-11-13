@@ -448,10 +448,6 @@ static DoubleDouble multiplyAndAdd(const DoubleDouble& term, const DoubleDouble&
 	return DoubleDouble(factorA.high * factorB + term.high + overflow, fmaLow - overflow);
 }
 
-static double multiplyAndAdd(double term, double factorA, double factorB) {
-	return term + factorA * factorB;
-}
-
 template<typename T> static T scaleAndRound(const DoubleDouble &acc, double factor);
 
 /**
@@ -1810,40 +1806,6 @@ bool unitTest() {
 	assert(stringToDouble("inf") == std::numeric_limits<double>::infinity());
 	assert(doubleToString(std::numeric_limits<double>::quiet_NaN()) == "nan");
 	assert(isNaN(stringToDouble("nan")));
-
-	auto isDecimalTieEquivalent = [](const String& aText, const String& bText) -> bool {
-		if ((aText.size() && aText[0] == '-') != (bText.size() && bText[0] == '-')) return false;
-		auto split = [](const String& s) {
-			const size_t e = s.find('e');
-			const String m = (e == String::npos ? s : s.substr(0, e));
-			const String x = (e == String::npos ? String() : s.substr(e));
-			return std::pair<String, String>(m, x);
-		};
-		const String positiveA = (aText.size() && aText[0] == '-') ? aText.substr(1) : aText;
-		const String positiveB = (bText.size() && bText[0] == '-') ? bText.substr(1) : bText;
-		const std::pair<String, String> pa = split(positiveA);
-		const std::pair<String, String> pb = split(positiveB);
-		const String& ma = pa.first;
-		const String& xa = pa.second;
-		const String& mb = pb.first;
-		const String& xb = pb.second;
-		if (xa != xb) return false;
-		if (ma.size() != mb.size()) return false;
-		if (ma.empty()) return false;
-		size_t diff = 0;
-		size_t pos = 0;
-		for (size_t i = 0; i < ma.size(); ++i) {
-			if (ma[i] != mb[i]) {
-				++diff;
-				pos = i;
-			}
-		}
-		if (diff != 1) return false;
-		if (ma[pos] < '0' || ma[pos] > '9' || mb[pos] < '0' || mb[pos] > '9') return false;
-		const int da = ma[pos] - '0';
-		const int db = mb[pos] - '0';
-		return std::abs(da - db) == 1;
-	};
 
 	{
 		struct FragileDoubleCase {
