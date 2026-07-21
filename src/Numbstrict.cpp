@@ -327,9 +327,15 @@ template<typename C> String quoteString(const std::basic_string<C>& fromString, 
 	}
 }
 
-static const Char* parseUnsignedInt(const Char* p, const Char* e, unsigned int& i) {
+// Parses the unsigned digit run of a decimal exponent. Clamps accumulation well above the real
+// exponent range (~400) but far below any wrap, so pathological exponents (e.g. "1e3000000000")
+// saturate instead of wrapping mod 2^32. The caller applies the sign, so a saturated magnitude still
+// underflows to 0 / overflows to Inf correctly.
+static const Char* parseExponentDigits(const Char* p, const Char* e, unsigned int& i) {
 	for (i = 0; p != e && *p >= '0' && *p <= '9'; ++p) {
-		i = i * 10 + (*p - '0');
+		if (i < 1000000u) {
+			i = i * 10 + (*p - '0');
+		}
 	}
 	return p;
 }
@@ -353,6 +359,9 @@ public:
 	#endif
 		cur &= ~(_MM_FLUSH_ZERO_MASK|_MM_DENORMALS_ZERO_MASK);
 		cur = (cur & ~_MM_ROUND_MASK) | _MM_ROUND_NEAREST;
+		// x64 float math uses SSE/MXCSR, so the "mask all FP exceptions" intent must be applied here
+		// (the _control87 call above only masks the x87 unit). Bits 0x1F80.
+		cur |= (_MM_MASK_INVALID|_MM_MASK_DENORM|_MM_MASK_DIV_ZERO|_MM_MASK_OVERFLOW|_MM_MASK_UNDERFLOW|_MM_MASK_INEXACT);
 		_mm_setcsr(cur);
 	#elif defined(__aarch64__)
 		int r; r = fegetenv(&prevEnv_); assert(r==0); r = fesetenv(FE_DFL_ENV); assert(r==0); feholdexcept(&dummyEnv_);
@@ -532,7 +541,7 @@ template<> struct Traits<double> {
 };
 
 template<> struct Traits<float> {
-	enum { MIN_EXPONENT = -45, MAX_EXPONENT = 38 };
+	enum { MIN_EXPONENT = -46, MAX_EXPONENT = 38 };
 };
 
 /*
@@ -630,7 +639,7 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 				++p;
 			}
 			unsigned int ui;
-			const Char* q = parseUnsignedInt(p, e, ui);
+			const Char* q = parseExponentDigits(p, e, ui);
 			if (q != p) {
 				exponent += sign * rewrap<int>(ui);
 				numberEnd = q;
@@ -1976,6 +1985,38 @@ bool unitTest() {
 		// checks are covered by the fragile table loop (expected/source/round-trip).
 	assert(floatToString(std::numeric_limits<float>::quiet_NaN()) == "nan");
 	assert(isNaN(stringToFloat("nan")));
+
+	{
+		auto toFloatBits = [](float number) -> uint32_t {
+			uint32_t bits = 0; std::memcpy(&bits, &number, sizeof bits); return bits;
+		};
+
+		// Regression: decimals in the round-up band toward the smallest subnormal float
+		// (2^-149 = 1.40129846e-45, bits 0x1) must round up, not flush to 0. The round-up
+		// threshold is 2^-150 (~7.006e-46); anything above it rounds to 0x1, below to 0.
+		// (Previously float MIN_EXPONENT of -45 flushed the whole 7e-46..1e-45 band to 0.)
+		assert(toFloatBits(stringToFloat("8e-46")) == 0x00000001u);
+		assert(toFloatBits(stringToFloat("7.1e-46")) == 0x00000001u);
+		assert(toFloatBits(stringToFloat("9.9e-46")) == 0x00000001u);
+		assert(toFloatBits(stringToFloat("1.4e-45")) == 0x00000001u);
+		assert(toFloatBits(stringToFloat("6e-46")) == 0x00000000u);   // below threshold -> 0
+
+		// Regression: pathological exponents must saturate to 0 / Inf, not wrap mod 2^32.
+		// A sign-flipping wrap previously turned "1e-3000000000" into +Inf and "1e3000000000"
+		// into 0. Verify for both float and double, underflow and overflow directions.
+		assert(stringToFloat("1e-3000000000") == 0.0f);
+		assert(stringToFloat("1e3000000000") == std::numeric_limits<float>::infinity());
+		assert(stringToFloat("1e-400") == 0.0f);
+		assert(stringToFloat("1e309") == std::numeric_limits<float>::infinity());
+		assert(stringToFloat("1e2147483648") == std::numeric_limits<float>::infinity());
+		assert(stringToFloat("1e4294967297") == std::numeric_limits<float>::infinity());
+		assert(stringToDouble("1e-3000000000") == 0.0);
+		assert(stringToDouble("1e3000000000") == std::numeric_limits<double>::infinity());
+		assert(stringToDouble("1e-400") == 0.0);
+		assert(stringToDouble("1e309") == std::numeric_limits<double>::infinity());
+		assert(stringToDouble("1e2147483648") == std::numeric_limits<double>::infinity());
+		assert(stringToDouble("1e4294967297") == std::numeric_limits<double>::infinity());
+	}
 
 	assert(compose(false) == "false");
 	assert(compose(true) == "true");
