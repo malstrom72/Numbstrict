@@ -352,8 +352,10 @@ public:
 		const unsigned int COMMON = _EM_INEXACT|_EM_UNDERFLOW|_EM_OVERFLOW|_EM_ZERODIVIDE|_EM_INVALID|_EM_DENORMAL|_RC_NEAR;
 		unsigned int cur;
 	#if defined(_M_IX86)
-		{ int ok = __control87_2(0,0,&prevX87_,&prevMXCSR_); assert(ok); unsigned int t; ok = __control87_2(COMMON|_PC_53, _MCW_EM|_MCW_RC|_MCW_PC, &t, 0); assert(ok); }
-		cur = prevMXCSR_;
+		// Only use `__control87_2` for the x87 unit. Its SSE output is the CRT's abstract control word, not raw MXCSR,
+		// and passing that to `_mm_setcsr` sets reserved bits (e.g. `_EM_DENORMAL`) which raises #GP.
+		{ int ok = __control87_2(0,0,&prevX87_,0); assert(ok); unsigned int t; ok = __control87_2(COMMON|_PC_53, _MCW_EM|_MCW_RC|_MCW_PC, &t, 0); assert(ok); }
+		prevMXCSR_ = _mm_getcsr(); cur = prevMXCSR_;
 	#else
 		prevMXCSR_ = _mm_getcsr(); cur = prevMXCSR_; prevX87_ = _control87(0,0); _control87(COMMON, _MCW_EM|_MCW_RC);
 	#endif
