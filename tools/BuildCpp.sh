@@ -1,4 +1,5 @@
 #!/bin/bash
+# BuildCpp.sh version 2026-10-05
 
 CPP_COMPILER="${CPP_COMPILER:-g++}"
 CPP_OPTIONS="${CPP_OPTIONS:-}"
@@ -57,9 +58,16 @@ output="$1"
 shift
 
 args=()
+cpp_standard=""
+if [[ "$CPP_OPTIONS" =~ (-std=[^ ]+) ]]; then
+	cpp_standard="${BASH_REMATCH[1]}"
+	CPP_OPTIONS="${CPP_OPTIONS//${BASH_REMATCH[1]}/}"
+fi
+[[ -n "$cpp_standard" ]] && args+=("$cpp_standard")
 for arg in "$@"; do
 	if [[ "$arg" == *.c ]]; then
-		args+=(-x c "$arg" -x none)
+		args+=(-x c -std=c11 "$arg" -x none)
+		[[ -n "$cpp_standard" ]] && args+=("$cpp_standard")
 	else
 		args+=("$arg")
 	fi
