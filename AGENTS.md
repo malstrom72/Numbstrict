@@ -34,58 +34,11 @@ The `externals/PikaCmd` folder is a separate project copied into this repository
 BuildCpp.sh and BuildCpp.cmd are copied from another repository. Only make changes to them if there is no other solution.
 
 ## Coding style
-These rules apply to new and edited code. Parts of `src/` predate them: do not copy the older style, and do not convert
-a file wholesale in an unrelated change.
-
-### Design
-- A constructor either produces a fully valid object or throws (RAII). No two-phase construction, no `init()` or
-  `isValid()` to check afterwards.
-- Assert liberally for programmer errors, preferably as `assert(condition && "why this must hold")`. Include it as
-  `#include "assert.h"` (quotes) so a project can override the handler. Never use `abort()`.
-- A library ships no `assert.h` of its own; the host product supplies it. A variable used only in an assert is silenced
-  in place with `(void)name;`, not `static_cast<void>`, `[[maybe_unused]]` or a macro.
-- Validate untrusted input once, where it enters (the parsers). Inside that boundary, trust the contract: no repeated
-  defensive checks and no fallback branches for states that cannot happen.
-- Throw for runtime conditions (malformed input, allocation failure), never for programmer errors. Never return a
-  half-filled result or a success code from a path that failed.
-- No duplicated functionality. Generalize the existing function instead of adding a near-copy, and prefer one code path
-  over special cases: fewer paths is the most important thing for correctness. A refactor should make the code smaller.
-- Optimize only for a measured win that matters.
-- Use full words in names (`functionCount`, not `fnCount`). Boolean queries are named `isX()`.
-- Data members are private. Use grouped `public:` / `protected:` / `private:` sections, public first. Big function
-  bodies go in the `.cpp`, and internal helpers stay out of the public header.
-- In a `.cpp`, file-scope helpers are `static`, never `static inline`. Headers keep `inline` where it is needed.
-
-### Formatting
-- Tab characters for indentation, *not spaces*. A tab character equals four spaces.
-- Opening braces stay on the same line as the control statement and closing braces are on their own line.
-- `if`, `else`, `for`, `while`, `do` and `switch` always use braces, with the body on its own lines, even for a single
-  statement.
-- A short function body of one or two simple statements may sit on one line: `int size() const { return count; }`.
-- One declaration per line.
-- Maximum line width is 120 characters.
-- Line continuations should start with the operator and be indented two tabs from the original line.
-- `#if`/`#endif` blocks should appear one tab *left* of the current indentation level.
-- No dashes as punctuation: no en or em dashes (U+2013, U+2014) or other non-ASCII lookalikes, and no spaced hyphen
-  faking one (`this - like - that`). Use a comma, a colon, parentheses or two sentences instead. This applies to code,
-  comments, docs and commit messages.
-
-### Comments
-- Comment sparingly: the non-obvious why, an invariant or a gotcha, never what the code already says.
-- Short comments are a single end-of-line `//`, starting at column 120 (padded with tabs). A run of related
-  declarations may align to a common column instead.
-- Longer comments are a `/* */` block with the body indented one tab, not a stack of `//` lines:
-	```
-	/*
-		One or more sentences.
-	*/
-	```
-- No Doxygen: no `///`, `///<`, `/** */` or `@param`. The existing `/** **/` and `///` comments are legacy.
-- Inside comment text, wrap any variable, parameter, class or function names in back-ticks, e.g. `blah` is the
-  temporary buffer.
-
-### Markdown
-- Pad table cells so the pipes line up, within the 120-column limit. ASCII diagrams must actually align.
+Code style (design rules, naming, comments, formatting, Markdown and commit messages) is defined in
+`docs/CodingStyle.md`. That file is shared with other projects: change nothing above its "Local additions" section,
+and put Numbstrict-only style rules in that section or here. Parts of `src/` predate the rules: the existing
+`/** **/` and `///` comments are legacy, so do not copy them, and do not convert a file wholesale in an unrelated
+change.
 
 ### Command-line tools
 When handling files with command-line tools (which may break tab characters):
