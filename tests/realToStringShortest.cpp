@@ -103,7 +103,7 @@ template<typename T, typename Rng> static void testType(Rng& rng) {
 		const String s = toString<T>(value);
 		const T round = fromString<T>(s);
 		assert(bitsEqual<T>(round, value));
-		static_cast<void>(round);
+		(void)round;
 
 		assert(isShortest<T>(s, value));
 	}

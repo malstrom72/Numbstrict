@@ -34,7 +34,7 @@ int main() {
 		} else {
 			assert(round == t.value);
 		}
-		static_cast<void>(round);
+		(void)round;
 	}
 
 	// Negative zero handling (double)
@@ -72,7 +72,7 @@ int main() {
 		} else {
 			assert(round == t.value);
 		}
-		static_cast<void>(round);
+		(void)round;
 	}
 
 	// Negative zero handling (float)
