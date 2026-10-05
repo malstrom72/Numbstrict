@@ -1,0 +1,59 @@
+# libFuzzer dictionary for NumbstrictFuzz, from the grammar in docs/numbstrict.peg.
+# Tokens are extra mutations libFuzzer may insert; they do not restrict what it generates.
+
+# Structure
+open="{"
+close="}"
+emptyStruct="{ : }"
+emptyArray="{ }"
+colon=":"
+comma=","
+keyValue="key: "
+newline="\x0a"
+crlf="\x0d\x0a"
+tab="\x09"
+
+# Comments
+lineComment="//"
+blockOpen="/*"
+blockClose="*/"
+nestedComment="/* /* */ */"
+
+# Literals
+true="true"
+false="false"
+inf="inf"
+minusInf="-inf"
+nan="nan"
+hexPrefix="0x"
+hexMax64="0xFFFFFFFFFFFFFFFF"
+
+# Real number pieces and edge values
+point="."
+exponent="e"
+exponentPlus="e+"
+exponentMinus="E-"
+negativeZero="-0.0"
+doubleMax="1.7976931348623157e+308"
+doubleMinNormal="2.2250738585072014e-308"
+doubleMinSubnormal="4.9406564584124654e-324"
+floatMax="3.4028235e+38"
+floatMinSubnormal="1.4e-45"
+hugeExponent="e400"
+tinyExponent="e-400"
+manyDigits="12345678901234567890123456789"
+int64Min="-9223372036854775808"
+uint64Max="18446744073709551615"
+
+# Strings and escapes
+doubleQuote="\""
+singleQuote="'"
+escapeHex="\\x41"
+escapeUnicode="\\u00e5"
+escapeWide="\\U0001f419"
+escapeNewline="\\n"
+escapeReturn="\\r"
+escapeTab="\\t"
+escapeBackslash="\\\\"
+escapeDoubleQuote="\\\""
+escapeSingleQuote="\\'"

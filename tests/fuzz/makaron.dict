@@ -1,0 +1,38 @@
+# libFuzzer dictionary for MakaronFuzz, from the grammar in docs/makaron.peg.
+# Tokens are extra mutations libFuzzer may insert; they do not restrict what it generates.
+
+# Instructions
+define="@define "
+redefine="@redefine "
+begin="@begin "
+end="@end"
+if="@if "
+elif="@elif "
+else="@else"
+endif="@endif"
+include="@include "
+literalAt="@@"
+expand="@"
+rawOpen="@<"
+rawClose="@>"
+
+# Pieces of instructions
+assign=" = "
+equal="=="
+notEqual="!="
+open="("
+close=")"
+comma=","
+condition="(a == b)"
+parameters="(x, y)"
+newline="\x0a"
+crlf="\x0d\x0a"
+identifier="name"
+dollarIdentifier="$x"
+
+# Balanced text
+braces="{}"
+brackets="[]"
+doubleQuote="\""
+singleQuote="'"
+escapedQuote="\\\""
