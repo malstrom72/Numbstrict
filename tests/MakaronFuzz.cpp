@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <string>
 #include "../src/Makaron.h"
+#include "FuzzInitialize.h"
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 	try {

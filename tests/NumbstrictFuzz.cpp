@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <string>
 #include "../src/Numbstrict.h"
+#include "FuzzInitialize.h"
 
 extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 	const std::string input(reinterpret_cast<const char*>(data), size);
