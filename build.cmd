@@ -7,17 +7,17 @@ FOR %%t IN (beta release) DO (
 	SET "outDir=output\%%t"
 	IF NOT EXIST "!outDir!" MKDIR "!outDir!"
 	REM Intentionally avoid /std:c++14 for older MSVC (v140)
-	CALL tools\BuildCpp.cmd %%t x64 "!outDir!\smoke.exe" /I src /I tests ^
+	CALL tools\BuildCpp.cmd %%t x64 "!outDir!\smoke.exe" /I src ^
 			tests\smoke.cpp src\Numbstrict.cpp src\Makaron.cpp || GOTO error
 	SET "CPP_OPTIONS="
 	"!outDir!\smoke.exe" >NUL || GOTO error
 	REM 32-bit x86 has its own floating-point environment code path (x87 + SSE)
-	CALL tools\BuildCpp.cmd %%t x86 "!outDir!\smoke_x86.exe" /I src /I tests ^
+	CALL tools\BuildCpp.cmd %%t x86 "!outDir!\smoke_x86.exe" /I src ^
 			tests\smoke.cpp src\Numbstrict.cpp src\Makaron.cpp || GOTO error
 	SET "CPP_OPTIONS="
 	"!outDir!\smoke_x86.exe" >NUL || GOTO error
 	REM Intentionally avoid /std:c++14 for older MSVC (v140)
-	CALL tools\BuildCpp.cmd %%t x64 "!outDir!\MakaronCmd.exe" /I src /I tests ^
+	CALL tools\BuildCpp.cmd %%t x64 "!outDir!\MakaronCmd.exe" /I src ^
 			tools\MakaronCmd.cpp src\Makaron.cpp || GOTO error
 	SET "CPP_OPTIONS="
 	IF EXIST externals\ryu\NUL (

@@ -2,7 +2,7 @@
 #include <limits>
 #include <cmath>
 #undef NDEBUG																											// keep these checks in release builds too
-#include "assert.h"
+#include <cassert>
 
 int main() {
 	struct DoubleTest { double value; const char* expected; };
@@ -34,6 +34,7 @@ int main() {
 		} else {
 			assert(round == t.value);
 		}
+		static_cast<void>(round);
 	}
 
 	// Negative zero handling (double)
@@ -71,6 +72,7 @@ int main() {
 		} else {
 			assert(round == t.value);
 		}
+		static_cast<void>(round);
 	}
 
 	// Negative zero handling (float)
