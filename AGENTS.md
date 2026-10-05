@@ -42,6 +42,8 @@ a file wholesale in an unrelated change.
   `isValid()` to check afterwards.
 - Assert liberally for programmer errors, preferably as `assert(condition && "why this must hold")`. Include it as
   `#include "assert.h"` (quotes) so a project can override the handler. Never use `abort()`.
+- A library ships no `assert.h` of its own; the host product supplies it. A variable used only in an assert is silenced
+  in place with `(void)name;`, not `static_cast<void>`, `[[maybe_unused]]` or a macro.
 - Validate untrusted input once, where it enters (the parsers). Inside that boundary, trust the contract: no repeated
   defensive checks and no fallback branches for states that cannot happen.
 - Throw for runtime conditions (malformed input, allocation failure), never for programmer errors. Never return a
