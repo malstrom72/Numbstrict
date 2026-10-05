@@ -19,14 +19,14 @@ for target in beta release; do
 	mkdir -p "$out_dir"
 
 	CPP_OPTIONS="$cpp_options" bash tools/BuildCpp.sh "$target" native "$out_dir/smoke" \
-		-I src tests/smoke.cpp src/Numbstrict.cpp src/Makaron.cpp
+		-I src -I tests tests/smoke.cpp src/Numbstrict.cpp src/Makaron.cpp
 	"$out_dir/smoke" > /dev/null
 
 	# 32-bit x86 has its own floating-point environment code path. Needs a multilib toolchain (not available on macOS).
 	if [[ "$(uname -s)" != "Darwin" ]] \
 			&& echo 'int main() { return 0; }' | ${CPP_COMPILER:-g++} -m32 -x c++ - -o "$out_dir/m32probe" 2>/dev/null; then
 		CPP_OPTIONS="$cpp_options -msse2 -mfpmath=sse" bash tools/BuildCpp.sh "$target" x86 "$out_dir/smoke_x86" \
-			-I src tests/smoke.cpp src/Numbstrict.cpp src/Makaron.cpp
+			-I src -I tests tests/smoke.cpp src/Numbstrict.cpp src/Makaron.cpp
 		"$out_dir/smoke_x86" > /dev/null
 	else
 		echo "Skipping x86 smoke test (no 32-bit toolchain)"
@@ -34,11 +34,11 @@ for target in beta release; do
 	rm -f "$out_dir/m32probe"
 
 	CPP_OPTIONS="$cpp_options" bash tools/BuildCpp.sh "$target" native "$out_dir/doubleFloatToString" \
-		-I src tests/doubleFloatToString.cpp src/Numbstrict.cpp src/Makaron.cpp
+		-I src -I tests tests/doubleFloatToString.cpp src/Numbstrict.cpp src/Makaron.cpp
 	"$out_dir/doubleFloatToString" > /dev/null
 
 	CPP_OPTIONS="$cpp_options" bash tools/BuildCpp.sh "$target" native "$out_dir/MakaronCmd" \
-		-I src tools/MakaronCmd.cpp src/Makaron.cpp
+		-I src -I tests tools/MakaronCmd.cpp src/Makaron.cpp
 
 	if [[ -d externals/ryu ]]; then
 		c_options=""

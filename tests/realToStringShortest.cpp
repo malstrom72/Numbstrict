@@ -1,5 +1,5 @@
 #include "../src/Numbstrict.h"
-#include <cassert>
+#include "assert.h"
 #include <random>
 #include <string>
 #include <cstring>
