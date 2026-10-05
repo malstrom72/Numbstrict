@@ -11,15 +11,15 @@ Always execute this command before committing changes to verify that the build a
 ## Repository layout
 The project uses a consistent folder structure. Build output is written to `output/` and no source files live there. Useful locations:
 
-- `tools/` - scripts for building and maintaining the code and documentation.
-- `projects/` - Xcode and Visual Studio project files.
-- `docs/` - documentation.
-- `externals/` - projects and source code from other repositories (only touch this content when explicitly asked to).
-- `src/` - C++ source code for the library. The library is distributed as source rather than prebuilt binaries.
-- `tests/` - regression tests.
-- `examples/` - small sample programs.
-- `benchmarks/` - JavaScript performance tests.
-- `output/` - contains only build artifacts (and any runtime dependencies), no source files.
+- `tools/`: scripts for building and maintaining the code and documentation.
+- `projects/`: Xcode and Visual Studio project files.
+- `docs/`: documentation.
+- `externals/`: projects and source code from other repositories (only touch this content when explicitly asked to).
+- `src/`: C++ source code for the library. The library is distributed as source rather than prebuilt binaries.
+- `tests/`: regression tests.
+- `examples/`: small sample programs.
+- `benchmarks/`: JavaScript performance tests.
+- `output/`: contains only build artifacts (and any runtime dependencies), no source files.
 
 Root-level `build.sh` and `build.cmd` (mirrored implementations) should build and test both the beta and release targets.
 These builds must compile the sources using the C++11 standard (`-std=c++11` or `/std:c++14` on MSVC).
@@ -61,8 +61,9 @@ a file wholesale in an unrelated change.
 - Maximum line width is 120 characters.
 - Line continuations should start with the operator and be indented two tabs from the original line.
 - `#if`/`#endif` blocks should appear one tab *left* of the current indentation level.
-- Plain ASCII only: no en or em dashes (U+2013, U+2014), curly quotes or other lookalikes, in code, comments, docs or
-  commit messages.
+- No dashes as punctuation: no en or em dashes (U+2013, U+2014) or other non-ASCII lookalikes, and no spaced hyphen
+  faking one (`this - like - that`). Use a comma, a colon, parentheses or two sentences instead. This applies to code,
+  comments, docs and commit messages.
 
 ### Comments
 - Comment sparingly: the non-obvious why, an invariant or a gotcha, never what the code already says.
