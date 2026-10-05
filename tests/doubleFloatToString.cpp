@@ -1,7 +1,8 @@
 #include "../src/Numbstrict.h"
-#include <cassert>
 #include <limits>
 #include <cmath>
+#undef NDEBUG																											// keep these checks in release builds too
+#include <cassert>
 
 int main() {
 	struct DoubleTest { double value; const char* expected; };
