@@ -1,10 +1,13 @@
 # Repository Guidelines
 
-To run the test suite use the helper script with up to three minutes allowed for execution:
+To run the test suite use the helper script, allowing up to three minutes for execution:
 
 ```bash
-timeout 180 ./build.sh
+bash build.sh
 ```
+
+On Windows run `build.cmd` instead. Where the `timeout` command exists (Linux), `timeout 180 bash build.sh` enforces the
+limit; macOS has no `timeout`.
 
 Always execute this command before committing changes to verify that the build and regression tests succeed.
 
