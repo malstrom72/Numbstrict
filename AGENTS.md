@@ -46,19 +46,8 @@ When handling files with command-line tools (which may break tab characters):
 - Always run `unexpand -t 4` on the file after processing.
 
 ## Fuzzing
-- `tools/build_numbstrict_fuzz.*` and `tools/build_makaron_fuzz.*` build the libFuzzer targets, optimized with asserts
-  on: MSVC with AddressSanitizer on Windows, clang with AddressSanitizer and UBSan elsewhere (Homebrew LLVM on macOS).
-  Each script's comment shows how to run its target.
-- `tests/fuzz/` holds each target's minimized corpus (`numbstrictCorpus.tar.gz`, `makaronCorpus.tar.gz`) and
-  dictionary. `build.sh` and `build.cmd` unpack the corpora into `output/fuzzReplay/` and replay them through the
-  targets in beta builds, using `tests/FuzzMain.cpp` instead of libFuzzer.
-- Check the machine's load before a long run. On macOS run under `nohup caffeinate -i ... & disown`, with
-  `ASAN_OPTIONS=detect_container_overflow=0:external_symbolizer_path=$(brew --prefix llvm)/bin/llvm-symbolizer` and
-  `UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1`.
-- Refresh a corpus only after a substantial run: merge into an empty directory with `-merge=1`, then pack it
-  deterministically from `output/`, e.g.
-  `tar --sort=name --owner=0 --group=0 --numeric-owner --mtime='2000-01-01 00:00Z' -cf - numbstrict | gzip -9n`.
-  Add the input behind any fixed fuzzer finding to the corpus, so the replay keeps checking it.
+Fuzzing is described in `docs/fuzzing.md`, which is shared with other projects like `docs/CodingStyle.md`: change
+nothing above its "Local additions" section, which lists Numbstrict's targets, scripts and corpora.
 
 ## Script portability
 All user-facing `.sh` and `.cmd` files must work when launched from any directory. They should start by changing to their own folder (or the repository root) so that relative paths resolve correctly.
