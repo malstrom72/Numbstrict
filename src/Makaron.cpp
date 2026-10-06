@@ -333,7 +333,8 @@ static bool standardIncludeLoader(const WideString& fileName, String& contents) 
 }
 
 Context::Context(int depthLimiter, Context* parentContext)
-		: parentContext(parentContext), depthLimiter(depthLimiter), processed(0), offsets(0)
+		: parentContext(parentContext), rootContext(parentContext != 0 ? parentContext->rootContext : this)
+		, depthLimiter(depthLimiter), outputLimiter(OUTPUT_LIMIT), processed(0), offsets(0)
 		, loader(parentContext != 0 ? parentContext->loader : standardIncludeLoader) {
 }
 
@@ -489,6 +490,7 @@ void Context::invokeMacro() {
 		error(std::string("\"") + name + "\" is undefined");
 	} else if (foundDefinition != 0) {
 		assert(processed != 0);
+		spend(foundDefinition->size());
 		(*processed) += *foundDefinition;
 		if (arguments.size() != 0) {
 			error(std::string("Incorrect number of arguments for ") + name);
@@ -555,7 +557,15 @@ void Context::produce(const StringIt& b, const StringIt& e) {
 		entry.inputLength = 0;
 		offsets->push_back(entry);
 	}
+	spend(e - b);
 	processed->append(b, e);
+}
+
+void Context::spend(size_t byteCount) {
+	if (byteCount > rootContext->outputLimiter) {
+		error("Output size limit reached");
+	}
+	rootContext->outputLimiter -= byteCount;
 }
 
 enum Instruction {
@@ -643,7 +653,7 @@ void Context::process(const Span& input, String& output, std::vector<OffsetMapEn
 
 			try {
 				switch (instruction) {
-					case LITERAL_AT: (*processed) += '@'; break;
+					case LITERAL_AT: spend(1); (*processed) += '@'; break;
 					case DEFINE_MACRO: macroDefinition(); break;
 					case DEFINE_STRING: stringDefinition(false); break;
 					case REDEFINE_STRING: stringDefinition(true); break;
@@ -1036,6 +1046,11 @@ bool unitTest() {
 			"@begin x @x @end\n"
 			"@x"
 			, "Recursion depth limit reached", 9, 1, 10));
+
+	assert(checkError(
+			"@begin a(x) @a(@x@x@x@x@x@x@x@x) @end\n"
+			"@a(y)"
+			, "Output size limit reached", 21, 1, 22));
 	
 	assert(checkError(
 			"@begin a @begin (local)x@end @global@local @end@define global=y\n"

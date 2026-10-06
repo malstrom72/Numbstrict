@@ -12,6 +12,7 @@
 namespace Makaron {
 
 const int DEFAULT_RECURSION_DEPTH_LIMIT = 20;
+const size_t OUTPUT_LIMIT = 64 * 1024 * 1024;	// bytes a context and every context it creates may produce together
 
 typedef char Char;
 typedef wchar_t WideChar;
@@ -120,9 +121,12 @@ class Context {
 				void invokeMacro();		/// expand macro or string
 				void includeFile();		/// handle @include directive
 				void produce(const StringIt& b, const StringIt& e);		/// append source slice to output
+				void spend(size_t byteCount);		// counts output toward the shared limit; throws when it is reached
 
 				Context* const parentContext;
+				Context* const rootContext;
 				int depthLimiter;
+				size_t outputLimiter;	// bytes left to produce, used in `rootContext` only
 				LoaderFunction loader;
 				std::map<String, Macro> macros;
 				std::map<String, String> strings;
