@@ -111,3 +111,5 @@ Turn off CRT dialogs in `LLVMFuzzerInitialize`, or a failed assert hangs the wor
 - `tests/fuzz/` holds `numbstrictCorpus.tar.gz`, `makaronCorpus.tar.gz` and a dictionary per target. The corpora
   include the hand-made seeds, so there is no separate seed folder. `build.sh` and `build.cmd` unpack them into
   `output/fuzzReplay/` and replay them through `tests/FuzzMain.cpp` in beta builds.
+- Past crash inputs live as plain files in `tests/fuzz/<target>Crashes/`, outside the archives so that refreshing a
+  corpus cannot drop them; the beta builds replay them too. `.gitattributes` marks them binary.

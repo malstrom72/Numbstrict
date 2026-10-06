@@ -14,7 +14,8 @@ if [[ "$cpp_options" != *"-std="* ]]; then
 	fi
 fi
 
-# The committed fuzz corpora, replayed through the fuzz targets in beta builds
+# The committed fuzz corpora and past crash inputs, replayed through the fuzz targets in beta builds
+rm -rf output/fuzzReplay
 mkdir -p output/fuzzReplay
 tar -xzf tests/fuzz/numbstrictCorpus.tar.gz -C output/fuzzReplay
 tar -xzf tests/fuzz/makaronCorpus.tar.gz -C output/fuzzReplay
@@ -44,7 +45,7 @@ for target in beta release; do
 		"$out_dir/NumbstrictFuzzReplay" output/fuzzReplay/numbstrict > /dev/null
 		CPP_OPTIONS="$cpp_options" bash tools/BuildCpp.sh "$target" native "$out_dir/MakaronFuzzReplay" \
 			-I src tests/MakaronFuzz.cpp tests/FuzzMain.cpp src/Makaron.cpp
-		"$out_dir/MakaronFuzzReplay" output/fuzzReplay/makaron > /dev/null
+		"$out_dir/MakaronFuzzReplay" output/fuzzReplay/makaron tests/fuzz/makaronCrashes > /dev/null
 	fi
 
 	CPP_OPTIONS="$cpp_options" bash tools/BuildCpp.sh "$target" native "$out_dir/doubleFloatToString" \

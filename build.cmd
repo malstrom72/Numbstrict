@@ -3,8 +3,9 @@ SETLOCAL ENABLEEXTENSIONS ENABLEDELAYEDEXPANSION
 
 CD /D "%~dp0"
 
-REM The committed fuzz corpora, replayed through the fuzz targets in beta builds
-IF NOT EXIST output\fuzzReplay MKDIR output\fuzzReplay
+REM The committed fuzz corpora and past crash inputs, replayed through the fuzz targets in beta builds
+IF EXIST output\fuzzReplay RMDIR /S /Q output\fuzzReplay
+MKDIR output\fuzzReplay
 tar -xzf tests\fuzz\numbstrictCorpus.tar.gz -C output\fuzzReplay || GOTO error
 tar -xzf tests\fuzz\makaronCorpus.tar.gz -C output\fuzzReplay || GOTO error
 
@@ -29,7 +30,7 @@ FOR %%t IN (beta release) DO (
 		CALL tools\BuildCpp.cmd %%t x64 "!outDir!\MakaronFuzzReplay.exe" /I src ^
 				tests\MakaronFuzz.cpp tests\FuzzMain.cpp src\Makaron.cpp || GOTO error
 		SET "CPP_OPTIONS="
-		"!outDir!\MakaronFuzzReplay.exe" output\fuzzReplay\makaron >NUL || GOTO error
+		"!outDir!\MakaronFuzzReplay.exe" output\fuzzReplay\makaron tests\fuzz\makaronCrashes >NUL || GOTO error
 	)
 	REM Intentionally avoid /std:c++14 for older MSVC (v140)
 	CALL tools\BuildCpp.cmd %%t x64 "!outDir!\MakaronCmd.exe" /I src ^
