@@ -11,5 +11,5 @@ if [[ "$(uname -s)" == "Darwin" && -z "${CPP_COMPILER:-}" ]] && command -v brew 
 	export CPP_COMPILER="$(brew --prefix llvm)/bin/clang++"
 fi
 CPP_COMPILER="${CPP_COMPILER:-clang++}" \
-		CPP_OPTIONS="-std=c++11 -O2 -UNDEBUG -fsanitize=fuzzer,address,undefined -fno-sanitize-recover=all ${CPP_OPTIONS:-}" \
+		CPP_OPTIONS="-std=c++11 -O2 -g -UNDEBUG -fsanitize=fuzzer,address,undefined -fno-sanitize-recover=all ${CPP_OPTIONS:-}" \
 		bash ./tools/BuildCpp.sh release native output/MakaronFuzz -I ./src tests/MakaronFuzz.cpp src/Makaron.cpp

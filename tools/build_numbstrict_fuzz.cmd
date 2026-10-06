@@ -5,9 +5,9 @@ IF NOT EXIST output MKDIR output
 REM Builds the libFuzzer target with MSVC: optimized with asserts on (release with NDEBUG undefined, since beta's debug
 REM CRT is several times slower) and AddressSanitizer. Give libFuzzer a scratch corpus directory first, since it writes
 REM new inputs there:
-REM	output\NumbstrictFuzz.exe -dict=tests\fuzz\numbstrict.dict -artifact_prefix=output\ output\numbstrictCorpus
-SET CPP_OPTIONS=/fsanitize=address /fsanitize=fuzzer /U NDEBUG
-CALL tools\BuildCpp.cmd release x64 output\NumbstrictFuzz.exe tests\NumbstrictFuzz.cpp src\Numbstrict.cpp || EXIT /B 1
+REM	output\NumbstrictFuzz.exe -dict=tests/fuzz/numbstrict.dict -artifact_prefix=output/ output/numbstrictCorpus
+SET CPP_OPTIONS=/fsanitize=address /fsanitize=fuzzer /U NDEBUG /Z7
+CALL tools\BuildCpp.cmd release x64 output\NumbstrictFuzz.exe tests\NumbstrictFuzz.cpp src\Numbstrict.cpp /link /STACK:8388608 || EXIT /B 1
 REM The ASan runtime is a DLL, so copy it next to the fuzzer to let it run outside a Visual Studio prompt
 SET "vswhere=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 SET "asanDll=VC\Tools\MSVC\**\bin\Hostx64\x64\clang_rt.asan_dynamic-x86_64.dll"

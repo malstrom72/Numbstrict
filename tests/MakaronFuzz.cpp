@@ -8,6 +8,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 	try {
 		Makaron::String src(reinterpret_cast<const char*>(data), size);
 		Makaron::Context ctx;
+		ctx.setIncludeLoader([](const Makaron::WideString&, Makaron::String&) { return false; });
 		Makaron::String processed;
 		ctx.process(Makaron::Span(src, L"<fuzz>"), processed, nullptr);
 	} catch (const Makaron::Exception&) {
