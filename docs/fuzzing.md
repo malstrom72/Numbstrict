@@ -1,6 +1,6 @@
 # Fuzzing
 
-Version: 2026-10-05
+Version: 2026-10-07
 
 How these projects fuzz with libFuzzer. Every copy of this file is identical apart from the "Local additions" section
 at the end, which holds a project's targets, scripts and exceptions.
@@ -23,7 +23,8 @@ static release runtime.
 
 - Mac clang: `-fsanitize=fuzzer,address,undefined -fno-sanitize-recover=all -UNDEBUG`.
 - MSVC: `/fsanitize=address /fsanitize=fuzzer /U NDEBUG`, and copy MSVC's `clang_rt.asan_dynamic-x86_64.dll` next to
-  the executable.
+  the executable. The two options must be separate: MSVC ignores clang's comma form with only a warning, and the link
+  then fails with a misleading missing-entry-point error.
 
 Link with an 8 MB stack on Windows (`/link /STACK:8388608`), since deep recursion otherwise overflows the 1 MB default
 long before it would on the Mac.
@@ -45,8 +46,10 @@ Copy LLVM's `clang_rt.asan_dynamic-x86_64.dll` (from `lib\clang\<version>\lib\wi
 quote the compiler path because it contains a space:
 `CPP_COMPILER="C:\Program Files\LLVM\bin\clang-cl.exe"`.
 
-The throw test: before a clang-cl build is trusted, replay a corpus in which most inputs make the target throw, with
-zero crashes. Repeat it whenever LLVM is updated.
+The throw test: before a clang-cl build is trusted, replay a corpus in which most inputs make the target throw through
+both that build and a plain build of the same target without sanitizers, and require identical outcomes (status and
+output) for every input. Zero crashes is not enough, since a handler cut short can run on to the wrong result without
+crashing. Repeat the test whenever LLVM is updated.
 
 ## The harness
 
@@ -93,7 +96,8 @@ Turn off CRT dialogs in `LLVMFuzzerInitialize`, or a failed assert hangs the wor
   GNU tar and bsdtar do not produce identical archives, so refresh with GNU tar. Use `xz -9` only where it saves a
   lot: the `tar.exe` that ships with Windows cannot read xz and hangs instead of failing.
 - The normal build replays the corpus, the seeds and every past crash input through a plain `main()` that reads files
-  and calls `LLVMFuzzerTestOneInput`. It is built without fuzzer instrumentation, with every compiler the project uses.
+  and calls `LLVMFuzzerTestOneInput`. It is built without fuzzer instrumentation, with every compiler the project uses,
+  and never with clang-cl's sanitizers, which would bring back the exception handling bugs above.
 - Commit the input of each fixed crash as a regression input.
 - Keep a crash file from a Windows clang-cl build only if it also crashes with MSVC or on the Mac.
 
