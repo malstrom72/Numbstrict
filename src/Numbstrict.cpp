@@ -769,7 +769,7 @@ static uint64_t scaledFloor(uint64_t mantissa, int exponent2, int power, int& ha
 	The shortest decimal that converts back to the positive finite value `bits`: its digits as an integer and the
 	decimal exponent of the leading digit. For n digits the candidates are the truncation F of value * 10^(n-1-k) and
 	F + 1 (k the leading digit's exponent); the smallest n at which one converts back wins, and when both do, the
-	closer one (the lower on an exact half). The largest finite value never takes the upper candidate, so that its
+	closer one (the upper on an exact half, as NuXJS prints it). The largest finite value never takes the upper candidate, so that its
 	text stays below the overflow threshold for parsers that treat anything above it as overflow.
 */
 template<typename T> static uint64_t shortestDigits(typename Traits<T>::Bits bits, int& exponent10) {
@@ -798,10 +798,10 @@ template<typename T> static uint64_t shortestDigits(typename Traits<T>::Bits bit
 		const int power = k - n + 1;
 		const uint64_t truncated = scaledFloor(mantissa, exponent2, -power, half);
 		const bool lowerFits = (convertDecimal<T>(Words<3>(truncated), power) == bits);
-		const bool upperFits = ((!lowerFits || half > 0)																// only when it can change the choice
+		const bool upperFits = ((!lowerFits || half >= 0)																// only when it can change the choice
 				&& convertDecimal<T>(Words<3>(truncated + 1), power) == bits);
 		if (lowerFits || upperFits) {
-			digits = (!lowerFits || (half > 0 && upperFits && !isMax) ? truncated + 1 : truncated);
+			digits = (!lowerFits || (half >= 0 && upperFits && !isMax) ? truncated + 1 : truncated);
 			exponent10 = k;
 			high = n - 1;
 		} else {

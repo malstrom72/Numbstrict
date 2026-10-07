@@ -62,7 +62,7 @@ two results using 128-word integers. This keeps the conversion exact for any len
 
 For a value v with leading decimal exponent k, the n-digit candidates are F = floor(v * 10^(n-1-k)) and F + 1; the
 smallest n at which one of them converts back to v gives the shortest text, and when both do, the closer one wins
-(the lower on an exact half; the largest finite value never takes the upper candidate, so that its text stays below
+(the upper on an exact half, the rule NuXJS also uses; the largest finite value never takes the upper candidate, so that its text stays below
 the overflow threshold for parsers that treat anything above it as overflow). "Some n-digit decimal converts back"
 is monotone in n, so n is found by binary search, each probe costing one scaled floor and at most two conversions.
 A carry (F + 1 = 10^n) can only survive the search at n = 1 and is normalized afterwards.
