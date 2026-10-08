@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  windows-msvc:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: ilammy/msvc-dev-cmd@v1        # sets up cl.exe for VS 2022 x64; build.cmd switches to x86 itself
+    - name: Build & test
+      shell: pwsh
+      run: |
+        .\build.cmd | Tee-Object -FilePath build.log
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        if (-not (Select-String -LiteralPath build.log -SimpleMatch 'Build and tests completed' -Quiet)) {
+          throw 'build.cmd exited 0 without printing the completion line'
+        }
+
+  macos-clang:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build & test
+      shell: bash
+      run: |
+        bash build.sh 2>&1 | tee build.log
+        grep -qF 'Build and tests completed' build.log
+
+  linux-gcc:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install the 32-bit toolchain  # so that build.sh also builds and tests the x86 smoke binary
+      run: sudo apt-get update && sudo apt-get install -y gcc-multilib g++-multilib
+    - name: Build & test
+      shell: bash
+      run: |
+        bash build.sh 2>&1 | tee build.log
+        grep -qF 'Build and tests completed' build.log
