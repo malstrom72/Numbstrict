@@ -320,19 +320,15 @@ template<typename C> String quoteString(const std::basic_string<C>& fromString, 
 
 template<int N> class Words {																							// N 32-bit words, least significant first
 	public:
-		Words() { memset(words, 0, sizeof words); }
-		explicit Words(uint64_t value) {																				// requires N >= 2
+		explicit Words(uint64_t value = 0) {																			// requires N >= 2
 			memset(words, 0, sizeof words);
 			words[0] = static_cast<uint32_t>(value);
 			words[1] = static_cast<uint32_t>(value >> 32);
 		}
-		template<int M> explicit Words(const Words<M>& other) {															// requires the value to fit
-			memset(words, 0, sizeof words);
-			for (int i = 0; i < M; ++i) {
-				assert((i < N || other.word(i) == 0) && "value must fit in N words");
-				if (i < N) {
-					words[i] = other.word(i);
-				}
+		template<int M> explicit Words(const Words<M>& other) {
+			assert(other.bitLength() <= N * 32 && "value must fit in N words");
+			for (int i = 0; i < N; ++i) {
+				words[i] = (i < M ? other.word(i) : 0);
 			}
 		}
 		static Words powerOfTwo(int bit) {
@@ -341,36 +337,23 @@ template<int N> class Words {																							// N 32-bit words, least sig
 			return result;
 		}
 		uint32_t word(int i) const { return words[i]; }
-		uint64_t low64() const { return words[0] | (static_cast<uint64_t>(words[1]) << 32); }
 		int bitLength() const {
-			for (int i = N; i > 0; --i) {
-				if (words[i - 1] != 0) {
-					int bits = (i - 1) * 32 + 1;
-					for (uint32_t top = words[i - 1], step = 16; step != 0; step >>= 1) {
-						if (top >= (static_cast<uint32_t>(1) << step)) {
-							bits += step;
-							top >>= step;
-						}
-					}
-					return bits;
-				}
+			int i = N;
+			while (i > 0 && words[i - 1] == 0) {
+				--i;
 			}
-			return 0;
+			int bits = i * 32;
+			for (uint32_t top = (i > 0 ? words[i - 1] : 0x80000000u); (top & 0x80000000u) == 0; top <<= 1) {
+				--bits;
+			}
+			return bits;
 		}
 		uint64_t bitsFrom(int bit) const {																				// the low 64 bits of *this >> bit
 			const int index = bit / 32;
 			const int shift = bit % 32;
-			uint64_t low = 0;
-			uint64_t high = 0;
-			if (index < N) {
-				low = words[index];
-			}
-			if (index + 1 < N) {
-				low |= static_cast<uint64_t>(words[index + 1]) << 32;
-			}
-			if (index + 2 < N) {
-				high = words[index + 2];
-			}
+			const uint64_t low = (index < N ? words[index] : 0)
+					| (index + 1 < N ? static_cast<uint64_t>(words[index + 1]) << 32 : 0);
+			const uint64_t high = (index + 2 < N ? static_cast<uint64_t>(words[index + 2]) : 0);						// shifted by up to 63
 			return (shift == 0 ? low : (low >> shift) | (high << (64 - shift)));
 		}
 		int compare(const Words& other) const {
@@ -409,11 +392,11 @@ template<int N> class Words {																							// N 32-bit words, least sig
 			assert(carry == 0 && "sum must fit in N words");
 		}
 		void subtract(const Words& other) {																				// requires *this >= other
-			int64_t borrow = 0;
+			uint64_t borrow = 0;
 			for (int i = 0; i < N; ++i) {
-				const int64_t difference = static_cast<int64_t>(words[i]) - other.words[i] - borrow;
-				borrow = (difference < 0 ? 1 : 0);
-				words[i] = static_cast<uint32_t>(difference + (borrow << 32));
+				const uint64_t difference = static_cast<uint64_t>(words[i]) - other.words[i] - borrow;
+				words[i] = static_cast<uint32_t>(difference);
+				borrow = ((difference >> 32) != 0 ? 1 : 0);																// unsigned wrap-around marks the borrow
 			}
 			assert(borrow == 0 && "subtraction must not go below zero");
 		}
@@ -423,11 +406,8 @@ template<int N> class Words {																							// N 32-bit words, least sig
 			const int bitShift = bits % 32;
 			for (int i = N; i > 0; --i) {
 				const int source = i - 1 - wordShift;
-				uint32_t value = (source >= 0 ? words[source] << bitShift : 0);
-				if (bitShift != 0 && source > 0) {
-					value |= words[source - 1] >> (32 - bitShift);
-				}
-				words[i - 1] = value;
+				words[i - 1] = (source >= 0 ? words[source] << bitShift : 0)
+						| (bitShift != 0 && source > 0 ? words[source - 1] >> (32 - bitShift) : 0);
 			}
 		}
 		void shiftRight(int bits) {
@@ -435,20 +415,14 @@ template<int N> class Words {																							// N 32-bit words, least sig
 			const int bitShift = bits % 32;
 			for (int i = 0; i < N; ++i) {
 				const int source = i + wordShift;
-				uint32_t value = (source < N ? words[source] >> bitShift : 0);
-				if (bitShift != 0 && source + 1 < N) {
-					value |= words[source + 1] << (32 - bitShift);
-				}
-				words[i] = value;
+				words[i] = (source < N ? words[source] >> bitShift : 0)
+						| (bitShift != 0 && source + 1 < N ? words[source + 1] << (32 - bitShift) : 0);
 			}
 		}
 		void keepLowBits(int bits) {
 			for (int i = 0; i < N; ++i) {
-				if (i * 32 >= bits) {
-					words[i] = 0;
-				} else if (i * 32 + 32 > bits) {
-					words[i] &= (static_cast<uint32_t>(1) << (bits - i * 32)) - 1;
-				}
+				const int kept = bits - i * 32;																			// low bits of this word that survive
+				words[i] &= (kept >= 32 ? 0xFFFFFFFFu : kept <= 0 ? 0 : (static_cast<uint32_t>(1) << kept) - 1);
 			}
 		}
 		template<int A, int B> void setProduct(const Words<A>& a, const Words<B>& b) {									// requires N >= A + B
@@ -485,20 +459,17 @@ class PowerOfFiveTable {
 			for (int q = 0; q <= MAX_POWER; ++q) {
 				const int length = power.bitLength();
 				Words<32> top = power;
-				if (length > 128) {
-					top.shiftRight(length - 128);
-				} else {
-					top.shiftLeft(128 - length);
-				}
+				top.shiftLeft(128);																						// then down to exactly 128 bits, from either side
+				top.shiftRight(length);
 				entries[q - MIN_POWER].significand = Words<4>(top);
 				entries[q - MIN_POWER].exponent = length - 128;
 				power.multiplyAdd(5, 0);
 			}
 			power = Words<32>(1);
-			for (int k = 1; k <= -MIN_POWER; ++k) {
+			for (int k = 1; k <= -MIN_POWER; ++k) {																		// 1 / 5^k is floor(2^(length + 127) / 5^k)
 				power.multiplyAdd(5, 0);
 				const int length = power.bitLength();
-				Words<32> remainder = Words<32>::powerOfTwo(length + 127);												// so the quotient has 128 bits
+				Words<32> remainder = Words<32>::powerOfTwo(length + 127);
 				Words<32> divisor = power;
 				divisor.shiftLeft(127);
 				Words<4> quotient;
@@ -514,7 +485,10 @@ class PowerOfFiveTable {
 				entries[-k - MIN_POWER].exponent = -(length + 127);
 			}
 		}
-		const Entry& entry(int power) const { return entries[power - MIN_POWER]; }
+		const Entry& entry(int power) const {
+			assert(MIN_POWER <= power && power <= MAX_POWER);
+			return entries[power - MIN_POWER];
+		}
 
 	private:
 		Entry entries[COUNT];
@@ -555,34 +529,25 @@ static const int MAX_EXACT_DIGITS = 800;																				// midpoints have at
 
 template<typename T> static void decompose(typename Traits<T>::Bits bits, uint64_t& mantissa, int& exponent2) {			// value = mantissa * 2^exponent2
 	const int field = static_cast<int>((bits & ~Traits<T>::SIGN_BIT) >> (Traits<T>::MANTISSA_BITS - 1));
-	mantissa = bits & ((static_cast<uint64_t>(1) << (Traits<T>::MANTISSA_BITS - 1)) - 1);
-	exponent2 = Traits<T>::MIN_EXPONENT;
-	if (field != 0) {
-		mantissa |= static_cast<uint64_t>(1) << (Traits<T>::MANTISSA_BITS - 1);
-		exponent2 += field - 1;
-	}
+	const uint64_t implicitBit = static_cast<uint64_t>(1) << (Traits<T>::MANTISSA_BITS - 1);
+	mantissa = (bits & (implicitBit - 1)) | (field != 0 ? implicitBit : 0);
+	exponent2 = Traits<T>::MIN_EXPONENT + (field != 0 ? field - 1 : 0);
 }
 
 /*
-	Splits x into the integer part above bit `position` and the rest, for an exact value known to lie in
-	[x, x + delta) with delta below 2^(position - 1). Returns the integer part and in `halfComparison` where the rest
-	lies relative to one half: -1 below, 0 exactly on it, 1 above. If the interval reaches the next integer the value
-	is exactly that integer (the gap theorem), so the integer part is one higher and the rest zero.
+	The integer part of `x` above bit `position`, for an exact value known to lie in [x, x + delta) with delta below
+	2^(position - 1), and in `halfComparison` -1, 0 or 1 as the rest lies below, on or above one half. An interval
+	that reaches the next integer means the value is that integer.
 */
 static uint64_t splitAtBit(const Words<8>& x, const Words<8>& delta, int position, int& halfComparison) {
-	uint64_t result = x.bitsFrom(position);
 	Words<8> rest = x;
 	rest.keepLowBits(position);
 	const Words<8> half = Words<8>::powerOfTwo(position - 1);
 	const bool aboveHalf = (rest.compare(half) > 0);
 	rest.add(delta);
-	if (rest.compare(Words<8>::powerOfTwo(position)) > 0) {
-		++result;
-		halfComparison = -1;
-	} else {
-		halfComparison = (aboveHalf ? 1 : rest.compare(half) <= 0 ? -1 : 0);
-	}
-	return result;
+	const bool reachesNext = (rest.compare(Words<8>::powerOfTwo(position)) > 0);
+	halfComparison = (reachesNext ? -1 : aboveHalf ? 1 : rest.compare(half) <= 0 ? -1 : 0);
+	return x.bitsFrom(position) + (reachesNext ? 1 : 0);
 }
 
 /*
@@ -608,9 +573,7 @@ template<int N> static int readDigits(const Char* b, const Char* e, int maxDigit
 
 /*
 	The bits of significand * 10^power rounded to the nearest T, ties to even, for 0 < significand < 10^20 and power
-	within the table. With x = significand * P the exact scaled value lies in [x, x + significand), so the interval
-	is entirely below the rounding midpoint, entirely above it, or holds it, which by the gap theorem happens only for
-	an exact tie.
+	within the table.
 */
 template<typename T> static typename Traits<T>::Bits convertDecimal(const Words<3>& significand, int power) {
 	const PowerOfFiveTable::Entry& entry = POWERS_OF_FIVE.entry(power);
@@ -641,17 +604,10 @@ template<typename T> static int compareWithUpperMidpoint(const Char* digits, con
 	int exponent2;
 	decompose<T>(lower, mantissa, exponent2);
 	Words<128> right(2 * mantissa + 1);																					// midpoint = right * 2^(exponent2 - 1)
-	--exponent2;
-	if (power >= 0) {
-		left.multiplyByPowerOfTen(power);
-	} else {
-		right.multiplyByPowerOfTen(-power);
-	}
-	if (exponent2 >= 0) {
-		right.shiftLeft(exponent2);
-	} else {
-		left.shiftLeft(-exponent2);
-	}
+	left.multiplyByPowerOfTen(std::max(power, 0));
+	right.multiplyByPowerOfTen(std::max(-power, 0));
+	left.shiftLeft(std::max(1 - exponent2, 0));
+	right.shiftLeft(std::max(exponent2 - 1, 0));
 	const int comparison = left.compare(right);
 	return (comparison == 0 && tailNonZero ? 1 : comparison);
 }
@@ -732,17 +688,12 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 			bool tailNonZero;
 			const int digitCount = readDigits(p, significandEnd, MAX_SIGNIFICANT_DIGITS, significand, tailNonZero);
 			const int power = exponent - (digitCount - 1);
-			bits = convertDecimal<T>(significand, power);
-			if (tailNonZero) {																							// between two candidates: decide exactly if they round apart
-				significand.add(Words<3>(1));
-				const typename Traits<T>::Bits upper = convertDecimal<T>(significand, power);
-				if (upper != bits) {
-					const int comparison = compareWithUpperMidpoint<T>(p, significandEnd, exponent, bits);
-					if (comparison > 0 || (comparison == 0 && (bits & 1) != 0)) {
-						bits = upper;
-					}
-				}
-			}
+			const typename Traits<T>::Bits lower = convertDecimal<T>(significand, power);
+			significand.add(Words<3>(1));																				// dropped digits put the value between two candidates
+			const typename Traits<T>::Bits upper = (tailNonZero ? convertDecimal<T>(significand, power) : lower);
+			const int comparison = (upper == lower ? -1																	// exact only when they round apart
+					: compareWithUpperMidpoint<T>(p, significandEnd, exponent, lower));
+			bits = (comparison > 0 || (comparison == 0 && (lower & 1) != 0) ? upper : lower);
 		}
 	}
 	value = Traits<T>::fromBits(negative ? bits | Traits<T>::SIGN_BIT : bits);
@@ -766,12 +717,10 @@ static uint64_t scaledFloor(uint64_t mantissa, int exponent2, int power, int& ha
 }
 
 /*
-	The shortest decimal that converts back to the positive finite value `bits`: its digits as an integer and the
-	decimal exponent of the leading digit. For n digits the candidates are the truncation F of value * 10^(n-1-k) and
-	F + 1 (k the leading digit's exponent); the smallest n at which one converts back wins, and when both do, the
-	closer one, with an even last digit on an exact half as NuXJS and V8 print it. The largest finite value never takes
-	the upper candidate, so that its text stays below the overflow threshold for parsers that treat anything above it
-	as overflow.
+	The shortest decimal that converts back to the positive finite value `bits`, the closest of its length and the
+	even digit on an exact half: its digits as an integer, and in `exponent10` the decimal exponent of the leading
+	digit. The largest finite value never takes the upper candidate, so that its text stays below the overflow
+	threshold.
 */
 template<typename T> static uint64_t shortestDigits(typename Traits<T>::Bits bits, int& exponent10) {
 	uint64_t mantissa;
@@ -779,17 +728,11 @@ template<typename T> static uint64_t shortestDigits(typename Traits<T>::Bits bit
 	decompose<T>(bits, mantissa, exponent2);
 	const int binaryExponent = exponent2 + Words<2>(mantissa).bitLength() - 1;											// floor(log2(value))
 	const int scaled = binaryExponent * 1233;																			// 1233 / 4096 ~ log10(2); at most one off
-	int k = (scaled >= 0 ? scaled : scaled - 4095) / 4096;
+	const int estimate = (scaled >= 0 ? scaled : scaled - 4095) / 4096;
 	int half;
-	uint64_t first = scaledFloor(mantissa, exponent2, -k, half);
-	while (first >= 10) {
-		++k;
-		first = scaledFloor(mantissa, exponent2, -k, half);
-	}
-	while (first == 0) {
-		--k;
-		first = scaledFloor(mantissa, exponent2, -k, half);
-	}
+	const uint64_t first = scaledFloor(mantissa, exponent2, -estimate, half);
+	const int k = estimate + (first >= 10 ? 1 : first == 0 ? -1 : 0);													// the leading digit's exponent
+	assert(scaledFloor(mantissa, exponent2, -k, half) - 1 < 9 && "the estimate is off by at most one");
 	const bool isMax = (bits == Traits<T>::toBits(std::numeric_limits<T>::max()));
 	uint64_t digits = 0;
 	int low = 1;																										// if n digits suffice, so do n + 1
@@ -804,7 +747,6 @@ template<typename T> static uint64_t shortestDigits(typename Traits<T>::Bits bit
 		if (lowerFits || upperFits) {
 			const bool preferUpper = (half > 0 || (half == 0 && (truncated & 1) != 0));									// the closer, even on a tie
 			digits = (!lowerFits || (upperFits && preferUpper && !isMax) ? truncated + 1 : truncated);
-			exponent10 = k;
 			high = n - 1;
 		} else {
 			low = n + 1;
@@ -812,11 +754,8 @@ template<typename T> static uint64_t shortestDigits(typename Traits<T>::Bits bit
 	}
 	assert(digits != 0 && "MAX_DIGITS digits always round-trip");
 	assert((digits == 10 || digits % 10 != 0) && "the shortest digits have no trailing zero");
-	if (digits == 10) {																									// a lone digit's upper candidate carried
-		digits = 1;
-		++exponent10;
-	}
-	return digits;
+	exponent10 = k + (digits == 10 ? 1 : 0);																			// 10 is the only carry that survives the search
+	return (digits == 10 ? 1 : digits);
 }
 
 template<typename T> Char* realToString(Char buffer[32], T value) {
