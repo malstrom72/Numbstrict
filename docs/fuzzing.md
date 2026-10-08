@@ -114,10 +114,13 @@ Turn off CRT dialogs in `LLVMFuzzerInitialize`, or a failed assert hangs the wor
 
 - Targets: `NumbstrictFuzz` (`tests/NumbstrictFuzz.cpp`) parses input with `Numbstrict::parseStruct` and composes
   the result; `MakaronFuzz` (`tests/MakaronFuzz.cpp`) runs it through `Makaron::Context::process`, with `@include`
-  refused. `tests/FuzzInitialize.h` holds their shared `LLVMFuzzerInitialize`.
-- `tools/build_numbstrict_fuzz.*` and `tools/build_makaron_fuzz.*` build them; each script's comment shows how to
-  run its target.
-- `tests/fuzz/` holds `numbstrictCorpus.tar.gz`, `makaronCorpus.tar.gz` and a dictionary per target. The corpora
-  include the hand-made seeds, so there is no separate seed folder. `build.sh` and `build.cmd` unpack them into
+  refused; `RealConversionFuzz` (`tests/RealConversionFuzz.cpp`) checks `doubleToString`, `floatToString`,
+  `stringToDouble` and `stringToFloat` against exact big integer arithmetic (shortest and closest text, even last
+  digit on a tie, correctly rounded parse). `tests/FuzzInitialize.h` holds their shared `LLVMFuzzerInitialize`.
+- `tools/build_numbstrict_fuzz.*`, `tools/build_makaron_fuzz.*` and `tools/build_realconversion_fuzz.*` build
+  them; each script's comment shows how to run its target.
+- `tests/fuzz/` holds `numbstrictCorpus.tar.gz`, `makaronCorpus.tar.gz`, `realConversionCorpus.tar.gz` and a
+  dictionary for the two text targets (`RealConversionFuzz` reads binary inputs). The corpora include the
+  hand-made seeds, so there is no separate seed folder. `build.sh` and `build.cmd` unpack them into
   `output/fuzzReplay/` and replay them through `tests/FuzzMain.cpp` in beta builds.
 - `tests/fuzz/makaronCrashes/` holds Makaron's fixed crash inputs, which the beta builds replay too.

@@ -8,6 +8,7 @@ IF EXIST output\fuzzReplay RMDIR /S /Q output\fuzzReplay
 MKDIR output\fuzzReplay
 tar -xzf tests\fuzz\numbstrictCorpus.tar.gz -C output\fuzzReplay || GOTO error
 tar -xzf tests\fuzz\makaronCorpus.tar.gz -C output\fuzzReplay || GOTO error
+tar -xzf tests\fuzz\realConversionCorpus.tar.gz -C output\fuzzReplay || GOTO error
 
 FOR %%t IN (beta release) DO (
 	SET "outDir=output\%%t"
@@ -27,6 +28,10 @@ FOR %%t IN (beta release) DO (
 				tests\NumbstrictFuzz.cpp tests\FuzzMain.cpp src\Numbstrict.cpp || GOTO error
 		SET "CPP_OPTIONS="
 		"!outDir!\NumbstrictFuzzReplay.exe" output\fuzzReplay\numbstrict >NUL || GOTO error
+		CALL tools\BuildCpp.cmd %%t x64 "!outDir!\RealConversionFuzzReplay.exe" ^
+				tests\RealConversionFuzz.cpp tests\FuzzMain.cpp src\Numbstrict.cpp || GOTO error
+		SET "CPP_OPTIONS="
+		"!outDir!\RealConversionFuzzReplay.exe" output\fuzzReplay\realConversion >NUL || GOTO error
 		CALL tools\BuildCpp.cmd %%t x64 "!outDir!\MakaronFuzzReplay.exe" /I src ^
 				tests\MakaronFuzz.cpp tests\FuzzMain.cpp src\Makaron.cpp || GOTO error
 		SET "CPP_OPTIONS="
