@@ -769,8 +769,9 @@ static uint64_t scaledFloor(uint64_t mantissa, int exponent2, int power, int& ha
 	The shortest decimal that converts back to the positive finite value `bits`: its digits as an integer and the
 	decimal exponent of the leading digit. For n digits the candidates are the truncation F of value * 10^(n-1-k) and
 	F + 1 (k the leading digit's exponent); the smallest n at which one converts back wins, and when both do, the
-	closer one (the upper on an exact half, as NuXJS prints it). The largest finite value never takes the upper candidate, so that its
-	text stays below the overflow threshold for parsers that treat anything above it as overflow.
+	closer one, with an even last digit on an exact half as NuXJS and V8 print it. The largest finite value never takes
+	the upper candidate, so that its text stays below the overflow threshold for parsers that treat anything above it
+	as overflow.
 */
 template<typename T> static uint64_t shortestDigits(typename Traits<T>::Bits bits, int& exponent10) {
 	uint64_t mantissa;
@@ -801,7 +802,8 @@ template<typename T> static uint64_t shortestDigits(typename Traits<T>::Bits bit
 		const bool upperFits = ((!lowerFits || half >= 0)																// only when it can change the choice
 				&& convertDecimal<T>(Words<3>(truncated + 1), power) == bits);
 		if (lowerFits || upperFits) {
-			digits = (!lowerFits || (half >= 0 && upperFits && !isMax) ? truncated + 1 : truncated);
+			const bool preferUpper = (half > 0 || (half == 0 && (truncated & 1) != 0));									// the closer, even on a tie
+			digits = (!lowerFits || (upperFits && preferUpper && !isMax) ? truncated + 1 : truncated);
 			exponent10 = k;
 			high = n - 1;
 		} else {
@@ -1866,6 +1868,10 @@ bool unitTest() {
 	assert(stringToDouble("999.9999999999999") == 999.999999999999886313162);
 	assert(doubleToString(123456789.12345677614212) == "123456789.12345678");
 	assert(stringToDouble("123456789.12345678") == 123456789.12345677614212);
+	assert(doubleToString(1700687411567516.25) == "1.7006874115675162e+15");											// exact halves take the even last digit
+	assert(stringToDouble("1.7006874115675162e+15") == 1700687411567516.25);
+	assert(doubleToString(1700687411567516.75) == "1.7006874115675168e+15");
+	assert(stringToDouble("1.7006874115675168e+15") == 1700687411567516.75);
 	assert(doubleToString(123400000000000000000.0) == "1.234e+20");
 	assert(stringToDouble("1.234e+20") == 123400000000000000000.0);
 	assert(doubleToString(1.23400000000000005948965e+40) == "1.234e+40");
@@ -2006,6 +2012,8 @@ bool unitTest() {
 			{ 0x40000000u, "2.0", "1.999999940395355224609375" },
 			{ 0x40800000u, "4.0", "3.99999988079071044921875" },
 			{ 0x41000000u, "8.0", "7.9999997615814208984375" },
+			{ 0x4a371b01u, "3000000.2", "3000000.25" },
+			{ 0x4a371b03u, "3000000.8", "3000000.75" },
 			{ 0x7f800000u, "inf", "inf" },
 			{ 0x80000001u, "-1.0e-45", "-1.0e-45" },
 			{ 0x80000002u, "-3.0e-45", "-3.0e-45" },
