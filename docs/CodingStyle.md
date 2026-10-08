@@ -1,6 +1,6 @@
 # Coding Style and Design Principles
 
-Version: 2026-10-06
+Version: 2026-10-08
 
 The coding style and design principles shared across these projects: the basis for both humans and agents, and held to
 in review. Each project adds its own operational notes (directory layout, build and test gates, dependencies) in that
@@ -112,6 +112,16 @@ These are the most important principles in the codebase. Get them wrong and the 
   but pragmatically go to C++11 where it clearly pays (e.g. `shared_ptr`); it is a judgement call, not dogma. (GAZL, for
   example, keeps its shipped headers and `.cpp` strict `-std=c++03`-clean, with `0` not `nullptr` and `<stdint.h>` not
   `<cstdint>`, while its tools and tests use C++11.)
+- **Public libraries work with RTTI on or off.** They never require either; code that needs RTTI checks for it with the
+  standard feature-test macro and adapts. This includes debug-only checks, since an `assert` replacement may still
+  compile its expression in release builds, and clang rejects `dynamic_cast` without RTTI even where it is never
+  evaluated:
+
+```
+#if defined(__cpp_rtti)
+	assert(dynamic_cast<const Code*>(o) != 0);
+#endif
+```
 
 ## 5. Comments
 
@@ -202,8 +212,11 @@ These are the most important principles in the codebase. Get them wrong and the 
 - **ASCII diagrams must actually align.** Count the columns; a caret or arrow that misses its target by one is worse
   than no diagram. Generate the marker lines rather than eyeballing them.
 
-## 8. Commit messages
+## 8. Commits and pushes
 
+- **Never push to a main branch without checking CI first.** Every long-lived branch counts, not just `main`: a
+  release or edition branch is a main branch too, and CI must run for it. Push to a branch or pull request, and push
+  the same content to the main branch only after CI has passed on it there.
 - **Short imperative subject, little or no body.** "Fix pen joint documentation", not a paragraph restating what the
   diff already shows. Add a body only when the *why* is not visible in the change itself.
 - **No attribution trailers.** No `Co-Authored-By` for tools or agents, no generated-with footers.
@@ -211,6 +224,13 @@ These are the most important principles in the codebase. Get them wrong and the 
 
 ## 9. const, increment and decrement
 
+- **Compute a local in its initializer, so it can be `const`.** Don't declare a placeholder and patch it in an `if`
+  chain. Write the value as one expression, with a conditional where it must choose:
+  `const UInt64 low = (index < N ? words[index] : 0) | ...;`, not
+  `UInt64 low = 0; if (index < N) { low = words[index]; } ...`. Likewise, compute a result and return it once rather
+  than adjusting it in branches. Collapsing statements must not lose a type: a conditional takes the common type of its
+  arms, so widen explicitly where the separate statements did. A 32-bit value shifted by 33 is undefined behaviour,
+  even when an optimized build happens to do what was meant.
 - **A local that never changes after initialization is `const`**: `const UInt32 size = header.getSize();`. A pointer
   that is never re-pointed is `const` itself: `char* const p = buffer;`.
 - **By-value parameters are never `const`.** `const` goes on what a parameter points or refers to: `const char* text`,
