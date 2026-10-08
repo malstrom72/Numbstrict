@@ -762,11 +762,12 @@ template<typename T> Char* realToString(Char buffer[32], T value) {
 	Char* p = buffer;
 	const typename Traits<T>::Bits bits = Traits<T>::toBits(value);
 	const typename Traits<T>::Bits magnitudeBits = bits & ~Traits<T>::SIGN_BIT;
-	if ((bits & Traits<T>::SIGN_BIT) != 0) {
+	const bool isNan = (magnitudeBits > Traits<T>::EXPONENT_MASK);														// exponent all ones and a mantissa
+	if ((bits & Traits<T>::SIGN_BIT) != 0 && !isNan) {																	// a nan is written without its sign
 		*p++ = '-';
 	}
-	if ((magnitudeBits & Traits<T>::EXPONENT_MASK) == Traits<T>::EXPONENT_MASK) {
-		strcpy(p, magnitudeBits == Traits<T>::EXPONENT_MASK ? "inf" : "nan");
+	if (isNan || magnitudeBits == Traits<T>::EXPONENT_MASK) {
+		strcpy(p, isNan ? "nan" : "inf");
 		return p + 3;
 	} else if (magnitudeBits == 0) {
 		strcpy(p, "0.0");
@@ -1835,6 +1836,8 @@ bool unitTest() {
 	assert(stringToDouble("inf") == std::numeric_limits<double>::infinity());
 	assert(doubleToString(std::numeric_limits<double>::quiet_NaN()) == "nan");
 	assert(isNaN(stringToDouble("nan")));
+	assert(doubleToString(Traits<double>::fromBits(0xfff8000000000000ull)) == "nan");									// a nan's sign is not written
+	assert(floatToString(Traits<float>::fromBits(0xffc00000u)) == "nan");
 
 	{
 		struct FragileDoubleCase {
