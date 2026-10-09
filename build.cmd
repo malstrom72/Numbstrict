@@ -38,6 +38,11 @@ FOR %%t IN (beta release) DO (
 		"!outDir!\MakaronFuzzReplay.exe" output\fuzzReplay\makaron tests\fuzz\makaronCrashes >NUL || GOTO error
 	)
 	REM Intentionally avoid /std:c++14 for older MSVC (v140)
+	CALL tools\BuildCpp.cmd %%t x64 "!outDir!\doubleFloatToString.exe" /I src ^
+			tests\doubleFloatToString.cpp src\Numbstrict.cpp src\Makaron.cpp || GOTO error
+	SET "CPP_OPTIONS="
+	"!outDir!\doubleFloatToString.exe" >NUL || GOTO error
+	REM Intentionally avoid /std:c++14 for older MSVC (v140)
 	CALL tools\BuildCpp.cmd %%t x64 "!outDir!\MakaronCmd.exe" /I src ^
 			tools\MakaronCmd.cpp src\Makaron.cpp || GOTO error
 	SET "CPP_OPTIONS="
