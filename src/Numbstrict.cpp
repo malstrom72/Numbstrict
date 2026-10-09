@@ -636,7 +636,7 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 	if (e - p >= 3 && strncmp(p, "inf", 3) == 0) {
 		bits = Traits<T>::EXPONENT_MASK;
 		numberEnd = p + 3;
-	} else if (e - p >= 3 && strncmp(p, "nan", 3) == 0) {
+	} else if (p == b && e - p >= 3 && strncmp(p, "nan", 3) == 0) {														// nan takes no sign
 		bits = Traits<T>::toBits(std::numeric_limits<T>::quiet_NaN());
 		numberEnd = p + 3;
 	} else {
@@ -1836,6 +1836,11 @@ bool unitTest() {
 	assert(stringToDouble("inf") == std::numeric_limits<double>::infinity());
 	assert(doubleToString(std::numeric_limits<double>::quiet_NaN()) == "nan");
 	assert(isNaN(stringToDouble("nan")));
+	{
+		size_t next = 1;
+		assert(stringToDouble("-nan", &next) == 0.0 && next == 0);														// nan takes no sign
+		assert(stringToFloat("+nan", &next) == 0.0f && next == 0);
+	}
 	assert(doubleToString(Traits<double>::fromBits(0xfff8000000000000ull)) == "nan");									// a nan's sign is not written
 	assert(floatToString(Traits<float>::fromBits(0xffc00000u)) == "nan");
 
