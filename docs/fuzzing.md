@@ -130,7 +130,8 @@ Turn off CRT dialogs in `LLVMFuzzerInitialize`, or a failed assert hangs the wor
   the result; `MakaronFuzz` (`tests/MakaronFuzz.cpp`) runs it through `Makaron::Context::process`, with `@include`
   refused; `RealConversionFuzz` (`tests/RealConversionFuzz.cpp`) checks `doubleToString`, `floatToString`,
   `stringToDouble` and `stringToFloat` against exact big integer arithmetic (shortest and closest text, even last
-  digit on a tie, correctly rounded parse). `tests/FuzzInitialize.h` holds their shared `LLVMFuzzerInitialize`.
+  digit on a tie, correctly rounded parse). `tests/FuzzInitialize.h` holds their shared `LLVMFuzzerInitialize`,
+  which turns off the CRT dialogs through `tests/QuietCrt.h`, as the smoke test and `doubleFloatToString` do.
 - `tools/build_numbstrict_fuzz.*`, `tools/build_makaron_fuzz.*` and `tools/build_realconversion_fuzz.*` build
   them; each script's comment shows how to run its target.
 - `tests/fuzz/` holds `numbstrictCorpus.tar.gz`, `makaronCorpus.tar.gz`, `realConversionCorpus.tar.gz` and a

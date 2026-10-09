@@ -3,8 +3,10 @@
 #include <cmath>
 #undef NDEBUG																											// keep these checks in release builds too
 #include <cassert>
+#include "QuietCrt.h"
 
 int main() {
+	quietCrt();
 	struct DoubleTest { double value; const char* expected; };
 	const DoubleTest doubleTests[] = {
 		{0.0, "0.0"},
