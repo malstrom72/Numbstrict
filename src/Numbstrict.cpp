@@ -852,15 +852,16 @@ String::difference_type Parser::left() const { return source.end() - p; }
 	Reads an unsigned integer in decimal, or in hexadecimal after `0x`, into `ui`: false if there is no digit or the
 	value would exceed `highest`. Overflow is checked before a digit is taken, so no width or base can wrap.
 */
-template<typename T> bool Parser::parseDigits(T highest, T& ui) {
-	const bool hex = (left() >= 2 && p[0] == '0' && p[1] == 'x');
-	const int base = (hex ? 16 : 10);
-	if (hex) {
-		p += 2;
-	}
-	const StringIt b = p;
-	for (int v; !eof() && (v = (hex ? fromHex(*p) : (*p >= '0' && *p <= '9' ? *p - '0' : -1))) >= 0; ++p) {
-		if (ui > (highest - v) / base || (!hex && ui == 0 && p != b)) {													// no room, or a leading zero
+/*
+	Reads the digits of an unsigned integer in `base` (10 or 16) from `p` into `ui`, moving `p` past them: false if
+	there is no digit, a value would exceed `highest` or a decimal has a leading zero. Overflow is checked before a
+	digit is taken, so no width or base can wrap.
+*/
+template<typename T> static bool readDigits(const Char*& p, const Char* e, int base, T highest, T& ui) {
+	const Char* const b = p;
+	ui = 0;
+	for (int v; p != e && (v = (base == 16 ? fromHex(*p) : (*p >= '0' && *p <= '9' ? *p - '0' : -1))) >= 0; ++p) {
+		if (ui > (highest - v) / base || (base == 10 && ui == 0 && p != b)) {											// no room, or a leading zero
 			return false;
 		}
 		ui = static_cast<T>(ui * base + v);
@@ -868,53 +869,52 @@ template<typename T> bool Parser::parseDigits(T highest, T& ui) {
 	return p != b;
 }
 
-template<typename T> bool Parser::tryToParseSignedInt(T& i) {
-	whiteAndComments();
-	i = 0;
-	int sign = 1;
-	if (!eof() && (*p == '+' || *p == '-')) {
-		sign = ((*p == '-') ? -1 : 1);
-		++p;
-	}
+/*
+	Reads an integer of type T in Numbstrict's syntax (a sign for a signed T or a plus for an unsigned one, then decimal
+	or `0x` hexadecimal digits) from `p` into `value`, moving `p` to where it stopped: false, with `value` 0, if there
+	is none or it does not fit.
+*/
+template<typename T> static bool readInteger(const Char*& p, const Char* e, T& value) {
 	typedef typename std::make_unsigned<T>::type UT;
 	const UT HALF_MAX = static_cast<UT>(1) << (sizeof (UT) * 8 - 1);
-	const T QUARTER_MAX = static_cast<T>(HALF_MAX >> 1);
-	const UT highest = (sign >= 0 ? HALF_MAX - 1 : HALF_MAX);															// the magnitude may not exceed this
-	UT ui = 0;
-	if (!parseDigits(highest, ui)) {
-		return false;
-	}
-	if (ui == HALF_MAX) {
-		assert(sign < 0);
-		i = static_cast<T>(0 - QUARTER_MAX - QUARTER_MAX);
-	} else {
-		i = static_cast<T>(ui) * sign;
-	}
-	whiteAndComments();
-	return eof();
-}
-
-template<typename T> bool Parser::tryToParseUnsignedInt(T& ui) {
-	whiteAndComments();
-	ui = 0;
-	if (!eof() && *p == '+') {
+	const bool negative = (std::is_signed<T>() && p != e && *p == '-');
+	if (p != e && (*p == '+' || negative)) {
 		++p;
 	}
-	if (!parseDigits(std::numeric_limits<T>::max(), ui)) {
+	const bool hex = (e - p >= 2 && p[0] == '0' && p[1] == 'x');
+	p += (hex ? 2 : 0);
+	const UT highest = (!std::is_signed<T>() ? std::numeric_limits<UT>::max() : negative ? HALF_MAX : HALF_MAX - 1);
+	UT ui;
+	const bool read = readDigits(p, e, (hex ? 16 : 10), highest, ui);
+	value = (!read ? 0 : rewrap<T>(static_cast<UT>(negative ? 0 - ui : ui)));
+	return read;
+}
+
+template<typename T> bool Parser::tryToParseInteger(T& i) {
+	whiteAndComments();
+	i = 0;
+	if (eof()) {
+		return false;
+	}
+	const Char* const b = &*p;
+	const Char* q = b;
+	const bool read = readInteger(q, b + left(), i);
+	p += q - b;
+	if (!read) {
 		return false;
 	}
 	whiteAndComments();
 	return eof();
 }
 
-bool Parser::tryToParse(int8_t& i) { return tryToParseSignedInt(i); }
-bool Parser::tryToParse(uint8_t& i) { return tryToParseUnsignedInt(i); }
-bool Parser::tryToParse(int16_t& i) { return tryToParseSignedInt(i); }
-bool Parser::tryToParse(uint16_t& i) { return tryToParseUnsignedInt(i); }
-bool Parser::tryToParse(int32_t& i) { return tryToParseSignedInt(i); }
-bool Parser::tryToParse(uint32_t& i) { return tryToParseUnsignedInt(i); }
-bool Parser::tryToParse(int64_t& i) { return tryToParseSignedInt(i); }
-bool Parser::tryToParse(uint64_t& i) { return tryToParseUnsignedInt(i); }
+bool Parser::tryToParse(int8_t& i) { return tryToParseInteger(i); }
+bool Parser::tryToParse(uint8_t& i) { return tryToParseInteger(i); }
+bool Parser::tryToParse(int16_t& i) { return tryToParseInteger(i); }
+bool Parser::tryToParse(uint16_t& i) { return tryToParseInteger(i); }
+bool Parser::tryToParse(int32_t& i) { return tryToParseInteger(i); }
+bool Parser::tryToParse(uint32_t& i) { return tryToParseInteger(i); }
+bool Parser::tryToParse(int64_t& i) { return tryToParseInteger(i); }
+bool Parser::tryToParse(uint64_t& i) { return tryToParseInteger(i); }
 
 bool Parser::tryToParse(bool& b) {
 	b = false;
@@ -1633,22 +1633,37 @@ String intToHexString(unsigned int value, int minLength) {
 }
 
 /*
-	Parses an integer of type T; a signed T also takes a hexadecimal literal that fits its width as a bit pattern.
-	`nextOffset` is the text's length on success and the point where parsing stopped otherwise.
+	Parses an integer of type T from [begin, end), or up to the terminating zero when `end` is 0, with white space
+	around it; a signed T also takes a hexadecimal literal that fits its width as a bit pattern. Returns 0 when there
+	is no integer or it does not fit. `next` receives where parsing stopped, past the trailing white space on success.
 */
-template<typename T> static T stringToInteger(const String& s, size_t* nextOffset) {
+template<typename T> static T charsToInteger(const Char* begin, const Char* end, const Char** next) {
 	typedef typename std::make_unsigned<T>::type UT;
-	Element source(s);
-	Parser parser(source);
-	T v = 0;
-	bool success = parser.tryToParse(v);
-	if (!success && std::is_signed<T>() && s.find("0x") != String::npos) {
-		UT pattern = 0;
-		success = Parser(source).tryToParse(pattern);
-		v = (success ? rewrap<T>(pattern) : 0);
+	if (end == 0) {
+		end = begin + strlen(begin);
 	}
+	const Char* const start = skipWhite(begin, end);
+	const Char* p = start;
+	T value;
+	bool read = readInteger(p, end, value);
+	const Char* const digits = start + (start != end && *start == '+' ? 1 : 0);
+	if (!read && std::is_signed<T>() && end - digits >= 2 && digits[0] == '0' && digits[1] == 'x') {					// a bit pattern
+		UT pattern;
+		p = start;
+		read = readInteger(p, end, pattern);
+		value = rewrap<T>(pattern);
+	}
+	if (next != 0) {
+		*next = (read ? skipWhite(p, end) : p);
+	}
+	return (read ? value : 0);
+}
+
+template<typename T> static T stringToInteger(const String& s, size_t* nextOffset) {
+	const Char* next;
+	const T v = charsToInteger<T>(s.data(), s.data() + s.size(), &next);
 	if (nextOffset != 0) {
-		*nextOffset = (success ? s.size() : parser.getFailPoint() - source.begin());
+		*nextOffset = next - s.data();
 	}
 	return v;
 }
@@ -1660,6 +1675,29 @@ unsigned int stringToUnsignedInt(const String& s, size_t* nextOffset) {
 }
 uint64_t stringToUnsignedInt64(const String& s, size_t* nextOffset) {
 	return stringToInteger<uint64_t>(s, nextOffset);
+}
+int charsToInt(const Char* begin, const Char* end, const Char** next) { return charsToInteger<int>(begin, end, next); }
+int64_t charsToInt64(const Char* begin, const Char* end, const Char** next) {
+	return charsToInteger<int64_t>(begin, end, next);
+}
+unsigned int charsToUnsignedInt(const Char* begin, const Char* end, const Char** next) {
+	return charsToInteger<unsigned int>(begin, end, next);
+}
+uint64_t charsToUnsignedInt64(const Char* begin, const Char* end, const Char** next) {
+	return charsToInteger<uint64_t>(begin, end, next);
+}
+
+unsigned int hexCharsToInt(const Char* begin, const Char* end, const Char** next) {
+	if (end == 0) {
+		end = begin + strlen(begin);
+	}
+	const Char* p = skipWhite(begin, end);
+	unsigned int ui;
+	const bool read = readDigits(p, end, 16, std::numeric_limits<unsigned int>::max(), ui);
+	if (next != 0) {
+		*next = (read ? skipWhite(p, end) : p);
+	}
+	return (read ? ui : 0);
 }
 
 String quoteString(const String& s, Char quoteChar) {
@@ -1818,6 +1856,22 @@ bool unitTest() {
 		assert(stringToUnsignedInt64("18446744073709551615") == std::numeric_limits<uint64_t>::max());
 		stringToUnsignedInt64("18446744073709551616", &next);															// one past the largest: stops at the last digit
 		assert(next == 19);
+	}
+	{
+		const Char* next = 0;																							// the character range functions
+		const Char text[] = " 0x1f rest";
+		assert(charsToInt(text, 0, &next) == 31 && next == text + 6);
+		assert(charsToInt(text, text + 5, &next) == 31 && next == text + 5);
+		const Char none[] = "abc";
+		assert(charsToInt(none, 0, &next) == 0 && next == none);
+		assert(charsToInt("-12") == -12 && charsToInt("0xffffffff") == -1 && charsToInt64("0xffffffffffffffff") == -1);
+		assert(charsToUnsignedInt("4294967295") == 4294967295U && charsToUnsignedInt("-1") == 0);
+		assert(charsToUnsignedInt64("18446744073709551615") == std::numeric_limits<uint64_t>::max());
+		const Char hex[] = "ff, ";
+		assert(hexCharsToInt(hex, 0, &next) == 255 && next == hex + 2);
+		const Char prefixed[] = "0x10";
+		assert(hexCharsToInt(prefixed, 0, &next) == 0 && next == prefixed + 1);											// bare digits only
+		assert(hexCharsToInt("123456789", 0, &next) == 0);
 	}
 
 	assert(doubleToString(0.0) == "0.0");

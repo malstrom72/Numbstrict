@@ -176,9 +176,7 @@ class Parser {
 	protected:
 		const Element source;
 		StringIt p;
-		template<typename T> bool parseDigits(T highest, T& ui);
-		template<typename T> bool tryToParseSignedInt(T& i);
-		template<typename T> bool tryToParseUnsignedInt(T& ui);
+		template<typename T> bool tryToParseInteger(T& i);
 		template<typename T> bool tryToParseReal(T& r);
 		template<typename C> bool quotedString(std::basic_string<C>& string);
 		template<typename C> void unquotedText(std::basic_string<C>& string);
@@ -376,9 +374,12 @@ String quoteWideString(const WideString& s, Char quoteChar = '\"');
 WideString unquoteWideString(const String& s, size_t* nextOffset = 0);	// Handy low-level utilities. All accepts leading and trailing white spaces and will convert as much as possible.
 // Similar to strtod etc. They work directly on Char pointers and they do not allocate.
 Char* intToChars(int value, Char* destination);	// destination should fit at least 11 chars (for 32-bit int)
-// TODO : int charsToInt(const Char* begin, const Char* end = 0, const Char** next = 0);	// if end is 0, strlen will be used
+int charsToInt(const Char* begin, const Char* end = 0, const Char** next = 0);											// if end is 0, strlen will be used
+int64_t charsToInt64(const Char* begin, const Char* end = 0, const Char** next = 0);
+unsigned int charsToUnsignedInt(const Char* begin, const Char* end = 0, const Char** next = 0);
+uint64_t charsToUnsignedInt64(const Char* begin, const Char* end = 0, const Char** next = 0);
 Char* intToHexChars(unsigned int value, Char* destination, int minLength = 8);	// destination should fit at least 8 chars (for 32-bit int)
-// TODO : unsigned int hexCharsToInt(const Char* begin, const Char* end = 0, const Char** next = 0);	// if end is 0, strlen will be used
+unsigned int hexCharsToInt(const Char* begin, const Char* end = 0, const Char** next = 0);								// bare hex digits, no 0x
 Char* floatToChars(float value, Char* destination);	// destination should fit at least 32 chars
 float charsToFloat(const Char* begin, const Char* end = 0, const Char** next = 0);	// if end is 0, strlen will be used
 Char* doubleToChars(const double value, Char* destination);	// destination should fit at least 32 chars
