@@ -1,4 +1,4 @@
-// FUTURE : allow multiple input files, but we need Span to also keep track of which file it is so we get proper error messages and also the map output file needs to include filenames
+// FUTURE : allow multiple input files
 
 #include <iostream>
 #include <fstream>
@@ -7,6 +7,7 @@
 #include <ostream>
 #include <iterator>
 #include <memory>
+#include <map>
 #include <cstring>
 #include "Makaron.h"
 
@@ -17,6 +18,7 @@ const char SEPARATOR_CHARACTER = '/';
 #endif
 
 std::vector<std::string> includePaths;
+std::map<std::string, std::string> loadedSources;																		// by file name, for line and column in error traces
 
 static std::string loadEntireStream(std::istream& stream) {
 	std::istreambuf_iterator<Makaron::Char> it(stream);
@@ -32,6 +34,7 @@ static bool myIncludeLoader(const Makaron::WideString& fileName, Makaron::String
 		if (fileStream.good()) {
 			fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
 			contents = loadEntireStream(fileStream);
+			loadedSources[narrowFileName] = contents;
 			return true;
 		} else if (!fileName.empty() && fileName.front() == SEPARATOR_CHARACTER) { // only use empty path if leading /
 			assert(it->empty());
@@ -115,7 +118,7 @@ int main(int argc, const char* argv[]) {
 		
 		if (argi >= argc) {
 			std::cerr << "Makaron [-m <map file>] [-d <name>=<value> ...] [-i <additional include path>] <input file>|- [<output file>|-]" << std::endl;
-			std::cerr << "map lines: <output start>:<output end> (<input start>+|<span begin>:<span end>)" << std::endl;
+			std::cerr << "map lines: <output start>:<output end> (<input start>+|<span begin>:<span end>)[ <file, when not the input file>]" << std::endl;
 			return 1;
 		}
 		
@@ -147,25 +150,32 @@ int main(int argc, const char* argv[]) {
 				source = loadEntireStream(fileStream);
 			}
 			
-				context.process(Makaron::Span(source, Makaron::WideString(fileName.begin(), fileName.end())),
-					processed, &offsetMap);
+			loadedSources[fileName] = source;
+			context.process(Makaron::Span(source, Makaron::WideString(fileName.begin(), fileName.end())), processed
+					, &offsetMap);
 		}
 		catch (const Makaron::Exception& x) {
+			const std::wstring errorFile = x.getFile();
 			std::cerr << "!!!! Makaron error: " << x.getError() << std::endl
-					<< "File: " << std::string(x.getFile().begin(), x.getFile().end())
+					<< "File: " << std::string(errorFile.begin(), errorFile.end())
 					<< ", line: " << x.getLineNumber() << ", column: " << x.getColumnNumber()
 					<< " (@" << x.getOffset() << ")" << std::endl
 					<< std::endl
 					<< "Trace:" << std::endl;
 			Makaron::RangeVector inputRanges = findInputRanges(offsetMap, processed.size());
 			for (Makaron::RangeVector::const_iterator it = inputRanges.begin(); it != inputRanges.end(); ++it) {
-				std::pair<int, int> lineAndColumn = Makaron::calculateLineAndColumn(source, it->first);
-				std::cerr << "Line: " << lineAndColumn.first << ", column: " << lineAndColumn.second;
-				if (it->second > it->first + 1) {
-					std::cerr << " (@" << it->first << ".." << it->second << ')' << std::endl;
-				} else {
-					std::cerr << " (@" << it->first << ')' << std::endl;
+				const std::string rangeFile(it->file->begin(), it->file->end());
+				const std::map<std::string, std::string>::const_iterator loaded = loadedSources.find(rangeFile);
+				std::cerr << "File: " << rangeFile;
+				if (loaded != loadedSources.end()) {
+					const std::pair<int, int> at = Makaron::calculateLineAndColumn(loaded->second, it->begin);
+					std::cerr << ", line: " << at.first << ", column: " << at.second;
 				}
+				std::cerr << " (@" << it->begin;
+				if (it->end > it->begin + 1) {
+					std::cerr << ".." << it->end;
+				}
+				std::cerr << ')' << std::endl;
 			}
 			rc = 1;
 		}
@@ -177,13 +187,19 @@ int main(int argc, const char* argv[]) {
 				return 1;
 			}
 			fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
-			for (std::vector<Makaron::OffsetMapEntry>::const_iterator it = offsetMap.begin(); it != offsetMap.end(); ++it) {
+			const Makaron::WideString inputFile(fileName.begin(), fileName.end());
+			typedef std::vector<Makaron::OffsetMapEntry>::const_iterator EntryIt;
+			for (EntryIt it = offsetMap.begin(); it != offsetMap.end(); ++it) {
 				fileStream << it->outputPoint << ':' << (it->outputPoint + it->outputStretch) << ' ' << it->inputFrom;
 				if (it->inputLength == 0) {
-					fileStream << '+' << std::endl;
+					fileStream << '+';
 				} else {
-					fileStream << ':' << (it->inputFrom + it->inputLength) << std::endl;
+					fileStream << ':' << (it->inputFrom + it->inputLength);
 				}
+				if (*it->file != inputFile) {																			// an included file is named, the input file is not
+					fileStream << ' ' << std::string(it->file->begin(), it->file->end());
+				}
+				fileStream << std::endl;
 			}
 		}
 
