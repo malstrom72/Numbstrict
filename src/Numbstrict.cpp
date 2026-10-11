@@ -306,10 +306,6 @@ template<typename C> String quoteString(const std::basic_string<C>& fromString, 
 	return quoteString(fromString.data(), fromString.data() + fromString.size(), preferUnquoted, quoteChar);
 }
 
-// Parses the unsigned digit run of a decimal exponent. Clamps accumulation well above the real
-// exponent range (~400) but far below any wrap, so pathological exponents (e.g. "1e3000000000")
-// saturate instead of wrapping mod 2^32. The caller applies the sign, so a saturated magnitude still
-// underflows to 0 / overflows to Inf correctly.
 /*
 	Real number conversions, both directions in integer arithmetic on `Words<N>`. The only approximation is a table of
 	powers of five truncated to 128 bits, whose error is one-sided, so every decision is made on an interval of
