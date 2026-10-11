@@ -136,11 +136,16 @@ class Context {
 				StringIt p;
 };
 
-// FIX : RangeVector should include file name too
-typedef std::vector< std::pair<size_t, size_t> > RangeVector;
+struct InputRange {
+	std::shared_ptr<const WideString> file;																				// the source the range lies in, as the offset map names it
+	size_t begin;
+	size_t end;
+};
+typedef std::vector<InputRange> RangeVector;
 
 /**
-	Returns ranges in input text as absolute [begin, end) offsets for an offset in output text. In case of macro calls,
+	Returns ranges in input text as absolute [begin, end) offsets, each with its file, for an offset in output text. In
+	case of macro calls,
 	first range returned is outermost and last is innermost.
  
 	Notice that you can use this routine when an error occurs to get a full "call stack" of source ranges. Just pass the

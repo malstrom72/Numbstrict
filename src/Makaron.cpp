@@ -644,6 +644,7 @@ void Context::process(const Span& input, String& output, std::vector<OffsetMapEn
 			size_t offsetsIndex;
 			const bool hasOffsets = (offsets != 0);
 			if (hasOffsets) {
+				mapEntry.file = processing.file;
 				mapEntry.inputFrom = processing.sourceOffset(instructionBegin);
 				assert(processed != 0);
 				mapEntry.outputPoint = processed->size();
@@ -699,12 +700,9 @@ RangeVector findInputRanges(const std::vector<OffsetMapEntry>& offsetMap, size_t
 	RangeVector v;
 	while (it != offsetMap.end() && outputOffset >= it->outputPoint) {
 		if (outputOffset < it->outputPoint + it->outputStretch) {
-			if (it->inputLength == 0) {
-				const size_t inputOffset = it->inputFrom + (outputOffset - it->outputPoint);
-				v.push_back(std::make_pair(inputOffset, inputOffset + 1));
-			} else {
-				v.push_back(std::make_pair(it->inputFrom, it->inputFrom + it->inputLength));
-			}
+			const size_t from = it->inputFrom + (it->inputLength == 0 ? outputOffset - it->outputPoint : 0);			// text maps one to one
+			const InputRange range = { it->file, from, from + (it->inputLength == 0 ? 1 : it->inputLength) };
+			v.push_back(range);
 		}
 		++it;
 	}
@@ -1090,6 +1088,26 @@ bool unitTest() {
 			"@begin dupl(qwer,c,def,qwer,asdf) @end"
 			, "Duplicate parameter name \"qwer\"", 27, 1, 28));
 
+	{																													// an error inside an include is traced to its file
+		Context context;
+		context.setIncludeLoader([](const WideString& fileName, String& contents) {
+			contents = "x\n@nope\n";
+			return fileName == L"inner.makaron";
+		});
+		std::vector<OffsetMapEntry> offsets;
+		String output;
+		bool traced = false;
+		try {
+			context.process(Span("a\n@include inner.makaron\nb\n", L"outer.makaron"), output, &offsets);
+		}
+		catch (const Exception& x) {
+			const RangeVector ranges = findInputRanges(offsets, output.size());
+			traced = (x.getFile() == L"inner.makaron" && ranges.size() == 2 && *ranges[0].file == L"outer.makaron"
+					&& ranges[0].begin == 2 && *ranges[1].file == L"inner.makaron" && ranges[1].begin == 2);
+		}
+		assert(traced);
+		(void)traced;
+	}
 	return true;
 }
 
