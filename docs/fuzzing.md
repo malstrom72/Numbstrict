@@ -128,10 +128,11 @@ Turn off CRT dialogs in `LLVMFuzzerInitialize`, or a failed assert hangs the wor
 
 - Targets: `NumbstrictFuzz` (`tests/NumbstrictFuzz.cpp`) parses input with `Numbstrict::parseStruct` and composes
   the result; `MakaronFuzz` (`tests/MakaronFuzz.cpp`) runs it through `Makaron::Context::process`, with `@include`
-  refused; `RealConversionFuzz` (`tests/RealConversionFuzz.cpp`) checks `doubleToString`, `floatToString`,
-  `stringToDouble` and `stringToFloat` against exact big integer arithmetic (shortest and closest text, even last
-  digit on a tie, correctly rounded parse). `tests/FuzzInitialize.h` holds their shared `LLVMFuzzerInitialize`,
-  which turns off the CRT dialogs through `tests/QuietCrt.h`, as the smoke test and `doubleFloatToString` do.
+  served from the input itself, whose sections separated by a zero byte are the files 1, 2, ...; `RealConversionFuzz`
+  (`tests/RealConversionFuzz.cpp`) checks `doubleToString`, `floatToString`, `stringToDouble` and `stringToFloat`
+  against exact big integer arithmetic (shortest and closest text, even last digit on a tie, correctly rounded parse).
+  `tests/FuzzInitialize.h` holds their shared `LLVMFuzzerInitialize`, which turns off the CRT dialogs through
+  `tests/QuietCrt.h`, as the smoke test and `doubleFloatToString` do.
 - `tools/build_numbstrict_fuzz.*`, `tools/build_makaron_fuzz.*` and `tools/build_realconversion_fuzz.*` build
   them; each script's comment shows how to run its target. `tools/fuzz.sh` and `tools/fuzz.cmd` run all three by
   hand for a given number of minutes (never on a schedule: CI runs on pushes and ad hoc), minimize the grown

@@ -36,3 +36,8 @@ brackets="[]"
 doubleQuote="\""
 singleQuote="'"
 escapedQuote="\\\""
+
+# Includes served from the input: sections separated by a zero byte are the files 1, 2, ...
+includeOne="@include 1\x0a"
+includeTwo="@include 2\x0a"
+fileBreak="\x00"
