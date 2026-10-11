@@ -1,0 +1,41 @@
+name: "Sample"
+"a key with spaces": "single quoted"
+count: 0xff
+mask: 0xffffffffffffffff
+negative: -12
+big: 18446744073709551615
+ratio: 1.5
+tiny: 1.0e-7
+plain: just some text
+flags: { true, false }
+short: { x: 1, y: 2 }
+long: {
+	first: "a quoted string that is long"
+	second: { nested: { deep: 1 }, other: 2 }
+	third: 3
+}
+list: {
+	1,
+	2,
+	3,
+	4,
+	5,
+	6,
+	7,
+	8,
+	9,
+	10,
+	11,
+	12,
+	13,
+	14,
+	15,
+	16,
+	17,
+	18,
+	19,
+	20
+}
+nested: { { 1, 2 }, { : }, { } }
+empty: { : }
+nothing:
