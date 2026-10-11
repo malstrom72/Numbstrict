@@ -848,6 +848,26 @@ StringIt Parser::getFailPoint() const { return p; }
 Parser::Parser(const Element& source) : source(source), p(source.begin()) { }
 String::difference_type Parser::left() const { return source.end() - p; }
 
+/*
+	Reads an unsigned integer in decimal, or in hexadecimal after `0x`, into `ui`: false if there is no digit or the
+	value would exceed `highest`. Overflow is checked before a digit is taken, so no width or base can wrap.
+*/
+template<typename T> bool Parser::parseDigits(T highest, T& ui) {
+	const bool hex = (left() >= 2 && p[0] == '0' && p[1] == 'x');
+	const int base = (hex ? 16 : 10);
+	if (hex) {
+		p += 2;
+	}
+	const StringIt b = p;
+	for (int v; !eof() && (v = (hex ? fromHex(*p) : (*p >= '0' && *p <= '9' ? *p - '0' : -1))) >= 0; ++p) {
+		if (ui > (highest - v) / base || (!hex && ui == 0 && p != b)) {													// no room, or a leading zero
+			return false;
+		}
+		ui = static_cast<T>(ui * base + v);
+	}
+	return p != b;
+}
+
 template<typename T> bool Parser::tryToParseSignedInt(T& i) {
 	whiteAndComments();
 	i = 0;
@@ -856,41 +876,19 @@ template<typename T> bool Parser::tryToParseSignedInt(T& i) {
 		sign = ((*p == '-') ? -1 : 1);
 		++p;
 	}
-	const StringIt b = p;
 	typedef typename std::make_unsigned<T>::type UT;
 	const UT HALF_MAX = static_cast<UT>(1) << (sizeof (UT) * 8 - 1);
 	const T QUARTER_MAX = static_cast<T>(HALF_MAX >> 1);
-	const UT limit = (sign >= 0 ? HALF_MAX : HALF_MAX + 1);
+	const UT highest = (sign >= 0 ? HALF_MAX - 1 : HALF_MAX);															// the magnitude may not exceed this
 	UT ui = 0;
-	if (left() >= 2 && p[0] == '0' && p[1] == 'x') {
-		p += 2;
-		int v;
-		while (!eof() && (v = fromHex(*p)) >= 0) {
-			ui = ui * 16 + v;
-			if (ui >= limit) {
-				return false;
-			}
-			++p;
-		}
-	} else if (!eof() && *p == '0') {
-		++p;
-	} else {
-		while (!eof() && *p >= '0' && *p <= '9') {
-			ui = ui * 10 + (*p - '0');
-			if (ui >= limit) {
-				return false;
-			}
-			++p;
-		}
+	if (!parseDigits(highest, ui)) {
+		return false;
 	}
 	if (ui == HALF_MAX) {
 		assert(sign < 0);
 		i = static_cast<T>(0 - QUARTER_MAX - QUARTER_MAX);
 	} else {
 		i = static_cast<T>(ui) * sign;
-	}
-	if (p == b) {
-		return false;
 	}
 	whiteAndComments();
 	return eof();
@@ -902,31 +900,7 @@ template<typename T> bool Parser::tryToParseUnsignedInt(T& ui) {
 	if (!eof() && *p == '+') {
 		++p;
 	}
-	const StringIt b = p;
-	if (left() >= 2 && p[0] == '0' && p[1] == 'x') {
-		p += 2;
-		int v;
-		while (!eof() && (v = fromHex(*p)) >= 0) {
-			const T lui = ui;
-			ui = ui * 16 + v;
-			if (ui < lui) {
-				return false;
-			}
-			++p;
-		}
-	} else if (!eof() && *p == '0') {
-		++p;
-	} else {
-		while (!eof() && *p >= '0' && *p <= '9') {
-			const T lui = ui;
-			ui = ui * 10 + (*p - '0');
-			if (ui < lui) {
-				return false;
-			}
-			++p;
-		}
-	}
-	if (p == b) {
+	if (!parseDigits(std::numeric_limits<T>::max(), ui)) {
 		return false;
 	}
 	whiteAndComments();
@@ -1787,6 +1761,23 @@ bool unitTest() {
 	assert(stringToInt("0x00ff") == 0xff);
 	assert(intToHexString(0, 8) == "00000000");
 	assert(stringToInt("0x00000000") == 0);
+	{
+		Element wide("0x100000000");																					// hexadecimal overflow is detected at every width
+		int32_t i32 = 1;
+		uint32_t u32 = 1;
+		assert(!Parser(wide).tryToParse(i32) && !Parser(wide).tryToParse(u32));
+		Element narrow("0x100");
+		int8_t i8 = 1;
+		uint8_t u8 = 1;
+		assert(!Parser(narrow).tryToParse(i8) && !Parser(narrow).tryToParse(u8));
+		Element bare("0x");
+		assert(!Parser(bare).tryToParse(i32) && !Parser(bare).tryToParse(u32));
+		Element top("0xffffffffffffffff");
+		uint64_t u64 = 0;
+		assert(Parser(top).tryToParse(u64) && u64 == std::numeric_limits<uint64_t>::max());
+		int64_t i64 = 0;
+		assert(!Parser(top).tryToParse(i64) && !Parser(top).tryToParse(u32));
+	}
 	assert(intToHexString(0x01234567U, 8) == "01234567");
 	assert(stringToInt("0x01234567") == 0x01234567U);
 	assert(intToHexString(0x89abcdefU, 8) == "89abcdef");

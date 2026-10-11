@@ -176,6 +176,7 @@ class Parser {
 	protected:
 		const Element source;
 		StringIt p;
+		template<typename T> bool parseDigits(T highest, T& ui);
 		template<typename T> bool tryToParseSignedInt(T& i);
 		template<typename T> bool tryToParseUnsignedInt(T& ui);
 		template<typename T> bool tryToParseReal(T& r);
