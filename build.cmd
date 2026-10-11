@@ -46,6 +46,12 @@ FOR %%t IN (beta release) DO (
 	CALL tools\BuildCpp.cmd %%t x64 "!outDir!\MakaronCmd.exe" /I src ^
 			tools\MakaronCmd.cpp src\Makaron.cpp || GOTO error
 	SET "CPP_OPTIONS="
+	REM Intentionally avoid /std:c++14 for older MSVC (v140)
+	CALL tools\BuildCpp.cmd %%t x64 "!outDir!\NumbstrictCmd.exe" /I src ^
+			tools\NumbstrictCmd.cpp src\Numbstrict.cpp || GOTO error
+	SET "CPP_OPTIONS="
+	"!outDir!\NumbstrictCmd.exe" -n tests\normalize.numbstrict "!outDir!\normalized.numbstrict" || GOTO error
+	FC /B "!outDir!\normalized.numbstrict" tests\normalize.expected.numbstrict >NUL || GOTO error
 	IF EXIST externals\ryu\NUL (
 		REM Intentionally avoid /std:c++14 for older MSVC (v140)
 		CALL tools\BuildCpp.cmd %%t x64 "!outDir!\HexDoubleToDecimal.exe" /I externals\ryu ^

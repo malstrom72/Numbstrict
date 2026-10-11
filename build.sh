@@ -61,6 +61,11 @@ for target in beta release; do
 	CPP_OPTIONS="$cpp_options" bash tools/BuildCpp.sh "$target" native "$out_dir/MakaronCmd" \
 		-I src tools/MakaronCmd.cpp src/Makaron.cpp
 
+	CPP_OPTIONS="$cpp_options" bash tools/BuildCpp.sh "$target" native "$out_dir/NumbstrictCmd" \
+		-I src tools/NumbstrictCmd.cpp src/Numbstrict.cpp
+	"$out_dir/NumbstrictCmd" -n tests/normalize.numbstrict "$out_dir/normalized.numbstrict"
+	cmp "$out_dir/normalized.numbstrict" tests/normalize.expected.numbstrict
+
 	if [[ -d externals/ryu ]]; then
 		c_options=""
 		if [[ -n "$original_cpp_options" ]]; then

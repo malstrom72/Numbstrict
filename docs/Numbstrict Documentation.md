@@ -67,3 +67,14 @@ if(!p.tryToParse(s, offset)) {
 }
 ```
 
+Command-line tool
+-----------------
+
+`NumbstrictCmd [-n] <input file>|- [<output file>|-]`, built by `build.sh` and `build.cmd` into `output/<target>/`,
+checks that the input is valid Numbstrict, parsing every nested value, and exits with 1 and the error on stderr when
+it is not. With `-n` it also writes the input normalized: comments dropped, a struct or array on one line when that
+fits in 40 columns and otherwise one entry per line indented with tabs, keys in the order of the input and unquoted
+when they are identifiers, quoted text in double quotes and unquoted text as it was, integers in decimal unless the
+input wrote them in hexadecimal, reals in their shortest form, and lines ending with a line feed whatever the
+platform. Normalizing twice gives the same text, so the tool suits pre-commit hooks and CI. `tests/normalize.numbstrict`
+and `tests/normalize.expected.numbstrict` show the form.
