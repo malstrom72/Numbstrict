@@ -29,7 +29,9 @@ for target in beta release; do
 		-I src tests/smoke.cpp src/Numbstrict.cpp src/Makaron.cpp
 	"$out_dir/smoke" > /dev/null
 
-	# 32-bit x86 has its own floating-point environment code path. Needs a multilib toolchain (not available on macOS).
+	# The 32-bit build checks the integer arithmetic of the conversions on a 32-bit target. Needs a multilib toolchain
+	# (not available on macOS). SSE arithmetic is forced because gcc's x87 excess precision breaks the unit test's
+	# comparisons of doubles with literals, not because the library needs it.
 	if [[ "$(uname -s)" != "Darwin" ]] \
 			&& echo 'int main() { return 0; }' | ${CPP_COMPILER:-g++} -m32 -x c++ - -o "$out_dir/m32probe" 2>/dev/null; then
 		CPP_OPTIONS="$cpp_options -msse2 -mfpmath=sse" bash tools/BuildCpp.sh "$target" x86 "$out_dir/smoke_x86" \

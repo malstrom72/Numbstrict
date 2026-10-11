@@ -18,7 +18,7 @@ FOR %%t IN (beta release) DO (
 			tests\smoke.cpp src\Numbstrict.cpp src\Makaron.cpp || GOTO error
 	SET "CPP_OPTIONS="
 	"!outDir!\smoke.exe" >NUL || GOTO error
-	REM 32-bit x86 has its own floating-point environment code path (x87 + SSE)
+	REM The 32-bit build checks the integer arithmetic of the conversions on a 32-bit target
 	CALL tools\BuildCpp.cmd %%t x86 "!outDir!\smoke_x86.exe" /I src ^
 			tests\smoke.cpp src\Numbstrict.cpp src\Makaron.cpp || GOTO error
 	SET "CPP_OPTIONS="
