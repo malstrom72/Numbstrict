@@ -1632,15 +1632,34 @@ String intToHexString(unsigned int value, int minLength) {
 	return intToString(value, 16, minLength);
 }
 
-int stringToInt(const String& s, size_t* nextOffset) {
-	int v = 0;
+/*
+	Parses an integer of type T; a signed T also takes a hexadecimal literal that fits its width as a bit pattern.
+	`nextOffset` is the text's length on success and the point where parsing stopped otherwise.
+*/
+template<typename T> static T stringToInteger(const String& s, size_t* nextOffset) {
+	typedef typename std::make_unsigned<T>::type UT;
 	Element source(s);
 	Parser parser(source);
+	T v = 0;
 	bool success = parser.tryToParse(v);
+	if (!success && std::is_signed<T>() && s.find("0x") != String::npos) {
+		UT pattern = 0;
+		success = Parser(source).tryToParse(pattern);
+		v = (success ? rewrap<T>(pattern) : 0);
+	}
 	if (nextOffset != 0) {
 		*nextOffset = (success ? s.size() : parser.getFailPoint() - source.begin());
 	}
 	return v;
+}
+
+int stringToInt(const String& s, size_t* nextOffset) { return stringToInteger<int>(s, nextOffset); }
+int64_t stringToInt64(const String& s, size_t* nextOffset) { return stringToInteger<int64_t>(s, nextOffset); }
+unsigned int stringToUnsignedInt(const String& s, size_t* nextOffset) {
+	return stringToInteger<unsigned int>(s, nextOffset);
+}
+uint64_t stringToUnsignedInt64(const String& s, size_t* nextOffset) {
+	return stringToInteger<uint64_t>(s, nextOffset);
 }
 
 String quoteString(const String& s, Char quoteChar) {
@@ -1781,11 +1800,25 @@ bool unitTest() {
 	assert(intToHexString(0x01234567U, 8) == "01234567");
 	assert(stringToInt("0x01234567") == 0x01234567U);
 	assert(intToHexString(0x89abcdefU, 8) == "89abcdef");
-// TODO: assert(stringToInt("0x89abcdef") == 0x89abcdefU);
+	assert(stringToInt("0x89abcdef") == 0x89abcdefU);
 	assert(intToHexString(0x7fffffffU) == "7fffffff");
-// TODO: assert(stringToInt("0x7fffffff") == 0x7fffffffU);
+	assert(stringToInt("0x7fffffff") == 0x7fffffffU);
 	assert(intToHexString(0xffffffffU) == "ffffffff");
-// TODO: assert(stringToInt("0xffffffff") == 0xffffffffU);
+	assert(stringToInt("0xffffffff") == 0xffffffffU);
+	{
+		size_t next = 0;
+		assert(stringToInt("4294967295", &next) == 0 && next < 10);														// only hexadecimal gives a bit pattern
+		assert(stringToInt("-0x80000000") == -2147483647 - 1);
+		assert(stringToInt64("0xffffffffffffffff") == -1);
+		assert(stringToInt64("-9223372036854775808") == std::numeric_limits<int64_t>::min());
+		assert(stringToInt64("9223372036854775807") == std::numeric_limits<int64_t>::max());
+		assert(stringToUnsignedInt("4294967295") == 4294967295U);
+		assert(stringToUnsignedInt("0xffffffff") == 0xffffffffU);
+		assert(stringToUnsignedInt("-1", &next) == 0 && next < 2);
+		assert(stringToUnsignedInt64("18446744073709551615") == std::numeric_limits<uint64_t>::max());
+		stringToUnsignedInt64("18446744073709551616", &next);															// one past the largest: stops at the last digit
+		assert(next == 19);
+	}
 
 	assert(doubleToString(0.0) == "0.0");
 	assert(stringToDouble("0.0") == 0.0);
