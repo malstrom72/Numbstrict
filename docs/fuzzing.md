@@ -133,9 +133,12 @@ Turn off CRT dialogs in `LLVMFuzzerInitialize`, or a failed assert hangs the wor
   digit on a tie, correctly rounded parse). `tests/FuzzInitialize.h` holds their shared `LLVMFuzzerInitialize`,
   which turns off the CRT dialogs through `tests/QuietCrt.h`, as the smoke test and `doubleFloatToString` do.
 - `tools/build_numbstrict_fuzz.*`, `tools/build_makaron_fuzz.*` and `tools/build_realconversion_fuzz.*` build
-  them; each script's comment shows how to run its target.
+  them; each script's comment shows how to run its target. `tools/fuzz.sh` and `tools/fuzz.cmd` run all three by
+  hand for a given number of minutes (never on a schedule: CI runs on pushes and ad hoc), minimize the grown
+  corpora back into `tests/fuzz/` and leave any finding in `output/fuzz/`.
 - `tests/fuzz/` holds `numbstrictCorpus.tar.gz`, `makaronCorpus.tar.gz`, `realConversionCorpus.tar.gz` and a
   dictionary for the two text targets (`RealConversionFuzz` reads binary inputs). The corpora include the
   hand-made seeds, so there is no separate seed folder. `build.sh` and `build.cmd` unpack them into
-  `output/fuzzReplay/` and replay them through `tests/FuzzMain.cpp` in beta builds.
+  `output/fuzzReplay/` and replay them through `tests/FuzzMain.cpp` in beta builds, on every push through CI; they
+  fit the 30-second budget, so no separate replay script is needed.
 - `tests/fuzz/makaronCrashes/` holds Makaron's fixed crash inputs, which the beta builds replay too.
