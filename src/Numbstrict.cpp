@@ -861,6 +861,7 @@ template<typename T> bool Parser::parseDigits(T highest, T& ui) {
 	const StringIt b = p;
 	for (int v; !eof() && (v = (hex ? fromHex(*p) : (*p >= '0' && *p <= '9' ? *p - '0' : -1))) >= 0; ++p) {
 		if (ui > (highest - v) / base || (!hex && ui == 0 && p != b)) {													// no room, or a leading zero
+			ui = 0;																										// an overflow leaves nothing behind
 			return false;
 		}
 		ui = static_cast<T>(ui * base + v);
@@ -1816,8 +1817,9 @@ bool unitTest() {
 		assert(stringToUnsignedInt("0xffffffff") == 0xffffffffU);
 		assert(stringToUnsignedInt("-1", &next) == 0 && next < 2);
 		assert(stringToUnsignedInt64("18446744073709551615") == std::numeric_limits<uint64_t>::max());
-		stringToUnsignedInt64("18446744073709551616", &next);															// one past the largest: stops at the last digit
+		assert(stringToUnsignedInt64("18446744073709551616", &next) == 0);												// one past the largest: stops at the last digit
 		assert(next == 19);
+		assert(stringToInt("12.5", &next) == 12 && next == 2);															// a partial parse keeps its value
 	}
 
 	assert(doubleToString(0.0) == "0.0");
