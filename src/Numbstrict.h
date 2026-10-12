@@ -357,6 +357,12 @@ inline Variant parseVariant(const Element& source) { return source.to<Variant>()
 
 String intToString(int value);
 String intToHexString(unsigned int value, int minLength = 8);
+/*
+	Conversions from text in the manner of strtol and strtod: leading and trailing white space (no comments), an
+	optional sign, then as many characters as make a number, leading zeros included. `nextOffset` is where the scan
+	stopped: the length when it took everything, 0 when nothing was read. An integer past its range is the nearest
+	limit, with `nextOffset` at the first digit that does not fit; a real past its range is inf or 0.
+*/
 int32_t stringToInt(const String& s, size_t* nextOffset = 0);
 int64_t stringToInt64(const String& s, size_t* nextOffset = 0);
 uint32_t stringToUnsignedInt(const String& s, size_t* nextOffset = 0);
@@ -371,10 +377,15 @@ double stringToDouble(const String& s, size_t* nextOffset = 0);
 String quoteString(const String& s, Char quoteChar = '\"');
 String unquoteString(const String& s, size_t* nextOffset = 0);
 String quoteWideString(const WideString& s, Char quoteChar = '\"');
-WideString unquoteWideString(const String& s, size_t* nextOffset = 0);	// Handy low-level utilities. All accepts leading and trailing white spaces and will convert as much as possible.
+WideString unquoteWideString(const String& s, size_t* nextOffset = 0);
+
+// Handy low-level utilities. All accepts leading and trailing white spaces and will convert as much as possible.
 // Similar to strtod etc. They work directly on Char pointers and they do not allocate.
 Char* intToChars(int value, Char* destination);	// destination should fit at least 11 chars (for 32-bit int)
-// TODO : int charsToInt(const Char* begin, const Char* end = 0, const Char** next = 0);	// if end is 0, strlen will be used
+int32_t charsToInt(const Char* begin, const Char* end = 0, const Char** next = 0);	// if end is 0, strlen will be used
+int64_t charsToInt64(const Char* begin, const Char* end = 0, const Char** next = 0);
+uint32_t charsToUnsignedInt(const Char* begin, const Char* end = 0, const Char** next = 0);
+uint64_t charsToUnsignedInt64(const Char* begin, const Char* end = 0, const Char** next = 0);
 Char* intToHexChars(unsigned int value, Char* destination, int minLength = 8);	// destination should fit at least 8 chars (for 32-bit int)
 // TODO : unsigned int hexCharsToInt(const Char* begin, const Char* end = 0, const Char** next = 0);	// if end is 0, strlen will be used
 Char* floatToChars(float value, Char* destination);	// destination should fit at least 32 chars

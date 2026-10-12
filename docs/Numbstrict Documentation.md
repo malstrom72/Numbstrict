@@ -39,6 +39,23 @@ Real numbers
 - Every finite double and float survives formatting and parsing unchanged, and neither direction depends on the
   floating-point environment (rounding mode, flush-to-zero, x87 precision). `docs/RealConversion.md` has the design
   and its verification.
+
+Conversion functions
+--------------------
+
+- `stringToInt`, `stringToInt64`, `stringToUnsignedInt`, `stringToUnsignedInt64`, `stringToFloat` and `stringToDouble`
+  convert text in the manner of `strtol` and `strtod`, and the `charsTo` versions do the same on a pointer range
+  without allocating: leading and trailing white space (not comments), an optional sign (a minus only for the signed
+  functions), then as many characters as make a number, leading zeros included, so `"12.5"` gives `12` from
+  `stringToInt` and `"007"` gives `7`.
+- `nextOffset` (or `next`) is where the scan stopped: the length of the text when it took everything, and the start
+  when nothing was read, as `strtol`'s end pointer. An integer past the range of its type is the nearest limit of that
+  type, with `nextOffset` at the first digit that does not fit, so comparing `nextOffset` with the length detects it;
+  a real past its range is infinity or zero. Integers take hexadecimal after `0x`; a bare `0x` is the number 0
+  followed by the letter x.
+- `Parser::tryToParse` and `Element::to` read a whole value by the grammar instead: white space and comments around
+  it, no leading zeros, and failure for anything out of range or left over.
+
 Examples
 --------
 
