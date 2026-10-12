@@ -848,31 +848,21 @@ StringIt Parser::getFailPoint() const { return p; }
 Parser::Parser(const Element& source) : source(source), p(source.begin()) { }
 String::difference_type Parser::left() const { return source.end() - p; }
 
-/*
-	The pointer to the character at `it` in `source`, one past the last for `end()`, and the way back: the readers
-	that take a pointer range work on the Parser's text through these. The source must not be empty.
-*/
-static const Char* pointerAt(const Element& source, StringIt it) {
+static const Char* pointerAt(const Element& source, StringIt it) {														// `source` must not be empty
 	return &*source.begin() + (it - source.begin());
 }
 
-static StringIt iteratorAt(const Element& source, const Char* pointer) {
+static StringIt iteratorAt(const Element& source, const Char* pointer) {												// `source` must not be empty
 	return source.begin() + (pointer - &*source.begin());
 }
 
-/*
-	True if `p` starts a hexadecimal literal: `0x` with at least one hex digit after it. A bare `0x` is the number 0
-	followed by the letter x, so that a scan stops at the x.
-*/
-static bool startsHexadecimal(const Char* p, const Char* e) {
+static bool startsHexadecimal(const Char* p, const Char* e) {															// a bare 0x is a 0 and an x, where a scan stops
 	return (e - p >= 3 && p[0] == '0' && p[1] == 'x' && fromHex(p[2]) >= 0);
 }
 
 /*
-	Reads an unsigned integer in decimal, or in hexadecimal when `0x` and a hex digit follow, from `p` into `ui` and
-	returns where its digits end, `p` itself when there is none. At the first digit that would take the value past
-	`highest`, `overflow` is set to that digit and `ui` stays at `highest` through the rest, so that the caller can
-	fail there or saturate as strtol does; otherwise `overflow` is null.
+	`overflow` is null, or the first digit that would take `ui` past `highest`, where `ui` then stays: the caller
+	fails there or saturates.
 */
 static const Char* readUnsigned(const Char* p, const Char* e, uint64_t highest, uint64_t& ui, const Char*& overflow) {
 	const bool hex = startsHexadecimal(p, e);
@@ -893,22 +883,12 @@ static const Char* readUnsigned(const Char* p, const Char* e, uint64_t highest, 
 	return p;
 }
 
-/*
-	The largest magnitude a T holds with the sign given, as its unsigned counterpart: the full width for an unsigned T,
-	one more below zero than above it for a signed T.
-*/
 template<typename T> static typename std::make_unsigned<T>::type highestMagnitude(bool negative) {
 	typedef typename std::make_unsigned<T>::type UT;
 	const UT top = std::numeric_limits<UT>::max();
 	return static_cast<UT>(std::is_signed<T>() ? (top >> 1) + (negative ? 1 : 0) : top);
 }
 
-/*
-	Reads a whole integer value of type T as the grammar has it: an optional sign, `-` only for a signed T, then `0x`
-	and hex digits or a decimal without leading zeros, within the range of T, and nothing but white and comments after.
-	On failure `p` is the fail point: after a sign with no digit, at the second digit of a leading zero, or at the first
-	digit past the range.
-*/
 template<typename T> bool Parser::tryToParseInteger(T& i) {
 	typedef typename std::make_unsigned<T>::type UT;
 	whiteAndComments();
@@ -919,7 +899,7 @@ template<typename T> bool Parser::tryToParseInteger(T& i) {
 	const Char* const b = pointerAt(source, p);
 	const Char* const e = pointerAt(source, source.end());
 	const bool negative = (*b == '-' && std::is_signed<T>());
-	const Char* const d = b + ((negative || *b == '+') ? 1 : 0);														// the digits begin here
+	const Char* const d = b + ((negative || *b == '+') ? 1 : 0);
 	uint64_t ui;
 	const Char* overflow;
 	const Char* const q = readUnsigned(d, e, highestMagnitude<T>(negative), ui, overflow);
@@ -1658,13 +1638,6 @@ String intToHexString(unsigned int value, int minLength) {
 	return intToString(value, 16, minLength);
 }
 
-/*
-	Scans an integer of type T as strtol does: white space, an optional sign (`-` only for a signed T), then digits in
-	decimal or in hexadecimal after `0x` as far as they go, leading zeros included, and white space after them. `*next`
-	is where the scan stopped, `b` when there is no digit. A value past the range of T is the limit of T on that side,
-	with `*next` at the first digit that does not fit, since `*next` is the one way these functions report an error.
-	A null `e` means that `b` is a C string.
-*/
 template<typename T> static T stringToInteger(const Char* b, const Char* e, const Char** next) {
 	typedef typename std::make_unsigned<T>::type UT;
 	if (e == 0) {
@@ -1862,7 +1835,7 @@ bool unitTest() {
 	{
 		size_t next = 0;
 		assert(stringToInt("4294967295", &next) == 2147483647 && next == 9);											// past the range: the limit, `next` at the digit that does not fit
-		assert(stringToInt("0xffffffff", &next) == 2147483647 && next == 9);											// hexadecimal has the same range
+		assert(stringToInt("0xffffffff", &next) == 2147483647 && next == 9);
 		assert(stringToInt("-0x80000000") == -2147483647 - 1);
 		assert(stringToInt("-0x80000001", &next) == -2147483647 - 1 && next == 10);
 		assert(stringToInt64("-9223372036854775808") == std::numeric_limits<int64_t>::min());
@@ -1875,24 +1848,24 @@ bool unitTest() {
 		assert(stringToUnsignedInt64("0xffffffffffffffff") == std::numeric_limits<uint64_t>::max());
 		assert(stringToUnsignedInt64("18446744073709551616", &next) == std::numeric_limits<uint64_t>::max());
 		assert(next == 19);
-		assert(stringToInt("12.5", &next) == 12 && next == 2);															// a scan stops at the first non-digit
-		assert(stringToInt("0x1g", &next) == 1 && next == 3);															// hexadecimal scans and stops the same way
+		assert(stringToInt("12.5", &next) == 12 && next == 2);
+		assert(stringToInt("0x1g", &next) == 1 && next == 3);
 		assert(stringToUnsignedInt("0xffffffffg", &next) == 0xffffffffU && next == 10);
-		assert(stringToInt("12 0x", &next) == 12 && next == 3);															// "0x" later in the text means nothing
+		assert(stringToInt("12 0x", &next) == 12 && next == 3);
 		assert(stringToInt("0x", &next) == 0 && next == 1);																// a bare 0x is a 0 and stops at the x
 		assert(stringToInt("0xg", &next) == 0 && next == 1);
 		assert(stringToUnsignedInt("0x", &next) == 0 && next == 1);
 		assert(stringToInt("007", &next) == 7 && next == 3);															// leading zeros scan, unlike in a file
-		assert(stringToInt("  -7  ", &next) == -7 && next == 6);														// white space on both sides
+		assert(stringToInt("  -7  ", &next) == -7 && next == 6);
 		assert(stringToInt("-", &next) == 0 && next == 0);																// nothing read: `nextOffset` is the start
 		assert(stringToInt("   ", &next) == 0 && next == 0);
 		assert(stringToInt("/* 5 */", &next) == 0 && next == 0);														// comments are not white space here
 		assert(stringToDouble("  abc", &next) == 0.0 && next == 0);
 		assert(stringToDouble(" 1.5 ", &next) == 1.5 && next == 5);
 		assert(stringToInt("0X10", &next) == 0 && next == 1);															// only a lowercase x makes hexadecimal
-		assert(stringToInt("0xFF") == 255);																				// hex digits in either case
+		assert(stringToInt("0xFF") == 255);
 		const Char* after = 0;
-		assert(charsToInt("12x", 0, &after) == 12 && *after == 'x');													// a C string, `end` found by strlen
+		assert(charsToInt("12x", 0, &after) == 12 && *after == 'x');
 		assert(charsToUnsignedInt64("18446744073709551615;", 0, &after) == std::numeric_limits<uint64_t>::max());
 		assert(*after == ';');
 		const Char range[] = { '-', '7', '7' };
