@@ -356,15 +356,21 @@ inline Variant parseVariant(const String& code, const String& filename = String(
 inline Variant parseVariant(const Element& source) { return source.to<Variant>(); }
 
 String intToString(int32_t value);
-String intToHexString(uint32_t value, int minLength = 8);
-String intToHexString64(uint64_t value, int minLength = 16);
+String int64ToString(int64_t value);
+String unsignedIntToString(uint32_t value);
+String unsignedInt64ToString(uint64_t value);
+String unsignedIntToHexString(uint32_t value, int minLength = 8);
+String unsignedInt64ToHexString(uint64_t value, int minLength = 16);
 String floatToString(float value);
 String doubleToString(double value);
 Char* intToChars(int32_t value, Char* destination);																		// writes at most 12 chars, the terminating zero included
-Char* intToHexChars(uint32_t value, Char* destination, int minLength = 8);												// at most max(8, `minLength`) + 1 chars
-Char* intToHexChars64(uint64_t value, Char* destination, int minLength = 16);											// at most max(16, `minLength`) + 1 chars
-Char* floatToChars(float value, Char* destination);																		// at most 32 chars, the terminating zero included
-Char* doubleToChars(const double value, Char* destination);																// at most 32 chars, the terminating zero included
+Char* int64ToChars(int64_t value, Char* destination);																	// at most 21 chars
+Char* unsignedIntToChars(uint32_t value, Char* destination);															// at most 11 chars
+Char* unsignedInt64ToChars(uint64_t value, Char* destination);															// at most 21 chars
+Char* unsignedIntToHexChars(uint32_t value, Char* destination, int minLength = 8);										// at most max(8, `minLength`) + 1 chars
+Char* unsignedInt64ToHexChars(uint64_t value, Char* destination, int minLength = 16);									// at most max(16, `minLength`) + 1 chars
+Char* floatToChars(float value, Char* destination);																		// at most 32 chars
+Char* doubleToChars(const double value, Char* destination);																// at most 32 chars
 
 /*
 	Conversions from text in the manner of strtol and strtod, from a String or from [`begin`, `end`) (a null `end` for
@@ -387,8 +393,8 @@ float charsToFloat(const Char* begin, const Char* end = 0, const Char** next = 0
 double charsToDouble(const Char* begin, const Char* end = 0, const Char** next = 0);
 
 /*
-	The same scan of hex digits of either case without a sign or a prefix, as intToHexString and intToHexChars write
-	them: a leading `0x` reads as 0, stopped at the x.
+	The same scan of hex digits of either case without a sign or a prefix, as unsignedIntToHexString and
+	unsignedInt64ToHexString write them: a leading `0x` reads as 0, stopped at the x.
 */
 uint32_t hexStringToUnsignedInt(const String& s, size_t* nextOffset = 0);
 uint64_t hexStringToUnsignedInt64(const String& s, size_t* nextOffset = 0);

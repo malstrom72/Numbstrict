@@ -1628,16 +1628,22 @@ template<typename T> static Char* integerToChars(T value, int radix, int minLeng
 }
 
 Char* intToChars(int32_t value, Char* destination) { return integerToChars(value, 10, 1, destination); }
-Char* intToHexChars(uint32_t value, Char* destination, int minLength) {
+Char* int64ToChars(int64_t value, Char* destination) { return integerToChars(value, 10, 1, destination); }
+Char* unsignedIntToChars(uint32_t value, Char* destination) { return integerToChars(value, 10, 1, destination); }
+Char* unsignedInt64ToChars(uint64_t value, Char* destination) { return integerToChars(value, 10, 1, destination); }
+Char* unsignedIntToHexChars(uint32_t value, Char* destination, int minLength) {
 	return integerToChars(value, 16, minLength, destination);
 }
-Char* intToHexChars64(uint64_t value, Char* destination, int minLength) {
+Char* unsignedInt64ToHexChars(uint64_t value, Char* destination, int minLength) {
 	return integerToChars(value, 16, minLength, destination);
 }
 
 String intToString(int32_t value) { return intToString(value, 10); }
-String intToHexString(uint32_t value, int minLength) { return intToString(value, 16, minLength); }
-String intToHexString64(uint64_t value, int minLength) { return intToString(value, 16, minLength); }
+String int64ToString(int64_t value) { return intToString(value, 10); }
+String unsignedIntToString(uint32_t value) { return intToString(value, 10); }
+String unsignedInt64ToString(uint64_t value) { return intToString(value, 10); }
+String unsignedIntToHexString(uint32_t value, int minLength) { return intToString(value, 16, minLength); }
+String unsignedInt64ToHexString(uint64_t value, int minLength) { return intToString(value, 16, minLength); }
 
 template<typename T> static T stringToInteger(const Char* b, const Char* e, int base, const Char** next) {
 	typedef typename std::make_unsigned<T>::type UT;
@@ -1811,13 +1817,13 @@ bool unitTest() {
 	assert(stringToInt("2147483647") == 2147483647);
 	assert(intToString(-2147483647 - 1) == "-2147483648");
 	assert(stringToInt("-2147483648") == -2147483647 - 1);
-	assert(intToHexString(0, 1) == "0");
+	assert(unsignedIntToHexString(0, 1) == "0");
 	assert(stringToInt("0x0") == 0);
-	assert(intToHexString(0xff, 1) == "ff");
+	assert(unsignedIntToHexString(0xff, 1) == "ff");
 	assert(stringToInt("0xff") == 0xff);
-	assert(intToHexString(0xff, 4) == "00ff");
+	assert(unsignedIntToHexString(0xff, 4) == "00ff");
 	assert(stringToInt("0x00ff") == 0xff);
-	assert(intToHexString(0, 8) == "00000000");
+	assert(unsignedIntToHexString(0, 8) == "00000000");
 	assert(stringToInt("0x00000000") == 0);
 	{
 		Element wide("0x100000000");																					// hexadecimal overflow is detected at every width
@@ -1839,13 +1845,13 @@ bool unitTest() {
 		int64_t i64 = 0;
 		assert(!Parser(top).tryToParse(i64) && !Parser(top).tryToParse(u32));
 	}
-	assert(intToHexString(0x01234567U, 8) == "01234567");
+	assert(unsignedIntToHexString(0x01234567U, 8) == "01234567");
 	assert(stringToInt("0x01234567") == 0x01234567U);
-	assert(intToHexString(0x89abcdefU, 8) == "89abcdef");
+	assert(unsignedIntToHexString(0x89abcdefU, 8) == "89abcdef");
 	assert(stringToUnsignedInt("0x89abcdef") == 0x89abcdefU);
-	assert(intToHexString(0x7fffffffU) == "7fffffff");
+	assert(unsignedIntToHexString(0x7fffffffU) == "7fffffff");
 	assert(stringToInt("0x7fffffff") == 0x7fffffffU);
-	assert(intToHexString(0xffffffffU) == "ffffffff");
+	assert(unsignedIntToHexString(0xffffffffU) == "ffffffff");
 	assert(stringToUnsignedInt("0xffffffff") == 0xffffffffU);
 	{
 		size_t next = 0;
@@ -1892,11 +1898,20 @@ bool unitTest() {
 		assert(hexCharsToUnsignedInt64("ffffffffffffffff;", 0, &after) == std::numeric_limits<uint64_t>::max());
 		assert(*after == ';');
 		assert(hexCharsToUnsignedInt("g", 0, &after) == 0 && *after == 'g');
-		assert(intToHexString64(0x0123456789abcdefULL) == "0123456789abcdef" && intToHexString64(0, 1) == "0");
-		assert(hexStringToUnsignedInt64(intToHexString64(0xfedcba9876543210ULL)) == 0xfedcba9876543210ULL);
+		assert(unsignedInt64ToHexString(0x0123456789abcdefULL) == "0123456789abcdef");
+		assert(unsignedInt64ToHexString(0, 1) == "0");
+		assert(hexStringToUnsignedInt64(unsignedInt64ToHexString(0xfedcba9876543210ULL)) == 0xfedcba9876543210ULL);
 		Char digits[17 + 1];
-		assert(intToHexChars64(std::numeric_limits<uint64_t>::max(), digits) == digits + 16 && digits[16] == 0);
+		assert(unsignedInt64ToHexChars(std::numeric_limits<uint64_t>::max(), digits) == digits + 16 && digits[16] == 0);
 		assert(intToChars(-2147483647 - 1, digits) == digits + 11 && String(digits) == "-2147483648");
+		Char wide[21 + 1];
+		assert(int64ToChars(std::numeric_limits<int64_t>::min(), wide) == wide + 20);
+		assert(String(wide) == "-9223372036854775808");
+		assert(unsignedInt64ToChars(std::numeric_limits<uint64_t>::max(), wide) == wide + 20);
+		assert(String(wide) == "18446744073709551615");
+		assert(unsignedIntToChars(4294967295U, wide) == wide + 10 && unsignedIntToHexChars(0xabU, wide, 1) == wide + 2);
+		assert(int64ToString(-1) == "-1" && unsignedIntToString(4294967295U) == "4294967295");
+		assert(unsignedInt64ToString(18446744073709551615ULL) == "18446744073709551615");
 		const Char range[] = { '-', '7', '7' };
 		assert(charsToInt64(range, range + 2, &after) == -7 && after == range + 2);
 	}

@@ -57,8 +57,12 @@ Conversion functions
   a real past its range is infinity or zero. Integers take hexadecimal after `0x`; a bare `0x` is the number 0
   followed by the letter x.
 - `hexStringToUnsignedInt`, `hexStringToUnsignedInt64` and their `hexCharsTo` versions scan the same way but read
-  bare hex digits of either case, with no sign and no prefix, the inverse of `intToHexString`, `intToHexString64`,
-  `intToHexChars` and `intToHexChars64`: `"ff"` gives `255`, and `"0x1f"` gives `0` with the scan stopped at the x.
+  bare hex digits of either case, with no sign and no prefix, the inverse of `unsignedIntToHexString`,
+  `unsignedInt64ToHexString` and their `Chars` forms: `"ff"` gives `255`, and `"0x1f"` gives `0` with the scan
+  stopped at the x.
+- The formatters mirror the parsers, named after the type they take: `intToString`, `int64ToString`,
+  `unsignedIntToString`, `unsignedInt64ToString`, `unsignedIntToHexString` and `unsignedInt64ToHexString`, and the
+  same six with `Chars`, which write into the caller's buffer with a terminating zero and do not allocate.
 - `Parser::tryToParse` and `Element::to` read a whole value by the grammar instead: white space and comments around
   it, no leading zeros, and failure for anything out of range or left over.
 
