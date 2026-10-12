@@ -59,8 +59,6 @@ namespace Numbstrict {
 	multiLineComment    <-  '/' '*' (multiLineComment / !'*' '/' [\40-\377\t\r\n])* '*' '/'
 */
 
-template<typename T> bool isNaN(const T v) { return v != v; }
-
 /**
 	Rewraps values to/from signed and unsigned with well-defined behavior. Zero-extends signed to unsigned of larger
 	types.
@@ -503,6 +501,7 @@ template<> struct Traits<double> {
 	static const int MAX_DIGITS = 17;																					// always enough to round-trip
 	static const uint64_t SIGN_BIT = static_cast<uint64_t>(1) << 63;
 	static const uint64_t EXPONENT_MASK = static_cast<uint64_t>(0x7FF) << 52;
+	static const uint64_t QUIET_NAN = EXPONENT_MASK | (static_cast<uint64_t>(1) << 51);
 	static double fromBits(uint64_t bits) { double value; memcpy(&value, &bits, sizeof value); return value; }
 	static uint64_t toBits(double value) { uint64_t bits; memcpy(&bits, &value, sizeof bits); return bits; }
 };
@@ -516,9 +515,22 @@ template<> struct Traits<float> {
 	static const int MAX_DIGITS = 9;
 	static const uint32_t SIGN_BIT = static_cast<uint32_t>(1) << 31;
 	static const uint32_t EXPONENT_MASK = static_cast<uint32_t>(0xFF) << 23;
+	static const uint32_t QUIET_NAN = EXPONENT_MASK | (static_cast<uint32_t>(1) << 22);
 	static float fromBits(uint32_t bits) { float value; memcpy(&value, &bits, sizeof value); return value; }
 	static uint32_t toBits(float value) { uint32_t bits; memcpy(&bits, &value, sizeof bits); return bits; }
 };
+
+/*
+	NaN and infinity are told by their bits, never by comparisons: /fp:fast and -ffast-math fold `v != v` to false
+	and may assume that no value is infinite.
+*/
+template<typename T> bool isNaN(T value) {
+	return (Traits<T>::toBits(value) & ~Traits<T>::SIGN_BIT) > Traits<T>::EXPONENT_MASK;
+}
+
+template<typename T> bool isInfinity(T value) {
+	return (Traits<T>::toBits(value) & ~Traits<T>::SIGN_BIT) == Traits<T>::EXPONENT_MASK;
+}
 
 static const int MAX_SIGNIFICANT_DIGITS = 20;																			// decided by the 128-bit product
 static const int MAX_EXACT_DIGITS = 800;																				// midpoints have at most 767 digits
@@ -638,7 +650,7 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 		bits = Traits<T>::EXPONENT_MASK;
 		numberEnd = p + 3;
 	} else if (p == b && e - p >= 3 && strncmp(p, "nan", 3) == 0) {														// nan takes no sign
-		bits = Traits<T>::toBits(std::numeric_limits<T>::quiet_NaN());
+		bits = Traits<T>::QUIET_NAN;
 		numberEnd = p + 3;
 	} else {
 		while (p != e && *p >= '0' && *p <= '9' && !(strict && p != significandBegin && *significandBegin == '0')) {
@@ -1978,9 +1990,9 @@ bool unitTest() {
 	assert(stringToDouble("1.7976931348623157e+308") == 1.79769313486231570814527e+308);
 	assert(doubleToString(1.79769313486231550856124e+308) == "1.7976931348623155e+308");
 	assert(stringToDouble("1.7976931348623155e+308") == 1.79769313486231550856124e+308);
-	assert(doubleToString(std::numeric_limits<double>::infinity()) == "inf");
-	assert(stringToDouble("inf") == std::numeric_limits<double>::infinity());
-	assert(doubleToString(std::numeric_limits<double>::quiet_NaN()) == "nan");
+	assert(doubleToString(Traits<double>::fromBits(Traits<double>::EXPONENT_MASK)) == "inf");
+	assert(Traits<double>::toBits(stringToDouble("inf")) == Traits<double>::EXPONENT_MASK);
+	assert(doubleToString(Traits<double>::fromBits(Traits<double>::QUIET_NAN)) == "nan");
 	assert(isNaN(stringToDouble("nan")));
 	{
 		size_t next = 1;
@@ -2145,7 +2157,7 @@ bool unitTest() {
 	}
 
 
-	assert(floatToString(std::numeric_limits<float>::quiet_NaN()) == "nan");
+	assert(floatToString(Traits<float>::fromBits(Traits<float>::QUIET_NAN)) == "nan");
 	assert(isNaN(stringToFloat("nan")));
 
 	{
@@ -2157,17 +2169,17 @@ bool unitTest() {
 		assert(Traits<float>::toBits(stringToFloat("6e-46")) == 0x00000000u);
 
 		assert(stringToFloat("1e-3000000000") == 0.0f);																	// an exponent wrap once flipped these
-		assert(stringToFloat("1e3000000000") == std::numeric_limits<float>::infinity());
+		assert(isInfinity(stringToFloat("1e3000000000")) && !std::signbit(stringToFloat("1e3000000000")));
 		assert(stringToFloat("1e-400") == 0.0f);
-		assert(stringToFloat("1e309") == std::numeric_limits<float>::infinity());
-		assert(stringToFloat("1e2147483648") == std::numeric_limits<float>::infinity());
-		assert(stringToFloat("1e4294967297") == std::numeric_limits<float>::infinity());
+		assert(isInfinity(stringToFloat("1e309")) && !std::signbit(stringToFloat("1e309")));
+		assert(isInfinity(stringToFloat("1e2147483648")) && !std::signbit(stringToFloat("1e2147483648")));
+		assert(isInfinity(stringToFloat("1e4294967297")) && !std::signbit(stringToFloat("1e4294967297")));
 		assert(stringToDouble("1e-3000000000") == 0.0);
-		assert(stringToDouble("1e3000000000") == std::numeric_limits<double>::infinity());
+		assert(isInfinity(stringToDouble("1e3000000000")) && !std::signbit(stringToDouble("1e3000000000")));
 		assert(stringToDouble("1e-400") == 0.0);
-		assert(stringToDouble("1e309") == std::numeric_limits<double>::infinity());
-		assert(stringToDouble("1e2147483648") == std::numeric_limits<double>::infinity());
-		assert(stringToDouble("1e4294967297") == std::numeric_limits<double>::infinity());
+		assert(isInfinity(stringToDouble("1e309")) && !std::signbit(stringToDouble("1e309")));
+		assert(isInfinity(stringToDouble("1e2147483648")) && !std::signbit(stringToDouble("1e2147483648")));
+		assert(isInfinity(stringToDouble("1e4294967297")) && !std::signbit(stringToDouble("1e4294967297")));
 	}
 
 	assert(compose(false) == "false");

@@ -43,6 +43,13 @@ for target in beta release; do
 	rm -f "$out_dir/m32probe"
 
 	if [[ "$target" == beta ]]; then
+		# Products build with fast math, which folds IEEE comparisons, so the unit test runs under it too
+		CPP_OPTIONS="$cpp_options -ffast-math" bash tools/BuildCpp.sh "$target" native "$out_dir/smoke_fastmath" \
+			-I src tests/smoke.cpp src/Numbstrict.cpp src/Makaron.cpp
+		"$out_dir/smoke_fastmath" > /dev/null
+	fi
+
+	if [[ "$target" == beta ]]; then
 		CPP_OPTIONS="$cpp_options" bash tools/BuildCpp.sh "$target" native "$out_dir/NumbstrictFuzzReplay" \
 			tests/NumbstrictFuzz.cpp tests/FuzzMain.cpp src/Numbstrict.cpp
 		"$out_dir/NumbstrictFuzzReplay" output/fuzzReplay/numbstrict > /dev/null

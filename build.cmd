@@ -24,6 +24,14 @@ FOR %%t IN (beta release) DO (
 	SET "CPP_OPTIONS="
 	"!outDir!\smoke_x86.exe" >NUL || GOTO error
 	IF "%%t"=="beta" (
+		REM Products build with /fp:fast, which folds IEEE comparisons, so the unit test runs under it too
+		SET "CPP_OPTIONS=/fp:fast /fp:except-"
+		CALL tools\BuildCpp.cmd %%t x64 "!outDir!\smoke_fastmath.exe" /I src ^
+				tests\smoke.cpp src\Numbstrict.cpp src\Makaron.cpp || GOTO error
+		SET "CPP_OPTIONS="
+		"!outDir!\smoke_fastmath.exe" >NUL || GOTO error
+	)
+	IF "%%t"=="beta" (
 		CALL tools\BuildCpp.cmd %%t x64 "!outDir!\NumbstrictFuzzReplay.exe" ^
 				tests\NumbstrictFuzz.cpp tests\FuzzMain.cpp src\Numbstrict.cpp || GOTO error
 		SET "CPP_OPTIONS="
