@@ -868,14 +868,14 @@ static const Char* readUnsigned(const Char* p, const Char* e, uint64_t highest, 
 	const bool hex = startsHexadecimal(p, e);
 	const int base = (hex ? 16 : 10);
 	const uint64_t cutoff = highest / base;																				// strtol's test: no division per digit
-	const int cutlim = static_cast<int>(highest % base);
+	const int lastDigit = static_cast<int>(highest % base);
 	ui = 0;
 	overflow = 0;
 	if (hex) {
 		p += 2;
 	}
 	for (int v; p != e && (v = (hex ? fromHex(*p) : (*p >= '0' && *p <= '9' ? *p - '0' : -1))) >= 0; ++p) {
-		if (overflow == 0 && (ui > cutoff || (ui == cutoff && v > cutlim))) {
+		if (overflow == 0 && (ui > cutoff || (ui == cutoff && v > lastDigit))) {
 			overflow = p;
 		}
 		ui = (overflow != 0 ? highest : ui * base + v);
