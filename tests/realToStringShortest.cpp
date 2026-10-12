@@ -59,12 +59,11 @@ template<typename T> static bool isShortest(const String& s, T value) {
 		}
 	}
 
-	// Trim last coefficient digit while preserving:
-	// - round-trip equality
-	// - at least 1 fractional digit when exponent is present
+	/*
+		Trims the last digit while the text still round-trips, keeping one fractional digit when there is an exponent.
+	*/
 	String work = mantissa;
 	while (work.size() > signOffset + 1) {
-		// recompute dot every iteration (the original code used a stale position)
 		size_t dotPos = work.find('.');
 
 		// In E-form, keep at least one fractional digit (i.e., don't let "x.y" shrink to "x.")

@@ -306,10 +306,6 @@ template<typename C> String quoteString(const std::basic_string<C>& fromString, 
 	}
 }
 
-// Parses the unsigned digit run of a decimal exponent. Clamps accumulation well above the real
-// exponent range (~400) but far below any wrap, so pathological exponents (e.g. "1e3000000000")
-// saturate instead of wrapping mod 2^32. The caller applies the sign, so a saturated magnitude still
-// underflows to 0 / overflows to Inf correctly.
 /*
 	Real number conversions, both directions in integer arithmetic on `Words<N>`. The only approximation is a table of
 	powers of five truncated to 128 bits, whose error is one-sided, so every decision is made on an interval of
@@ -348,7 +344,7 @@ template<int N> class Words {																							// N 32-bit words, least sig
 			}
 			return bits;
 		}
-		uint64_t bitsFrom(int bit) const {																				// the low 64 bits of *this >> bit
+		uint64_t bitsFrom(int bit) const {
 			const int index = bit / 32;
 			const int shift = bit % 32;
 			const uint64_t low = (index < N ? words[index] : 0)
@@ -421,7 +417,7 @@ template<int N> class Words {																							// N 32-bit words, least sig
 		}
 		void keepLowBits(int bits) {
 			for (int i = 0; i < N; ++i) {
-				const int kept = bits - i * 32;																			// low bits of this word that survive
+				const int kept = bits - i * 32;
 				words[i] &= (kept >= 32 ? 0xFFFFFFFFu : kept <= 0 ? 0 : (static_cast<uint32_t>(1) << kept) - 1);
 			}
 		}
@@ -586,7 +582,7 @@ template<typename T> static typename Traits<T>::Bits convertDecimal(const Words<
 	const uint64_t rounded = mantissa + (half > 0 || (half == 0 && (mantissa & 1) != 0) ? 1 : 0);
 	const uint64_t field = static_cast<uint64_t>(position + scale - Traits<T>::MIN_EXPONENT);
 	const uint64_t bits = (field << (Traits<T>::MANTISSA_BITS - 1)) + rounded;											// the implicit bit carries into the field
-	return (bits >= Traits<T>::EXPONENT_MASK ? Traits<T>::EXPONENT_MASK : static_cast<typename Traits<T>::Bits>(bits));	// infinity on overflow
+	return (bits >= Traits<T>::EXPONENT_MASK ? Traits<T>::EXPONENT_MASK : static_cast<typename Traits<T>::Bits>(bits));
 }
 
 /*
@@ -2082,27 +2078,18 @@ bool unitTest() {
 	}
 
 
-		// floatToString checks migrated into fragile table above; corresponding parse
-		// checks are covered by the fragile table loop (expected/source/round-trip).
 	assert(floatToString(std::numeric_limits<float>::quiet_NaN()) == "nan");
 	assert(isNaN(stringToFloat("nan")));
 
 	{
 
-		// Regression: decimals in the round-up band toward the smallest subnormal float
-		// (2^-149 = 1.40129846e-45, bits 0x1) must round up, not flush to 0. The round-up
-		// threshold is 2^-150 (~7.006e-46); anything above it rounds to 0x1, below to 0.
-		// (An earlier decimal exponent cutoff of -45 flushed the whole 7e-46..1e-45 band to 0.)
-		assert(Traits<float>::toBits(stringToFloat("8e-46")) == 0x00000001u);
+		assert(Traits<float>::toBits(stringToFloat("8e-46")) == 0x00000001u);											// the round-up band just above 2^-150 once flushed to 0
 		assert(Traits<float>::toBits(stringToFloat("7.1e-46")) == 0x00000001u);
 		assert(Traits<float>::toBits(stringToFloat("9.9e-46")) == 0x00000001u);
 		assert(Traits<float>::toBits(stringToFloat("1.4e-45")) == 0x00000001u);
-		assert(Traits<float>::toBits(stringToFloat("6e-46")) == 0x00000000u);   // below threshold -> 0
+		assert(Traits<float>::toBits(stringToFloat("6e-46")) == 0x00000000u);
 
-		// Regression: pathological exponents must saturate to 0 / Inf, not wrap mod 2^32.
-		// A sign-flipping wrap previously turned "1e-3000000000" into +Inf and "1e3000000000"
-		// into 0. Verify for both float and double, underflow and overflow directions.
-		assert(stringToFloat("1e-3000000000") == 0.0f);
+		assert(stringToFloat("1e-3000000000") == 0.0f);																	// an exponent wrap once flipped these
 		assert(stringToFloat("1e3000000000") == std::numeric_limits<float>::infinity());
 		assert(stringToFloat("1e-400") == 0.0f);
 		assert(stringToFloat("1e309") == std::numeric_limits<float>::infinity());

@@ -317,9 +317,11 @@ template<typename T> static void checkFormat(T value) {
 			fail("output is not the shortest: " + context);
 		}
 	}
-	// A neighbor of the same length that also rounds to the value must not be closer, and when it is exactly as close
-	// the last digit must be even. The largest finite value is the exception: Numbstrict never rounds its last digit
-	// up, so that the text stays below the overflow threshold.
+	/*
+		A neighbor of the same length that also rounds to the value must not be closer, and when it is exactly as close
+		the last digit must be even. The largest finite value is the exception: Numbstrict never rounds its last digit
+		up, so that the text stays below the overflow threshold.
+	*/
 	if (decimal.digitCount > 0 && magnitude != std::numeric_limits<T>::max()) {
 		const Binary twice = { binaryOf(magnitude).mantissa, binaryOf(magnitude).exponent + 1 };
 		Decimal below = decimal;

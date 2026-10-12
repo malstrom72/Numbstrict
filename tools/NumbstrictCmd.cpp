@@ -1,10 +1,14 @@
-// Checks a Numbstrict file by parsing every nested value and, with -n, writes it back normalized: comments dropped,
-// a struct or array on one line when that fits in 40 columns and otherwise one entry per line indented with tabs,
-// keys in the order of the input and unquoted when they are identifiers, text unquoted when the format allows it
-// unless the input quoted it, integers in decimal unless the input wrote them in hexadecimal, reals in their shortest
-// form. Lines end with a line feed whatever the platform, so the output is the same everywhere.
-//	NumbstrictCmd [-n] <input file>|- [<output file>|-]
-// Exit code 0 when the input is valid Numbstrict, 1 with the error on stderr when it is not, 2 for bad arguments.
+/*
+	Checks a Numbstrict file by parsing every nested value and, with -n, writes it back normalized: comments dropped,
+	a struct or array on one line when that fits in 40 columns and otherwise one entry per line indented with tabs,
+	keys in the order of the input and unquoted when they are identifiers, text unquoted when the format allows it
+	unless the input quoted it, integers in decimal unless the input wrote them in hexadecimal, reals in their shortest
+	form. Lines end with a line feed whatever the platform, so the output is the same everywhere.
+
+	NumbstrictCmd [-n] <input file>|- [<output file>|-]
+
+	Exit code 0 when the input is valid Numbstrict, 1 with the error on stderr when it is not, 2 for bad arguments.
+*/
 #include <algorithm>
 #include <cstring>
 #include <fstream>
