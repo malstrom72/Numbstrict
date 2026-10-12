@@ -866,14 +866,16 @@ static bool startsHexadecimal(const Char* p, const Char* e) {															// a
 	`overflow` is null, or the first digit that would take `ui` past `highest`, where `ui` then stays: the caller
 	fails there or saturates.
 */
-static const Char* readUnsigned(const Char* p, const Char* e, uint64_t highest, uint64_t& ui, const Char*& overflow) {
-	const bool hex = startsHexadecimal(p, e);
-	const int base = (hex ? 16 : 10);
+static const Char* readUnsigned(const Char* p, const Char* e, int base, uint64_t highest, uint64_t& ui
+		, const Char*& overflow) {
+	const bool prefixed = (base == 0 && startsHexadecimal(p, e));
+	const bool hex = (prefixed || base == 16);
+	base = (hex ? 16 : 10);
 	const uint64_t cutoff = highest / base;																				// strtol's test: no division per digit
 	const int lastDigit = static_cast<int>(highest % base);
 	ui = 0;
 	overflow = 0;
-	if (hex) {
+	if (prefixed) {
 		p += 2;
 	}
 	for (int v; p != e && (v = (hex ? fromHex(*p) : (*p >= '0' && *p <= '9' ? *p - '0' : -1))) >= 0; ++p) {
@@ -904,7 +906,7 @@ template<typename T> bool Parser::tryToParseInteger(T& i) {
 	const Char* const d = b + ((negative || *b == '+') ? 1 : 0);
 	uint64_t ui;
 	const Char* overflow;
-	const Char* const q = readUnsigned(d, e, highestMagnitude<T>(negative), ui, overflow);
+	const Char* const q = readUnsigned(d, e, 0, highestMagnitude<T>(negative), ui, overflow);
 	const bool leadingZero = (q - d > 1 && d[0] == '0' && !startsHexadecimal(d, e));
 	p = iteratorAt(source, leadingZero ? d + 1 : overflow != 0 ? overflow : q);
 	if (q == d || leadingZero || overflow != 0) {
@@ -1617,76 +1619,86 @@ double stringToDouble(const String& s, size_t* nextOffset) {
 	return stringToReal<double>(s, nextOffset);
 }
 
-Char* intToChars(int value, Char* destination) {
-	Char buffer[sizeof (int) * 8 + 1];
-	Char* p = intToString(buffer, value, 10, 1);
-	p = std::copy(p, buffer + sizeof (int) * 8 + 1, destination);
-	*p = 0;
-	return p;
+template<typename T> static Char* integerToChars(T value, int radix, int minLength, Char* destination) {
+	Char buffer[sizeof (T) * 8 + 1];
+	Char* const p = intToString<T>(buffer, value, radix, minLength);
+	Char* const end = std::copy(p, buffer + sizeof buffer, destination);
+	*end = 0;
+	return end;
 }
 
-Char* intToHexChars(unsigned int value, Char* destination, int minLength) {
-	Char buffer[sizeof (unsigned int) * 8 + 1];
-	Char* p = intToString(buffer, value, 16, minLength);
-	p = std::copy(p, buffer + sizeof (unsigned int) * 8 + 1, destination);
-	*p = 0;
-	return p;
+Char* intToChars(int32_t value, Char* destination) { return integerToChars(value, 10, 1, destination); }
+Char* intToHexChars(uint32_t value, Char* destination, int minLength) {
+	return integerToChars(value, 16, minLength, destination);
+}
+Char* intToHexChars64(uint64_t value, Char* destination, int minLength) {
+	return integerToChars(value, 16, minLength, destination);
 }
 
-String intToString(int value) {
-	return intToString(value, 10);
-}
+String intToString(int32_t value) { return intToString(value, 10); }
+String intToHexString(uint32_t value, int minLength) { return intToString(value, 16, minLength); }
+String intToHexString64(uint64_t value, int minLength) { return intToString(value, 16, minLength); }
 
-String intToHexString(unsigned int value, int minLength) {
-	return intToString(value, 16, minLength);
-}
-
-template<typename T> static T stringToInteger(const Char* b, const Char* e, const Char** next) {
+template<typename T> static T stringToInteger(const Char* b, const Char* e, int base, const Char** next) {
 	typedef typename std::make_unsigned<T>::type UT;
 	if (e == 0) {
 		e = b + strlen(b);
 	}
 	const Char* const p = skipWhite(b, e);
-	const bool negative = (p != e && *p == '-' && std::is_signed<T>());
-	const Char* const d = p + ((p != e && (negative || *p == '+')) ? 1 : 0);
+	const bool signs = (base == 0);
+	const bool negative = (signs && p != e && *p == '-' && std::is_signed<T>());
+	const Char* const d = p + ((signs && p != e && (negative || *p == '+')) ? 1 : 0);
 	uint64_t ui;
 	const Char* overflow;
-	const Char* const q = readUnsigned(d, e, highestMagnitude<T>(negative), ui, overflow);
+	const Char* const q = readUnsigned(d, e, base, highestMagnitude<T>(negative), ui, overflow);
 	if (next != 0) {
 		*next = (q == d ? b : overflow != 0 ? overflow : skipWhite(q, e));
 	}
 	return rewrap<T>(static_cast<UT>(negative ? 0 - ui : ui));
 }
 
-template<typename T> static T stringToInteger(const String& s, size_t* nextOffset) {
+template<typename T> static T stringToInteger(const String& s, int base, size_t* nextOffset) {
 	const Char* next;
-	const T v = stringToInteger<T>(s.data(), s.data() + s.size(), &next);
+	const T v = stringToInteger<T>(s.data(), s.data() + s.size(), base, &next);
 	if (nextOffset != 0) {
 		*nextOffset = next - s.data();
 	}
 	return v;
 }
 
-int32_t stringToInt(const String& s, size_t* nextOffset) { return stringToInteger<int32_t>(s, nextOffset); }
-int64_t stringToInt64(const String& s, size_t* nextOffset) { return stringToInteger<int64_t>(s, nextOffset); }
+int32_t stringToInt(const String& s, size_t* nextOffset) { return stringToInteger<int32_t>(s, 0, nextOffset); }
+int64_t stringToInt64(const String& s, size_t* nextOffset) { return stringToInteger<int64_t>(s, 0, nextOffset); }
 uint32_t stringToUnsignedInt(const String& s, size_t* nextOffset) {
-	return stringToInteger<uint32_t>(s, nextOffset);
+	return stringToInteger<uint32_t>(s, 0, nextOffset);
 }
 uint64_t stringToUnsignedInt64(const String& s, size_t* nextOffset) {
-	return stringToInteger<uint64_t>(s, nextOffset);
+	return stringToInteger<uint64_t>(s, 0, nextOffset);
 }
 
 int32_t charsToInt(const Char* begin, const Char* end, const Char** next) {
-	return stringToInteger<int32_t>(begin, end, next);
+	return stringToInteger<int32_t>(begin, end, 0, next);
 }
 int64_t charsToInt64(const Char* begin, const Char* end, const Char** next) {
-	return stringToInteger<int64_t>(begin, end, next);
+	return stringToInteger<int64_t>(begin, end, 0, next);
 }
 uint32_t charsToUnsignedInt(const Char* begin, const Char* end, const Char** next) {
-	return stringToInteger<uint32_t>(begin, end, next);
+	return stringToInteger<uint32_t>(begin, end, 0, next);
 }
 uint64_t charsToUnsignedInt64(const Char* begin, const Char* end, const Char** next) {
-	return stringToInteger<uint64_t>(begin, end, next);
+	return stringToInteger<uint64_t>(begin, end, 0, next);
+}
+
+uint32_t hexStringToUnsignedInt(const String& s, size_t* nextOffset) {
+	return stringToInteger<uint32_t>(s, 16, nextOffset);
+}
+uint64_t hexStringToUnsignedInt64(const String& s, size_t* nextOffset) {
+	return stringToInteger<uint64_t>(s, 16, nextOffset);
+}
+uint32_t hexCharsToUnsignedInt(const Char* begin, const Char* end, const Char** next) {
+	return stringToInteger<uint32_t>(begin, end, 16, next);
+}
+uint64_t hexCharsToUnsignedInt64(const Char* begin, const Char* end, const Char** next) {
+	return stringToInteger<uint64_t>(begin, end, 16, next);
 }
 
 String quoteString(const String& s, Char quoteChar) {
@@ -1871,6 +1883,20 @@ bool unitTest() {
 		assert(charsToInt("12x", 0, &after) == 12 && *after == 'x');
 		assert(charsToUnsignedInt64("18446744073709551615;", 0, &after) == std::numeric_limits<uint64_t>::max());
 		assert(*after == ';');
+		assert(hexStringToUnsignedInt("ff") == 255 && hexStringToUnsignedInt("FF") == 255);
+		assert(hexStringToUnsignedInt("  1f  ", &next) == 0x1f && next == 6);
+		assert(hexStringToUnsignedInt("0x1f", &next) == 0 && next == 1);												// no prefix: the x stops the scan
+		assert(hexStringToUnsignedInt("-1", &next) == 0 && next == 0);													// no sign
+		assert(hexStringToUnsignedInt("fffffffff", &next) == 0xffffffffU && next == 8);
+		assert(hexStringToUnsignedInt64("0123456789abcdef") == 0x0123456789abcdefULL);
+		assert(hexCharsToUnsignedInt64("ffffffffffffffff;", 0, &after) == std::numeric_limits<uint64_t>::max());
+		assert(*after == ';');
+		assert(hexCharsToUnsignedInt("g", 0, &after) == 0 && *after == 'g');
+		assert(intToHexString64(0x0123456789abcdefULL) == "0123456789abcdef" && intToHexString64(0, 1) == "0");
+		assert(hexStringToUnsignedInt64(intToHexString64(0xfedcba9876543210ULL)) == 0xfedcba9876543210ULL);
+		Char digits[17 + 1];
+		assert(intToHexChars64(std::numeric_limits<uint64_t>::max(), digits) == digits + 16 && digits[16] == 0);
+		assert(intToChars(-2147483647 - 1, digits) == digits + 11 && String(digits) == "-2147483648");
 		const Char range[] = { '-', '7', '7' };
 		assert(charsToInt64(range, range + 2, &after) == -7 && after == range + 2);
 	}
