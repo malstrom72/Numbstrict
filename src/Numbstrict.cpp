@@ -612,8 +612,9 @@ template<typename T> static int compareWithUpperMidpoint(const Char* digits, con
 	return (comparison == 0 && tailNonZero ? 1 : comparison);
 }
 
-static const Char* parseExponentDigits(const Char* p, const Char* e, unsigned int& i) {
-	for (i = 0; p != e && *p >= '0' && *p <= '9'; ++p) {
+static const Char* parseExponentDigits(const Char* p, const Char* e, bool strict, unsigned int& i) {
+	const Char* const b = p;
+	for (i = 0; p != e && *p >= '0' && *p <= '9' && !(strict && p != b && *b == '0'); ++p) {
 		if (i < 1000000u) {																								// clamped: this large is zero or infinity
 			i = i * 10 + (*p - '0');
 		}
@@ -621,7 +622,11 @@ static const Char* parseExponentDigits(const Char* p, const Char* e, unsigned in
 	return p;
 }
 
-template<typename T> const Char* parseReal(const Char* const b, const Char* const e, T& value) {
+/*
+	With `strict`, reading stops where the `real` rule of docs/numbstrict.peg does: after a leading zero, and before a
+	point that lacks a digit on either side.
+*/
+template<typename T> const Char* parseReal(const Char* const b, const Char* const e, bool strict, T& value) {
 	int exponent = -1;
 	bool negative = false;
 	const Char* significandBegin = b;
@@ -640,11 +645,12 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 		bits = Traits<T>::toBits(std::numeric_limits<T>::quiet_NaN());
 		numberEnd = p + 3;
 	} else {
-		while (p != e && *p >= '0' && *p <= '9') {
+		while (p != e && *p >= '0' && *p <= '9' && !(strict && p != significandBegin && *significandBegin == '0')) {
 			++exponent;
 			++p;
 		}
-		if (p != e && *p == '.') {
+		if (p != e && *p == '.'
+				&& (!strict || (p != significandBegin && e - p >= 2 && p[1] >= '0' && p[1] <= '9'))) {
 			if (p == significandBegin) {
 				++significandBegin;
 			}
@@ -666,7 +672,7 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 				++p;
 			}
 			unsigned int ui;
-			const Char* q = parseExponentDigits(p, e, ui);
+			const Char* q = parseExponentDigits(p, e, strict, ui);
 			if (q != p) {
 				exponent += exponentSign * static_cast<int>(ui);
 				numberEnd = q;
@@ -1329,48 +1335,6 @@ bool Parser::tryToParse(Variant& toVariant) {
 	return false;
 }
 
-static const Char* decimalEnd(const Char* p, const Char* e) {															// the grammar's `decimal`: `0`, or no leading zero
-	const Char* q = p;
-	while (q != e && *q >= '0' && *q <= '9' && (q == p || *p != '0')) {
-		++q;
-	}
-	return q;
-}
-
-/*
-	`b` when nothing fits the `real` rule of docs/numbstrict.peg, just after the sign when only the sign does, so that
-	a fail point lands there.
-*/
-static const Char* grammarRealEnd(const Char* b, const Char* e) {
-	const Char* p = b + ((b != e && (*b == '-' || *b == '+')) ? 1 : 0);
-	if (e - p >= 3 && strncmp(p, "inf", 3) == 0) {
-		return p + 3;
-	}
-	if (p == b && e - p >= 3 && strncmp(p, "nan", 3) == 0) {
-		return p + 3;
-	}
-	const Char* q = decimalEnd(p, e);
-	if (q == p) {
-		return p;
-	}
-	if (q != e && *q == '.') {
-		const Char* f = q + 1;
-		while (f != e && *f >= '0' && *f <= '9') {
-			++f;
-		}
-		if (f == q + 1) {
-			return q;
-		}
-		q = f;
-	}
-	if (q != e && (*q == 'e' || *q == 'E')) {
-		const Char* x = q + 1 + ((q + 1 != e && (q[1] == '-' || q[1] == '+')) ? 1 : 0);
-		const Char* d = decimalEnd(x, e);
-		q = (d != x ? d : q);
-	}
-	return q;
-}
-
 template<typename T> bool Parser::tryToParseReal(T& r) {
 	whiteAndComments();
 	if (eof()) {
@@ -1378,15 +1342,11 @@ template<typename T> bool Parser::tryToParseReal(T& r) {
 	}
 	const Char* const b = pointerAt(source, p);
 	const Char* const e = pointerAt(source, source.end());
-	const Char* const q = parseReal<T>(b, e, r);
+	const Char* const q = parseReal<T>(b, e, true, r);
 	if (q == b) {
 		return false;
 	}
-	const Char* const g = grammarRealEnd(b, e);
-	p = iteratorAt(source, g);
-	if (g != q) {
-		return false;
-	}
+	p = iteratorAt(source, q);
 	whiteAndComments();
 	return eof();
 }
@@ -1585,7 +1545,7 @@ template<typename T> T stringToReal(const Char* b, const Char* e, const Char** n
 	}
 	const Char* const p = skipWhite(b, e);
 	T v;
-	const Char* const q = parseReal<T>(p, e, v);
+	const Char* const q = parseReal<T>(p, e, false, v);
 	if (next != 0) {
 		*next = (q == p ? b : skipWhite(q, e));																			// as strtod: `b` when nothing was read
 	}
@@ -2335,7 +2295,7 @@ bool unitTest() {
 		assert(Parser(Element("-1.25E-3")).tryToParse(d) && d == -1.25e-3);
 		assert(!Parser(Element("007.5")).tryToParse(d, failOffset) && failOffset == 1);									// the grammar's decimal has no leading zeros
 		assert(!Parser(Element(".5")).tryToParse(d, failOffset) && failOffset == 0);
-		assert(!Parser(Element("-.5")).tryToParse(d, failOffset) && failOffset == 1);
+		assert(!Parser(Element("-.5")).tryToParse(d, failOffset) && failOffset == 0);
 		assert(!Parser(Element("5.")).tryToParse(d, failOffset) && failOffset == 1);
 		assert(!Parser(Element("1e05")).tryToParse(d, failOffset) && failOffset == 3);
 		assert(!Parser(Element("1e")).tryToParse(d, failOffset) && failOffset == 1);
