@@ -849,11 +849,20 @@ Parser::Parser(const Element& source) : source(source), p(source.begin()) { }
 String::difference_type Parser::left() const { return source.end() - p; }
 
 /*
-	Reads an unsigned integer in decimal, or in hexadecimal after `0x`, into `ui`: false if there is no digit or the
-	value would exceed `highest`. Overflow is checked before a digit is taken, so no width or base can wrap.
+	True if `p` starts a hexadecimal literal: `0x` with at least one hex digit after it. A bare `0x` is the number 0
+	followed by the letter x, so that a scan stops at the x.
+*/
+static bool startsHexadecimal(StringIt p, StringIt end) {
+	return (end - p >= 3 && p[0] == '0' && p[1] == 'x' && fromHex(p[2]) >= 0);
+}
+
+/*
+	Reads an unsigned integer in decimal, or in hexadecimal when `0x` and a hex digit follow, into `ui`: false if there
+	is no digit or the value would exceed `highest`. Overflow is checked before a digit is taken, so no width or base
+	can wrap.
 */
 template<typename T> bool Parser::parseDigits(T highest, T& ui) {
-	const bool hex = (left() >= 2 && p[0] == '0' && p[1] == 'x');
+	const bool hex = startsHexadecimal(p, source.end());
 	const int base = (hex ? 16 : 10);
 	if (hex) {
 		p += 2;
@@ -1645,8 +1654,7 @@ template<typename T> static T stringToInteger(const String& s, size_t* nextOffse
 		IntegerParser(const Element& source) : Parser(source) { }
 		bool isPositiveHexadecimal() {
 			whiteAndComments();
-			const StringIt b = p + ((!eof() && *p == '+') ? 1 : 0);
-			return (source.end() - b >= 2 && b[0] == '0' && b[1] == 'x');
+			return startsHexadecimal(p + ((!eof() && *p == '+') ? 1 : 0), source.end());
 		}
 	};
 	Element source(s);
@@ -1831,6 +1839,9 @@ bool unitTest() {
 		assert(stringToInt("0xffffffffg", &next) == -1 && next == 10);													// the bit pattern read so far is kept
 		assert(stringToInt("12 0x", &next) == 12 && next == 3);														// "0x" later in the text means nothing
 		assert(stringToInt("+0xffffffff") == -1);
+		assert(stringToInt("0x", &next) == 0 && next == 1);																// a bare 0x is a 0 and stops at the x
+		assert(stringToInt("0xg", &next) == 0 && next == 1);
+		assert(stringToUnsignedInt("0x", &next) == 0 && next == 1);
 	}
 
 	assert(doubleToString(0.0) == "0.0");
