@@ -27,11 +27,11 @@ Parsing rules and error handling
 Real numbers
 ------------
 
-- Syntax: an optional sign, digits with an optional fraction, and an optional exponent (`1.5`, `-2e-7`, `6.02E+23`),
-  or `inf`, `-inf`, `+inf` and `nan` (`nan` takes no sign). `docs/numbstrict.peg` is the grammar: no leading zeros
-  in the integer part and a digit on both sides of the point, so `007.5`, `.5` and `5.` are not real values in a
-  file (a `Variant` reads them as text), while the exponent may be padded as printf writes it (`1e-05`, `1e+05`).
-  The conversion functions below accept all of these, as `strtod` does.
+- Syntax: an optional sign, digits with an optional point and fraction, and an optional exponent (`1.5`, `-2e-7`,
+  `6.02E+23`), or `inf`, `-inf`, `+inf` and `nan` (`nan` takes no sign). As other formatters write them, a point may
+  lack a digit on one side (`.5`, `5.`), the integer part may have leading zeros (`007.5`) and the exponent may be
+  padded (`1e-005`). Digits alone with a leading zero (`007`) are neither an integer nor a real, since C reads them
+  as octal; a `Variant` reads them as text. `docs/numbstrict.peg` is the grammar.
 - Parsing (`stringToDouble`, `stringToFloat`, `Element::to<double>()`, `Element::to<float>()`) returns the binary value
   nearest to the text, ties to even, whatever the number of digits; at the ends of the range that nearest value is zero
   or infinity.

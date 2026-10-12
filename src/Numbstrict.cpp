@@ -629,11 +629,7 @@ static const Char* parseExponentDigits(const Char* p, const Char* e, unsigned in
 	return p;
 }
 
-/*
-	With `strict`, reading stops where the `real` rule of docs/numbstrict.peg does: after a leading zero of the integer
-	part, and before a point that lacks a digit on either side.
-*/
-template<typename T> const Char* parseReal(const Char* const b, const Char* const e, bool strict, T& value) {
+template<typename T> const Char* parseReal(const Char* const b, const Char* const e, T& value) {
 	int exponent = -1;
 	bool negative = false;
 	const Char* significandBegin = b;
@@ -652,12 +648,11 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 		bits = Traits<T>::QUIET_NAN;
 		numberEnd = p + 3;
 	} else {
-		while (p != e && *p >= '0' && *p <= '9' && !(strict && p != significandBegin && *significandBegin == '0')) {
+		while (p != e && *p >= '0' && *p <= '9') {
 			++exponent;
 			++p;
 		}
-		if (p != e && *p == '.'
-				&& (!strict || (p != significandBegin && e - p >= 2 && p[1] >= '0' && p[1] <= '9'))) {
+		if (p != e && *p == '.') {
 			if (p == significandBegin) {
 				++significandBegin;
 			}
@@ -1351,8 +1346,17 @@ template<typename T> bool Parser::tryToParseReal(T& r) {
 	}
 	const Char* const b = pointerAt(source, p);
 	const Char* const e = pointerAt(source, source.end());
-	const Char* const q = parseReal<T>(b, e, true, r);
+	const Char* const q = parseReal<T>(b, e, r);
 	if (q == b) {
+		return false;
+	}
+	const Char* const d = b + ((*b == '-' || *b == '+') ? 1 : 0);
+	const Char* x = d;
+	while (x != q && *x >= '0' && *x <= '9') {
+		++x;
+	}
+	if (x == q && q - d > 1 && *d == '0') {																				// digits alone with a leading zero are octal in C: no integer, no real
+		p = iteratorAt(source, d + 1);
 		return false;
 	}
 	p = iteratorAt(source, q);
@@ -1563,7 +1567,7 @@ template<typename T> T stringToReal(const Char* b, const Char* e, const Char** n
 	}
 	const Char* const p = skipWhite(b, e);
 	T v;
-	const Char* const q = parseReal<T>(p, e, false, v);
+	const Char* const q = parseReal<T>(p, e, v);
 	if (next != 0) {
 		*next = (q == p ? b : skipWhite(q, e));																			// as strtod: `b` when nothing was read
 	}
@@ -2389,18 +2393,25 @@ bool unitTest() {
 		assert(Parser(Element("0.5")).tryToParse(d) && d == 0.5);
 		assert(Parser(Element("1e5")).tryToParse(d) && d == 1e5);
 		assert(Parser(Element("-1.25E-3")).tryToParse(d) && d == -1.25e-3);
-		assert(!Parser(Element("007.5")).tryToParse(d, failOffset) && failOffset == 1);									// the grammar's decimal has no leading zeros
-		assert(!Parser(Element(".5")).tryToParse(d, failOffset) && failOffset == 0);
-		assert(!Parser(Element("-.5")).tryToParse(d, failOffset) && failOffset == 0);
-		assert(!Parser(Element("5.")).tryToParse(d, failOffset) && failOffset == 1);
+		assert(Parser(Element("007.5")).tryToParse(d) && d == 7.5);														// as other formatters write them
+		assert(Parser(Element(".5")).tryToParse(d) && d == 0.5);
+		assert(Parser(Element("-.5")).tryToParse(d) && d == -0.5);
+		assert(Parser(Element("+.5")).tryToParse(d) && d == 0.5);
+		assert(Parser(Element("5.")).tryToParse(d) && d == 5.0);
+		assert(Parser(Element("007e2")).tryToParse(d) && d == 700.0);
+		assert(Parser(Element("1e-005")).tryToParse(d) && d == 1e-5);
+		assert(!Parser(Element("007")).tryToParse(d, failOffset) && failOffset == 1);									// no octal-looking real
+		assert(!Parser(Element("-007")).tryToParse(d, failOffset) && failOffset == 2);
+		assert(Parser(Element("0")).tryToParse(d) && d == 0.0);
 		assert(Parser(Element("1e05")).tryToParse(d) && d == 1e5);														// exponents may be padded, as printf writes them
 		assert(Parser(Element("1e-05")).tryToParse(d) && d == 1e-5);
 		assert(Parser(Element("1e+05")).tryToParse(d) && d == 1e5);
 		assert(Parser(Element("1.5e-07")).tryToParse(d) && d == 1.5e-7);
 		assert(!Parser(Element("1e")).tryToParse(d, failOffset) && failOffset == 1);
-		assert(stringToDouble("007.5") == 7.5 && stringToDouble(".5") == 0.5 && stringToDouble("5.") == 5.0);			// the string functions stay lenient
-		Variant lenient;
-		assert(Parser(Element("007.5")).tryToParse(lenient) && lenient.type == Variant::TEXT);
+		assert(stringToDouble("007") == 7.0);																			// the string functions read it, as strtod does
+		Variant variant;
+		assert(Parser(Element("007.5")).tryToParse(variant) && variant.type == Variant::REAL);
+		assert(Parser(Element("007")).tryToParse(variant) && variant.type == Variant::TEXT);
 	}
 	
 	{
