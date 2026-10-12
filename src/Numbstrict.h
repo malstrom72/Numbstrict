@@ -359,7 +359,7 @@ inline Variant parseVariant(const Element& source) { return source.to<Variant>()
 
 String intToString(int value);
 String intToHexString(unsigned int value, int minLength = 8);
-int stringToInt(const String& s, size_t* nextOffset = 0);																// a hexadecimal literal may also give the bit pattern
+int stringToInt(const String& s, size_t* nextOffset = 0);
 int64_t stringToInt64(const String& s, size_t* nextOffset = 0);
 unsigned int stringToUnsignedInt(const String& s, size_t* nextOffset = 0);
 uint64_t stringToUnsignedInt64(const String& s, size_t* nextOffset = 0);

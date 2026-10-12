@@ -1645,28 +1645,17 @@ String intToHexString(unsigned int value, int minLength) {
 /*
 	Parses an integer of type T from the whole of `s`, keeping what was read when the text goes on after it, so that a
 	caller can scan and stop at the first non-digit: `nextOffset` is then where parsing stopped, and the text's length
-	on success. A signed T reads a positive hexadecimal literal as a bit pattern that may reach the unsigned range of
-	T, which takes the unsigned parser from the start.
+	on success.
 */
 template<typename T> static T stringToInteger(const String& s, size_t* nextOffset) {
-	typedef typename std::make_unsigned<T>::type UT;
-	struct IntegerParser : public Parser {
-		IntegerParser(const Element& source) : Parser(source) { }
-		bool isPositiveHexadecimal() {
-			whiteAndComments();
-			return startsHexadecimal(p + ((!eof() && *p == '+') ? 1 : 0), source.end());
-		}
-	};
 	Element source(s);
-	IntegerParser parser(source);
-	const bool hex = (std::is_signed<T>() && parser.isPositiveHexadecimal());
+	Parser parser(source);
 	T v = 0;
-	UT pattern = 0;
-	const bool success = (hex ? parser.tryToParse(pattern) : parser.tryToParse(v));
+	const bool success = parser.tryToParse(v);
 	if (nextOffset != 0) {
 		*nextOffset = (success ? s.size() : parser.getFailPoint() - source.begin());
 	}
-	return (hex ? rewrap<T>(pattern) : v);
+	return v;
 }
 
 int stringToInt(const String& s, size_t* nextOffset) { return stringToInteger<int>(s, nextOffset); }
@@ -1816,29 +1805,28 @@ bool unitTest() {
 	assert(intToHexString(0x01234567U, 8) == "01234567");
 	assert(stringToInt("0x01234567") == 0x01234567U);
 	assert(intToHexString(0x89abcdefU, 8) == "89abcdef");
-	assert(stringToInt("0x89abcdef") == 0x89abcdefU);
+	assert(stringToUnsignedInt("0x89abcdef") == 0x89abcdefU);
 	assert(intToHexString(0x7fffffffU) == "7fffffff");
 	assert(stringToInt("0x7fffffff") == 0x7fffffffU);
 	assert(intToHexString(0xffffffffU) == "ffffffff");
-	assert(stringToInt("0xffffffff") == 0xffffffffU);
+	assert(stringToUnsignedInt("0xffffffff") == 0xffffffffU);
 	{
 		size_t next = 0;
-		assert(stringToInt("4294967295", &next) == 0 && next < 10);														// only hexadecimal gives a bit pattern
+		assert(stringToInt("4294967295", &next) == 0 && next == 9);														// past the signed range: stops at the last digit
+		assert(stringToInt("0xffffffff", &next) == 0 && next == 9);														// the signed range applies to hexadecimal too
 		assert(stringToInt("-0x80000000") == -2147483647 - 1);
-		assert(stringToInt64("0xffffffffffffffff") == -1);
 		assert(stringToInt64("-9223372036854775808") == std::numeric_limits<int64_t>::min());
 		assert(stringToInt64("9223372036854775807") == std::numeric_limits<int64_t>::max());
 		assert(stringToUnsignedInt("4294967295") == 4294967295U);
-		assert(stringToUnsignedInt("0xffffffff") == 0xffffffffU);
 		assert(stringToUnsignedInt("-1", &next) == 0 && next < 2);
 		assert(stringToUnsignedInt64("18446744073709551615") == std::numeric_limits<uint64_t>::max());
+		assert(stringToUnsignedInt64("0xffffffffffffffff") == std::numeric_limits<uint64_t>::max());
 		assert(stringToUnsignedInt64("18446744073709551616", &next) == 0);												// one past the largest: stops at the last digit
 		assert(next == 19);
 		assert(stringToInt("12.5", &next) == 12 && next == 2);															// a partial parse keeps its value
 		assert(stringToInt("0x1g", &next) == 1 && next == 3);															// hexadecimal scans and stops the same way
-		assert(stringToInt("0xffffffffg", &next) == -1 && next == 10);													// the bit pattern read so far is kept
+		assert(stringToUnsignedInt("0xffffffffg", &next) == 0xffffffffU && next == 10);									// the value read so far is kept
 		assert(stringToInt("12 0x", &next) == 12 && next == 3);														// "0x" later in the text means nothing
-		assert(stringToInt("+0xffffffff") == -1);
 		assert(stringToInt("0x", &next) == 0 && next == 1);																// a bare 0x is a 0 and stops at the x
 		assert(stringToInt("0xg", &next) == 0 && next == 1);
 		assert(stringToUnsignedInt("0x", &next) == 0 && next == 1);
