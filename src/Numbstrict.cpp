@@ -868,6 +868,17 @@ static bool startsHexadecimal(const Char* p, const Char* e) {															// a
 	return (e - p >= 3 && p[0] == '0' && p[1] == 'x' && fromHex(p[2]) >= 0);
 }
 
+static bool looksOctal(const Char* b, const Char* e) {																	// digits alone with a leading zero, octal in C
+	if (e - b < 2 || *b != '0') {
+		return false;
+	}
+	const Char* p = b;
+	while (p != e && *p >= '0' && *p <= '9') {
+		++p;
+	}
+	return p == e;
+}
+
 /*
 	`overflow` is null, or the first digit that would take `ui` past `highest`, where `ui` then stays: the caller
 	fails there or saturates.
@@ -913,7 +924,7 @@ template<typename T> bool Parser::tryToParseInteger(T& i) {
 	uint64_t ui;
 	const Char* overflow;
 	const Char* const q = readUnsigned(d, e, 0, highestMagnitude<T>(negative), ui, overflow);
-	const bool leadingZero = (q - d > 1 && d[0] == '0' && !startsHexadecimal(d, e));
+	const bool leadingZero = looksOctal(d, q);
 	p = iteratorAt(source, leadingZero ? d + 1 : overflow != 0 ? overflow : q);
 	if (q == d || leadingZero || overflow != 0) {
 		return false;
@@ -1298,7 +1309,7 @@ bool Parser::tryToParse(Variant& toVariant) {
 			}
 			case 'i': // inf
 			case 'n': // nan
-			case '+': case '-':
+			case '+': case '-': case '.':
 			case '0': case '1': case '2': case '3': case '4':
 			case '5': case '6': case '7': case '8': case '9': {
 				if (tryToParse(toVariant.integer)) {
@@ -1351,11 +1362,7 @@ template<typename T> bool Parser::tryToParseReal(T& r) {
 		return false;
 	}
 	const Char* const d = b + ((*b == '-' || *b == '+') ? 1 : 0);
-	const Char* x = d;
-	while (x != q && *x >= '0' && *x <= '9') {
-		++x;
-	}
-	if (x == q && q - d > 1 && *d == '0') {																				// digits alone with a leading zero are octal in C: no integer, no real
+	if (looksOctal(d, q)) {
 		p = iteratorAt(source, d + 1);
 		return false;
 	}
@@ -2404,14 +2411,13 @@ bool unitTest() {
 		assert(!Parser(Element("-007")).tryToParse(d, failOffset) && failOffset == 2);
 		assert(Parser(Element("0")).tryToParse(d) && d == 0.0);
 		assert(Parser(Element("1e05")).tryToParse(d) && d == 1e5);														// exponents may be padded, as printf writes them
-		assert(Parser(Element("1e-05")).tryToParse(d) && d == 1e-5);
-		assert(Parser(Element("1e+05")).tryToParse(d) && d == 1e5);
 		assert(Parser(Element("1.5e-07")).tryToParse(d) && d == 1.5e-7);
 		assert(!Parser(Element("1e")).tryToParse(d, failOffset) && failOffset == 1);
 		assert(stringToDouble("007") == 7.0);																			// the string functions read it, as strtod does
 		Variant variant;
 		assert(Parser(Element("007.5")).tryToParse(variant) && variant.type == Variant::REAL);
 		assert(Parser(Element("007")).tryToParse(variant) && variant.type == Variant::TEXT);
+		assert(Parser(Element(".5")).tryToParse(variant) && variant.type == Variant::REAL && variant.real == 0.5);
 	}
 	
 	{

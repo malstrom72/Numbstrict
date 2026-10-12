@@ -66,7 +66,7 @@ Conversion functions
 - `compose`, `quoteString` and `quoteWideString` also take a character range [`begin`, `end`), so text that is not
   in a `String` is quoted without being copied into one first.
 - `Parser::tryToParse` and `Element::to` read a whole value by the grammar instead: white space and comments around
-  it, no leading zeros, and failure for anything out of range or left over.
+  it, no octal-looking integer such as `007`, and failure for anything out of range or left over.
 
 Examples
 --------
