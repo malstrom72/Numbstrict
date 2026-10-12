@@ -234,28 +234,24 @@ template<typename C> bool isTextChar(C c) {
 	}
 }
 
-template<typename C> bool areAllTextChars(const std::basic_string<C>& s) {
-	for (typename std::basic_string<C>::const_iterator it = s.begin(); it != s.end(); ++it) {
-		if (!isTextChar(*it)) {
-			return false;
-		}
-		if (s.end() - it >= 2 && it[0] == '/' && (it[1] == '/' || it[1] == '*')) {
+template<typename C> bool areAllTextChars(const C* b, const C* e) {
+	for (const C* p = b; p != e; ++p) {
+		if (!isTextChar(*p) || (e - p >= 2 && p[0] == '/' && (p[1] == '/' || p[1] == '*'))) {
 			return false;
 		}
 	}
 	return true;
 }
 
-// FIX : make it take a range instead, e.g. for String compose(const Char* fromString, bool preferUnquoted = false);
-template<typename C> String quoteString(const std::basic_string<C>& fromString, bool preferUnquoted, Char quoteChar) {
+template<typename C> String quoteString(const C* fromBegin, const C* fromEnd, bool preferUnquoted, Char quoteChar) {
 	assert(quoteChar == '\"' || quoteChar == '\'');
-	if (preferUnquoted && areAllTextChars(fromString)) {
-		return String(fromString.begin(), fromString.end());
+	if (preferUnquoted && areAllTextChars(fromBegin, fromEnd)) {
+		return String(fromBegin, fromEnd);
 	} else {
 		String quoted(1, quoteChar);
-		typename std::basic_string<C>::const_iterator p = fromString.begin();
-		typename std::basic_string<C>::const_iterator e = fromString.end();
-		typename std::basic_string<C>::const_iterator b = p;
+		const C* p = fromBegin;
+		const C* const e = fromEnd;
+		const C* b = p;
 		while (p != e) {
 			uint32_t ui = rewrap<uint32_t>(*p);
 			if (ui >= 32 && ui < 127 && *p != quoteChar && *p != '\\') {
@@ -304,6 +300,10 @@ template<typename C> String quoteString(const std::basic_string<C>& fromString, 
 		quoted += quoteChar;
 		return quoted;
 	}
+}
+
+template<typename C> String quoteString(const std::basic_string<C>& fromString, bool preferUnquoted, Char quoteChar) {
+	return quoteString(fromString.data(), fromString.data() + fromString.size(), preferUnquoted, quoteChar);
 }
 
 /*
@@ -1405,7 +1405,11 @@ static String reindent(const String& s, int tabCount) {
 }
 
 String compose(const Char* fromString, bool preferUnquoted) {
-	return quoteString(String(fromString), preferUnquoted, '\"');
+	return quoteString(fromString, fromString + strlen(fromString), preferUnquoted, '\"');
+}
+
+String compose(const Char* begin, const Char* end, bool preferUnquoted) {
+	return quoteString(begin, end, preferUnquoted, '\"');
 }
 
 String compose(const String& fromString, bool preferUnquoted) {
@@ -1413,7 +1417,12 @@ String compose(const String& fromString, bool preferUnquoted) {
 }
 
 String compose(const WideChar* fromString, bool preferUnquoted) {
-	return quoteString(WideString(fromString), preferUnquoted, '\"');
+	return quoteString(fromString, fromString + std::char_traits<WideChar>::length(fromString), preferUnquoted
+			, '\"');
+}
+
+String compose(const WideChar* begin, const WideChar* end, bool preferUnquoted) {
+	return quoteString(begin, end, preferUnquoted, '\"');
 }
 
 String compose(const WideString& fromString, bool preferUnquoted) {
@@ -1719,6 +1728,14 @@ String quoteWideString(const WideString& s, Char quoteChar) {
 	return quoteString(s, false, quoteChar);
 }
 
+String quoteString(const Char* begin, const Char* end, Char quoteChar) {
+	return quoteString(begin, end, false, quoteChar);
+}
+
+String quoteWideString(const WideChar* begin, const WideChar* end, Char quoteChar) {
+	return quoteString(begin, end, false, quoteChar);
+}
+
 WideString unquoteWideString(const String& s, size_t* nextOffset) {
 	return unescapeGeneric<WideChar>(s, nextOffset);
 }
@@ -1914,6 +1931,15 @@ bool unitTest() {
 		assert(unsignedInt64ToString(18446744073709551615ULL) == "18446744073709551615");
 		const Char range[] = { '-', '7', '7' };
 		assert(charsToInt64(range, range + 2, &after) == -7 && after == range + 2);
+	}
+	{
+		const Char text[] = "plain, not";
+		assert(compose(text, true) == "\"plain, not\"" && compose("plain", true) == "plain");
+		assert(compose("plain", false) == "\"plain\"" && compose(L"wide\ttab") == "\"wide\\ttab\"");
+		assert(compose(text, text + 5, true) == "plain" && compose(text, text + 6) == "\"plain,\"");
+		const WideChar wide[] = L"a\x263a";
+		assert(compose(wide, wide + 2) == "\"a\\u263a\"" && compose(wide, wide + 1, true) == "a");
+		assert(quoteString(text, text + 5, '\'') == "'plain'" && quoteWideString(wide, wide + 1) == "\"a\"");
 	}
 
 	assert(doubleToString(0.0) == "0.0");

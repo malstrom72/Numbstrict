@@ -63,6 +63,8 @@ Conversion functions
 - The formatters mirror the parsers, named after the type they take: `intToString`, `int64ToString`,
   `unsignedIntToString`, `unsignedInt64ToString`, `unsignedIntToHexString` and `unsignedInt64ToHexString`, and the
   same six with `Chars`, which write into the caller's buffer with a terminating zero and do not allocate.
+- `compose`, `quoteString` and `quoteWideString` also take a character range [`begin`, `end`), so text that is not
+  in a `String` is quoted without being copied into one first.
 - `Parser::tryToParse` and `Element::to` read a whole value by the grammar instead: white space and comments around
   it, no leading zeros, and failure for anything out of range or left over.
 

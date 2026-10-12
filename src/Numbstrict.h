@@ -313,8 +313,10 @@ String compose(uint64_t fromInt, bool hexFormat = false, int minHexLength = 16);
 String compose(float fromFloat);																						// same as floatToString()
 String compose(double fromDouble);																						// same as doubleToString()
 String compose(const Char* fromString, bool preferUnquoted = false);
+String compose(const Char* begin, const Char* end, bool preferUnquoted = false);
 String compose(const String& fromString, bool preferUnquoted = false);
 String compose(const WideChar* fromString, bool preferUnquoted = false);
+String compose(const WideChar* begin, const WideChar* end, bool preferUnquoted = false);
 String compose(const WideString& fromString, bool preferUnquoted = false);
 String compose(const Array& array, bool multiLine = false, bool bracket = true);
 String compose(const Struct& structure, bool multiLine = false, bool bracket = true);
@@ -404,6 +406,8 @@ uint64_t hexCharsToUnsignedInt64(const Char* begin, const Char* end = 0, const C
 String quoteString(const String& s, Char quoteChar = '\"');
 String unquoteString(const String& s, size_t* nextOffset = 0);
 String quoteWideString(const WideString& s, Char quoteChar = '\"');
+String quoteString(const Char* begin, const Char* end, Char quoteChar = '\"');
+String quoteWideString(const WideChar* begin, const WideChar* end, Char quoteChar = '\"');
 WideString unquoteWideString(const String& s, size_t* nextOffset = 0);
 
 bool unitTest();
