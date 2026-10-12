@@ -620,9 +620,8 @@ template<typename T> static int compareWithUpperMidpoint(const Char* digits, con
 	return (comparison == 0 && tailNonZero ? 1 : comparison);
 }
 
-static const Char* parseExponentDigits(const Char* p, const Char* e, bool strict, unsigned int& i) {
-	const Char* const b = p;
-	for (i = 0; p != e && *p >= '0' && *p <= '9' && !(strict && p != b && *b == '0'); ++p) {
+static const Char* parseExponentDigits(const Char* p, const Char* e, unsigned int& i) {
+	for (i = 0; p != e && *p >= '0' && *p <= '9'; ++p) {
 		if (i < 1000000u) {																								// clamped: this large is zero or infinity
 			i = i * 10 + (*p - '0');
 		}
@@ -631,8 +630,8 @@ static const Char* parseExponentDigits(const Char* p, const Char* e, bool strict
 }
 
 /*
-	With `strict`, reading stops where the `real` rule of docs/numbstrict.peg does: after a leading zero, and before a
-	point that lacks a digit on either side.
+	With `strict`, reading stops where the `real` rule of docs/numbstrict.peg does: after a leading zero of the integer
+	part, and before a point that lacks a digit on either side.
 */
 template<typename T> const Char* parseReal(const Char* const b, const Char* const e, bool strict, T& value) {
 	int exponent = -1;
@@ -680,7 +679,7 @@ template<typename T> const Char* parseReal(const Char* const b, const Char* cons
 				++p;
 			}
 			unsigned int ui;
-			const Char* q = parseExponentDigits(p, e, strict, ui);
+			const Char* q = parseExponentDigits(p, e, ui);
 			if (q != p) {
 				exponent += exponentSign * static_cast<int>(ui);
 				numberEnd = q;
@@ -2394,7 +2393,10 @@ bool unitTest() {
 		assert(!Parser(Element(".5")).tryToParse(d, failOffset) && failOffset == 0);
 		assert(!Parser(Element("-.5")).tryToParse(d, failOffset) && failOffset == 0);
 		assert(!Parser(Element("5.")).tryToParse(d, failOffset) && failOffset == 1);
-		assert(!Parser(Element("1e05")).tryToParse(d, failOffset) && failOffset == 3);
+		assert(Parser(Element("1e05")).tryToParse(d) && d == 1e5);														// exponents may be padded, as printf writes them
+		assert(Parser(Element("1e-05")).tryToParse(d) && d == 1e-5);
+		assert(Parser(Element("1e+05")).tryToParse(d) && d == 1e5);
+		assert(Parser(Element("1.5e-07")).tryToParse(d) && d == 1.5e-7);
 		assert(!Parser(Element("1e")).tryToParse(d, failOffset) && failOffset == 1);
 		assert(stringToDouble("007.5") == 7.5 && stringToDouble(".5") == 0.5 && stringToDouble("5.") == 5.0);			// the string functions stay lenient
 		Variant lenient;
