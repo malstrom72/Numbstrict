@@ -1658,10 +1658,10 @@ template<typename T> static T stringToInteger(const String& s, size_t* nextOffse
 	return v;
 }
 
-int stringToInt(const String& s, size_t* nextOffset) { return stringToInteger<int>(s, nextOffset); }
+int32_t stringToInt(const String& s, size_t* nextOffset) { return stringToInteger<int32_t>(s, nextOffset); }
 int64_t stringToInt64(const String& s, size_t* nextOffset) { return stringToInteger<int64_t>(s, nextOffset); }
-unsigned int stringToUnsignedInt(const String& s, size_t* nextOffset) {
-	return stringToInteger<unsigned int>(s, nextOffset);
+uint32_t stringToUnsignedInt(const String& s, size_t* nextOffset) {
+	return stringToInteger<uint32_t>(s, nextOffset);
 }
 uint64_t stringToUnsignedInt64(const String& s, size_t* nextOffset) {
 	return stringToInteger<uint64_t>(s, nextOffset);

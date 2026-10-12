@@ -359,9 +359,9 @@ inline Variant parseVariant(const Element& source) { return source.to<Variant>()
 
 String intToString(int value);
 String intToHexString(unsigned int value, int minLength = 8);
-int stringToInt(const String& s, size_t* nextOffset = 0);
+int32_t stringToInt(const String& s, size_t* nextOffset = 0);
 int64_t stringToInt64(const String& s, size_t* nextOffset = 0);
-unsigned int stringToUnsignedInt(const String& s, size_t* nextOffset = 0);
+uint32_t stringToUnsignedInt(const String& s, size_t* nextOffset = 0);
 uint64_t stringToUnsignedInt64(const String& s, size_t* nextOffset = 0);
 
 String floatToString(float value);
