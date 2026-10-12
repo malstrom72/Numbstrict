@@ -693,7 +693,6 @@ String process(const String& source, const WideString& fileName) {
 
 RangeVector findInputRanges(const std::vector<OffsetMapEntry>& offsetMap, size_t outputOffset) {
 	std::vector<OffsetMapEntry>::const_iterator it = offsetMap.begin();
-	// TODO: binary search maybe?
 	while (it != offsetMap.end() && outputOffset < it->outputPoint) {
 		++it;
 	}
