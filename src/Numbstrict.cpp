@@ -1765,6 +1765,23 @@ const char* UndefinedNamedElementError::what() const throw() {
 	}
 }
 
+#if !defined(NDEBUG)
+/*
+	gcc and clang -ffast-math let the compiler assume that no floating-point value is inf, nan or -0.0, even one passed
+	or returned unchanged, so such values cannot be observed through a float or double there; MSVC /fp:fast keeps them.
+	The unit test checks them only where they survive.
+*/
+#if defined(__FAST_MATH__)
+static const bool SPECIAL_VALUES_SURVIVE = false;
+#else
+static const bool SPECIAL_VALUES_SURVIVE = true;
+#endif
+
+template<typename T> static bool isSpecial(typename Traits<T>::Bits bits) {
+	return (bits & Traits<T>::EXPONENT_MASK) == Traits<T>::EXPONENT_MASK || bits == Traits<T>::SIGN_BIT;
+}
+#endif
+
 bool unitTest() {
 #if !defined(NDEBUG)
 	std::u16string emoji16;
@@ -1956,8 +1973,10 @@ bool unitTest() {
 
 	assert(doubleToString(0.0) == "0.0");
 	assert(stringToDouble("0.0") == 0.0);
-	assert(doubleToString(-0.0) == "-0.0");
-	assert(std::signbit(stringToDouble("-0.0")));
+	if (SPECIAL_VALUES_SURVIVE) {
+		assert(doubleToString(-0.0) == "-0.0");
+		assert(std::signbit(stringToDouble("-0.0")));
+	}
 	assert(doubleToString(-1.0) == "-1.0");
 	assert(stringToDouble("-1.0") == -1.0);
 	assert(doubleToString(1.12345689101112133911897) == "1.1234568910111213");
@@ -1990,17 +2009,19 @@ bool unitTest() {
 	assert(stringToDouble("1.7976931348623157e+308") == 1.79769313486231570814527e+308);
 	assert(doubleToString(1.79769313486231550856124e+308) == "1.7976931348623155e+308");
 	assert(stringToDouble("1.7976931348623155e+308") == 1.79769313486231550856124e+308);
-	assert(doubleToString(Traits<double>::fromBits(Traits<double>::EXPONENT_MASK)) == "inf");
-	assert(Traits<double>::toBits(stringToDouble("inf")) == Traits<double>::EXPONENT_MASK);
-	assert(doubleToString(Traits<double>::fromBits(Traits<double>::QUIET_NAN)) == "nan");
-	assert(isNaN(stringToDouble("nan")));
-	{
-		size_t next = 1;
-		assert(stringToDouble("-nan", &next) == 0.0 && next == 0);														// nan takes no sign
-		assert(stringToFloat("+nan", &next) == 0.0f && next == 0);
+	if (SPECIAL_VALUES_SURVIVE) {
+		assert(doubleToString(Traits<double>::fromBits(Traits<double>::EXPONENT_MASK)) == "inf");
+		assert(Traits<double>::toBits(stringToDouble("inf")) == Traits<double>::EXPONENT_MASK);
+		assert(doubleToString(Traits<double>::fromBits(Traits<double>::QUIET_NAN)) == "nan");
+		assert(isNaN(stringToDouble("nan")));
+		{
+			size_t next = 1;
+			assert(stringToDouble("-nan", &next) == 0.0 && next == 0);													// nan takes no sign
+			assert(stringToFloat("+nan", &next) == 0.0f && next == 0);
+		}
+		assert(doubleToString(Traits<double>::fromBits(0xfff8000000000000ull)) == "nan");								// a nan's sign is not written
+		assert(floatToString(Traits<float>::fromBits(0xffc00000u)) == "nan");
 	}
-	assert(doubleToString(Traits<double>::fromBits(0xfff8000000000000ull)) == "nan");									// a nan's sign is not written
-	assert(floatToString(Traits<float>::fromBits(0xffc00000u)) == "nan");
 
 	{
 		struct FragileDoubleCase {
@@ -2061,6 +2082,9 @@ bool unitTest() {
 			{ 0xfff0000000000000ull, "-inf" },
 		};
 		for (const FragileDoubleCase& entry : kFragileDoubleCases) {
+			if (!SPECIAL_VALUES_SURVIVE && isSpecial<double>(entry.bits)) {
+				continue;
+			}
 			const double value = Traits<double>::fromBits(entry.bits);
 			const String text = doubleToString(value);
 			assert(text == entry.expected);
@@ -2139,6 +2163,9 @@ bool unitTest() {
 			{ 0xff800000u, "-inf", "-inf" },
 		};
 		for (const FragileFloatCase& entry : kFragileFloatCases) {
+			if (!SPECIAL_VALUES_SURVIVE && isSpecial<float>(entry.bits)) {
+				continue;
+			}
 			const float value = Traits<float>::fromBits(entry.bits);
 			const String text = floatToString(value);
 			assert(text == entry.expected);
@@ -2157,8 +2184,10 @@ bool unitTest() {
 	}
 
 
-	assert(floatToString(Traits<float>::fromBits(Traits<float>::QUIET_NAN)) == "nan");
-	assert(isNaN(stringToFloat("nan")));
+	if (SPECIAL_VALUES_SURVIVE) {
+		assert(floatToString(Traits<float>::fromBits(Traits<float>::QUIET_NAN)) == "nan");
+		assert(isNaN(stringToFloat("nan")));
+	}
 
 	{
 
@@ -2169,17 +2198,19 @@ bool unitTest() {
 		assert(Traits<float>::toBits(stringToFloat("6e-46")) == 0x00000000u);
 
 		assert(stringToFloat("1e-3000000000") == 0.0f);																	// an exponent wrap once flipped these
-		assert(isInfinity(stringToFloat("1e3000000000")) && !std::signbit(stringToFloat("1e3000000000")));
 		assert(stringToFloat("1e-400") == 0.0f);
-		assert(isInfinity(stringToFloat("1e309")) && !std::signbit(stringToFloat("1e309")));
-		assert(isInfinity(stringToFloat("1e2147483648")) && !std::signbit(stringToFloat("1e2147483648")));
-		assert(isInfinity(stringToFloat("1e4294967297")) && !std::signbit(stringToFloat("1e4294967297")));
 		assert(stringToDouble("1e-3000000000") == 0.0);
-		assert(isInfinity(stringToDouble("1e3000000000")) && !std::signbit(stringToDouble("1e3000000000")));
 		assert(stringToDouble("1e-400") == 0.0);
-		assert(isInfinity(stringToDouble("1e309")) && !std::signbit(stringToDouble("1e309")));
-		assert(isInfinity(stringToDouble("1e2147483648")) && !std::signbit(stringToDouble("1e2147483648")));
-		assert(isInfinity(stringToDouble("1e4294967297")) && !std::signbit(stringToDouble("1e4294967297")));
+		if (SPECIAL_VALUES_SURVIVE) {
+			assert(isInfinity(stringToFloat("1e3000000000")) && !std::signbit(stringToFloat("1e3000000000")));
+			assert(isInfinity(stringToFloat("1e309")) && !std::signbit(stringToFloat("1e309")));
+			assert(isInfinity(stringToFloat("1e2147483648")) && !std::signbit(stringToFloat("1e2147483648")));
+			assert(isInfinity(stringToFloat("1e4294967297")) && !std::signbit(stringToFloat("1e4294967297")));
+			assert(isInfinity(stringToDouble("1e3000000000")) && !std::signbit(stringToDouble("1e3000000000")));
+			assert(isInfinity(stringToDouble("1e309")) && !std::signbit(stringToDouble("1e309")));
+			assert(isInfinity(stringToDouble("1e2147483648")) && !std::signbit(stringToDouble("1e2147483648")));
+			assert(isInfinity(stringToDouble("1e4294967297")) && !std::signbit(stringToDouble("1e4294967297")));
+		}
 	}
 
 	assert(compose(false) == "false");
