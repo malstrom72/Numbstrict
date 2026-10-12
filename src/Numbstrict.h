@@ -8,7 +8,7 @@
 #include <exception>
 #include <memory>
 #include <cstdint>
-#include <ostream>	// for std::basic_ostream and iostream state used by operator<<
+#include <ostream>																										// for std::basic_ostream and iostream state used by operator<<
 
 namespace Numbstrict {
 
@@ -16,7 +16,7 @@ class Parser;
 typedef char Char;
 typedef unsigned char UChar;
 typedef wchar_t WideChar;
-typedef std::basic_string<Char> String;	// notice: not utf8, assumed ISO-8859-1!
+typedef std::basic_string<Char> String;																					// notice: not utf8, assumed ISO-8859-1!
 typedef std::basic_string<WideChar> WideString;
 typedef std::basic_string<Char>::const_iterator StringIt;
 typedef std::basic_string<WideChar>::const_iterator WideStringIt;
@@ -91,14 +91,14 @@ class Element {
 		StringIt end() const { assert(exists()); return e; }
 		template<typename T> T to() const;
 		template<typename T> T toOptional(const T& defaultValue = T()) const;
-		template<typename T> bool tryToParse(T& target) const;       // expects convertible to `T`; false on failure
+		template<typename T> bool tryToParse(T& target) const;															// expects convertible to `T`; false on failure
 		template<typename T> bool tryToParseQuoted(T& target) const;
 		template<typename T> bool tryToParseBracketed(T& target) const;
 		String code() const { if (!exists()) { throw UndefinedElementError(); }; return String(b, e); }
 		String optionalCode(const String& defaultCode = String()) const { return (!exists() ? defaultCode : code()); }
 		String filename() const { assert(exists()); return s->second; }
-		size_t offset(const StringIt p) const { assert(exists()); return p - s->first.begin(); }	// `p` = source iterator
-		LineAndColumn lineAndColumn(StringIt p) const;	// `p` = source iterator
+		size_t offset(const StringIt p) const { assert(exists()); return p - s->first.begin(); }						// `p` = source iterator
+		LineAndColumn lineAndColumn(StringIt p) const;																	// `p` = source iterator
 	
 	protected:
 		std::shared_ptr<SourceAndFile> s;
@@ -108,8 +108,8 @@ class Element {
 
 // Now that Element is a complete type, containers of Element are well-formed.
 typedef std::vector<Element> Array;
-typedef std::map<String, Element> Struct;	// standard struct handles only iso-8859-1 keys
-typedef std::map<WideString, Element> WideStruct;	// a wide struct can handle any unicode keys
+typedef std::map<String, Element> Struct;																				// standard struct handles only iso-8859-1 keys
+typedef std::map<WideString, Element> WideStruct;																		// a wide struct can handle any unicode keys
 
 /**
 	Notice that type is deduced from text contents and there may be ambiguities, e.g. an empty struct might be
@@ -119,13 +119,13 @@ typedef std::map<WideString, Element> WideStruct;	// a wide struct can handle an
 struct Variant {
 	enum Type {
 		INVALID
-		, STRUCT 			// { : }
-		, ARRAY 			// { }
-		, TEXT 				// "" '' and generic text (including unparsable { } elements)
-		, REAL 				// #.#
-		, UNSIGNED_INTEGER	// [+]# (only overflowing 64-bit integers)
-		, INTEGER 			// [+-]#
-		, BOOLEAN 			// true | false
+		, STRUCT																										// { : }
+		, ARRAY																											// { }
+		, TEXT																											// "" '' and generic text (including unparsable { } elements)
+		, REAL																											// #.#
+		, UNSIGNED_INTEGER																								// [+]# (only overflowing 64-bit integers)
+		, INTEGER																										// [+-]#
+		, BOOLEAN																										// true | false
 	} type;
 	Variant() : type(INVALID) { }
 	WideStruct structure;
@@ -146,31 +146,31 @@ class Parser {
 		Parser(const Element& source);
 		StringIt getFailPoint() const;
 
-		bool isEmpty();		// Parses whitespaces and comments and returns true if entire string was parsed.
-		bool isBracketed();	// Parses whitespaces and comments and returns true if next character is '{'.
-		bool isQuoted();	// Parses whitespaces and comments and returns true if next character is " or '.
+		bool isEmpty();																									// Parses whitespaces and comments and returns true if entire string was parsed.
+		bool isBracketed();																								// Parses whitespaces and comments and returns true if next character is '{'.
+		bool isQuoted();																								// Parses whitespaces and comments and returns true if next character is " or '.
 
-		bool tryToParse(Array& toArray);	// expects '{ }' array; false on failure
-		bool tryToParse(Struct& toStruct);	// expects '{ : }' struct; false on failure
-		bool tryToParse(WideStruct& toWideStruct);	// expects '{ : }' wide struct; false on failure
-		bool tryToParse(String& toString);	// expects quoted or unquoted string; false on failure
-		bool tryToParse(WideString& toString);	// expects quoted string; false on failure
-		bool tryToParse(float& toFloat);	// expects real number; false on failure
-		bool tryToParse(double& toDouble);	// expects real number; false on failure
-		bool tryToParse(int8_t& toInt);	// expects signed integer; false on failure
-		bool tryToParse(uint8_t& toInt);	// expects unsigned integer; false on failure
-		bool tryToParse(int16_t& toInt);	// expects signed integer; false on failure
-		bool tryToParse(uint16_t& toInt);	// expects unsigned integer; false on failure
-		bool tryToParse(int32_t& toInt);	// expects signed integer; false on failure
-		bool tryToParse(uint32_t& toInt);	// expects unsigned integer; false on failure
-		bool tryToParse(int64_t& toInt);	// expects signed integer; false on failure
-		bool tryToParse(uint64_t& toInt);	// expects unsigned integer; false on failure
-		bool tryToParse(bool& toBool);	// expects `true` or `false`; false on failure
-		bool tryToParse(Variant& toVariant);	// expects any element; false on failure
-		template<typename T> bool tryToParse(std::vector<T>& toVector);	// expects '{ }' array; false on failure
-		template<typename T> bool tryToParse(std::map<String, T>& toMap);	// expects '{ : }' struct; false on failure
-		template<typename T> bool tryToParse(std::map<WideString, T>& toMap);	// expects '{ : }' wide struct; false on failure
-		template<typename T> bool tryToParse(T& to, size_t& failOffset);	// sets `failOffset` on error; false on failure
+		bool tryToParse(Array& toArray);																				// expects '{ }' array; false on failure
+		bool tryToParse(Struct& toStruct);																				// expects '{ : }' struct; false on failure
+		bool tryToParse(WideStruct& toWideStruct);																		// expects '{ : }' wide struct; false on failure
+		bool tryToParse(String& toString);																				// expects quoted or unquoted string; false on failure
+		bool tryToParse(WideString& toString);																			// expects quoted string; false on failure
+		bool tryToParse(float& toFloat);																				// expects real number; false on failure
+		bool tryToParse(double& toDouble);																				// expects real number; false on failure
+		bool tryToParse(int8_t& toInt);																					// expects signed integer; false on failure
+		bool tryToParse(uint8_t& toInt);																				// expects unsigned integer; false on failure
+		bool tryToParse(int16_t& toInt);																				// expects signed integer; false on failure
+		bool tryToParse(uint16_t& toInt);																				// expects unsigned integer; false on failure
+		bool tryToParse(int32_t& toInt);																				// expects signed integer; false on failure
+		bool tryToParse(uint32_t& toInt);																				// expects unsigned integer; false on failure
+		bool tryToParse(int64_t& toInt);																				// expects signed integer; false on failure
+		bool tryToParse(uint64_t& toInt);																				// expects unsigned integer; false on failure
+		bool tryToParse(bool& toBool);																					// expects `true` or `false`; false on failure
+		bool tryToParse(Variant& toVariant);																			// expects any element; false on failure
+		template<typename T> bool tryToParse(std::vector<T>& toVector);													// expects '{ }' array; false on failure
+		template<typename T> bool tryToParse(std::map<String, T>& toMap);												// expects '{ : }' struct; false on failure
+		template<typename T> bool tryToParse(std::map<WideString, T>& toMap);											// expects '{ : }' wide struct; false on failure
+		template<typename T> bool tryToParse(T& to, size_t& failOffset);												// sets `failOffset` on error; false on failure
 		template<typename T> T& parse(T& to);
 
 	protected:
@@ -199,7 +199,7 @@ class Parser {
 		String::difference_type left() const;
 };
 
-template<typename T> bool Parser::tryToParse(T& to, size_t& failOffset) { // sets `failOffset` on error; false if fail
+template<typename T> bool Parser::tryToParse(T& to, size_t& failOffset) {												// sets `failOffset` on error; false if fail
 	if (!tryToParse(to)) {
 		failOffset = getFailPoint() - source.begin();
 		return false;
@@ -231,7 +231,7 @@ template<typename T> T Element::toOptional(const T& defaultValue) const {
 	return v;
 }
 
-template<typename T> bool Element::tryToParse(T& target) const { // expects convertible to `T`; false on failure
+template<typename T> bool Element::tryToParse(T& target) const {														// expects convertible to `T`; false on failure
 	if (!exists()) {
 		throw UndefinedElementError();
 	}
@@ -254,7 +254,7 @@ template<typename T> bool Element::tryToParseBracketed(T& target) const {
 	return parser.isBracketed() && parser.tryToParse(target);
 }
 
-template<typename T> bool Parser::tryToParse(std::vector<T>& toVector) { // expects '{ }' array; false on failure
+template<typename T> bool Parser::tryToParse(std::vector<T>& toVector) {												// expects '{ }' array; false on failure
 	Array elems;
 	if (!tryToParse(elems)) {
 		return false;
@@ -267,7 +267,7 @@ template<typename T> bool Parser::tryToParse(std::vector<T>& toVector) { // expe
 	return true;
 }
 
-template<typename T> bool Parser::tryToParse(std::map<String, T>& toMap) { // expects '{ : }' struct; false on failure
+template<typename T> bool Parser::tryToParse(std::map<String, T>& toMap) {												// expects '{ : }' struct; false on failure
 	Struct elems;
 	if (!tryToParse(elems)) {
 		return false;
@@ -279,7 +279,7 @@ template<typename T> bool Parser::tryToParse(std::map<String, T>& toMap) { // ex
 	return true;
 }
 
-template<typename T> bool Parser::tryToParse(std::map<WideString, T>& toMap) { // expects '{:}' struct; false if fail
+template<typename T> bool Parser::tryToParse(std::map<WideString, T>& toMap) {											// expects '{:}' struct; false if fail
 	WideStruct elems;
 	if (!tryToParse(elems)) {
 		return false;
@@ -310,8 +310,8 @@ String compose(int32_t fromInt, bool hexFormat = false, int minHexLength = 8);
 String compose(uint32_t fromInt, bool hexFormat = false, int minHexLength = 8);
 String compose(int64_t fromInt, bool hexFormat = false, int minHexLength = 16);
 String compose(uint64_t fromInt, bool hexFormat = false, int minHexLength = 16);
-String compose(float fromFloat);	// same as floatToString()
-String compose(double fromDouble);	// same as doubleToString()
+String compose(float fromFloat);																						// same as floatToString()
+String compose(double fromDouble);																						// same as doubleToString()
 String compose(const Char* fromString, bool preferUnquoted = false);
 String compose(const String& fromString, bool preferUnquoted = false);
 String compose(const WideChar* fromString, bool preferUnquoted = false);
@@ -357,41 +357,38 @@ inline Variant parseVariant(const Element& source) { return source.to<Variant>()
 
 String intToString(int value);
 String intToHexString(unsigned int value, int minLength = 8);
+String floatToString(float value);
+String doubleToString(double value);
+Char* intToChars(int value, Char* destination);																			// writes at most 12 chars, the terminating zero included
+Char* intToHexChars(unsigned int value, Char* destination, int minLength = 8);											// at most max(8, `minLength`) + 1 chars
+Char* floatToChars(float value, Char* destination);																		// at most 32 chars, the terminating zero included
+Char* doubleToChars(const double value, Char* destination);																// at most 32 chars, the terminating zero included
+
 /*
-	Conversions from text in the manner of strtol and strtod: leading and trailing white space (no comments), an
-	optional sign, then as many characters as make a number, leading zeros included. `nextOffset` is where the scan
-	stopped: the length when it took everything, 0 when nothing was read. An integer past its range is the nearest
-	limit, with `nextOffset` at the first digit that does not fit; a real past its range is inf or 0.
+	Conversions from text in the manner of strtol and strtod, from a String or from [`begin`, `end`) (a null `end` for
+	a C string), without allocating: leading and trailing white space (no comments), an optional sign, then as many
+	characters as make a number, leading zeros included. `nextOffset` and `next` are where the scan stopped: the end
+	when it took everything, the start when nothing was read. An integer past its range is the nearest limit, with the
+	scan stopped at the first digit that does not fit; a real past its range is inf or 0.
 */
 int32_t stringToInt(const String& s, size_t* nextOffset = 0);
 int64_t stringToInt64(const String& s, size_t* nextOffset = 0);
 uint32_t stringToUnsignedInt(const String& s, size_t* nextOffset = 0);
 uint64_t stringToUnsignedInt64(const String& s, size_t* nextOffset = 0);
-
-String floatToString(float value);
 float stringToFloat(const String& s, size_t* nextOffset = 0);
-String doubleToString(double value);
 double stringToDouble(const String& s, size_t* nextOffset = 0);
-
+int32_t charsToInt(const Char* begin, const Char* end = 0, const Char** next = 0);
+int64_t charsToInt64(const Char* begin, const Char* end = 0, const Char** next = 0);
+uint32_t charsToUnsignedInt(const Char* begin, const Char* end = 0, const Char** next = 0);
+uint64_t charsToUnsignedInt64(const Char* begin, const Char* end = 0, const Char** next = 0);
+float charsToFloat(const Char* begin, const Char* end = 0, const Char** next = 0);
+double charsToDouble(const Char* begin, const Char* end = 0, const Char** next = 0);
+// TODO : unsigned int hexCharsToInt(const Char* begin, const Char* end = 0, const Char** next = 0);
 
 String quoteString(const String& s, Char quoteChar = '\"');
 String unquoteString(const String& s, size_t* nextOffset = 0);
 String quoteWideString(const WideString& s, Char quoteChar = '\"');
 WideString unquoteWideString(const String& s, size_t* nextOffset = 0);
-
-// Handy low-level utilities. All accepts leading and trailing white spaces and will convert as much as possible.
-// Similar to strtod etc. They work directly on Char pointers and they do not allocate.
-Char* intToChars(int value, Char* destination);	// destination should fit at least 11 chars (for 32-bit int)
-int32_t charsToInt(const Char* begin, const Char* end = 0, const Char** next = 0);	// if end is 0, strlen will be used
-int64_t charsToInt64(const Char* begin, const Char* end = 0, const Char** next = 0);
-uint32_t charsToUnsignedInt(const Char* begin, const Char* end = 0, const Char** next = 0);
-uint64_t charsToUnsignedInt64(const Char* begin, const Char* end = 0, const Char** next = 0);
-Char* intToHexChars(unsigned int value, Char* destination, int minLength = 8);	// destination should fit at least 8 chars (for 32-bit int)
-// TODO : unsigned int hexCharsToInt(const Char* begin, const Char* end = 0, const Char** next = 0);	// if end is 0, strlen will be used
-Char* floatToChars(float value, Char* destination);	// destination should fit at least 32 chars
-float charsToFloat(const Char* begin, const Char* end = 0, const Char** next = 0);	// if end is 0, strlen will be used
-Char* doubleToChars(const double value, Char* destination);	// destination should fit at least 32 chars
-double charsToDouble(const Char* begin, const Char* end = 0, const Char** next = 0);	// if end is 0, strlen will be used
 
 bool unitTest();
 
