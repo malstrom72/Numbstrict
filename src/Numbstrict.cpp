@@ -1634,24 +1634,31 @@ String intToHexString(unsigned int value, int minLength) {
 }
 
 /*
-	Parses an integer of type T; a signed T also takes a hexadecimal literal that fits its width as a bit pattern.
-	`nextOffset` is the text's length on success and the point where parsing stopped otherwise.
+	Parses an integer of type T from the whole of `s`, keeping what was read when the text goes on after it, so that a
+	caller can scan and stop at the first non-digit: `nextOffset` is then where parsing stopped, and the text's length
+	on success. A signed T reads a positive hexadecimal literal as a bit pattern that may reach the unsigned range of
+	T, which takes the unsigned parser from the start.
 */
 template<typename T> static T stringToInteger(const String& s, size_t* nextOffset) {
 	typedef typename std::make_unsigned<T>::type UT;
+	struct IntegerParser : public Parser {
+		IntegerParser(const Element& source) : Parser(source) { }
+		bool isPositiveHexadecimal() {
+			whiteAndComments();
+			const StringIt b = p + ((!eof() && *p == '+') ? 1 : 0);
+			return (source.end() - b >= 2 && b[0] == '0' && b[1] == 'x');
+		}
+	};
 	Element source(s);
-	Parser parser(source);
+	IntegerParser parser(source);
+	const bool hex = (std::is_signed<T>() && parser.isPositiveHexadecimal());
 	T v = 0;
-	bool success = parser.tryToParse(v);
-	if (!success && std::is_signed<T>() && s.find("0x") != String::npos) {
-		UT pattern = 0;
-		success = Parser(source).tryToParse(pattern);
-		v = (success ? rewrap<T>(pattern) : 0);
-	}
+	UT pattern = 0;
+	const bool success = (hex ? parser.tryToParse(pattern) : parser.tryToParse(v));
 	if (nextOffset != 0) {
 		*nextOffset = (success ? s.size() : parser.getFailPoint() - source.begin());
 	}
-	return v;
+	return (hex ? rewrap<T>(pattern) : v);
 }
 
 int stringToInt(const String& s, size_t* nextOffset) { return stringToInteger<int>(s, nextOffset); }
@@ -1820,6 +1827,10 @@ bool unitTest() {
 		assert(stringToUnsignedInt64("18446744073709551616", &next) == 0);												// one past the largest: stops at the last digit
 		assert(next == 19);
 		assert(stringToInt("12.5", &next) == 12 && next == 2);															// a partial parse keeps its value
+		assert(stringToInt("0x1g", &next) == 1 && next == 3);															// hexadecimal scans and stops the same way
+		assert(stringToInt("0xffffffffg", &next) == -1 && next == 10);													// the bit pattern read so far is kept
+		assert(stringToInt("12 0x", &next) == 12 && next == 3);														// "0x" later in the text means nothing
+		assert(stringToInt("+0xffffffff") == -1);
 	}
 
 	assert(doubleToString(0.0) == "0.0");
