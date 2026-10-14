@@ -39,8 +39,17 @@ static bool openForWriting(std::ofstream& stream, const std::string& path, const
 	return true;
 }
 
+static std::string narrowString(const std::wstring& wide) {																// file names, which Makaron widens byte by byte
+	std::string narrow;
+	narrow.reserve(wide.size());
+	for (std::wstring::const_iterator it = wide.begin(); it != wide.end(); ++it) {
+		narrow += static_cast<char>(*it);
+	}
+	return narrow;
+}
+
 static bool myIncludeLoader(const Makaron::WideString& fileName, Makaron::String& contents) {
-	std::string narrowFileName(fileName.begin(), fileName.end());
+	const std::string narrowFileName = narrowString(fileName);
 	for (std::vector<std::string>::const_iterator it = includePaths.begin(); it != includePaths.end(); ++it) {
 		std::ifstream fileStream(*it + narrowFileName);
 		if (fileStream.good()) {
@@ -187,14 +196,14 @@ int main(int argc, const char* argv[]) {
 		catch (const Makaron::Exception& x) {
 			const std::wstring errorFile = x.getFile();
 			std::cerr << "!!!! Makaron error: " << x.getError() << std::endl
-					<< "File: " << std::string(errorFile.begin(), errorFile.end())
+					<< "File: " << narrowString(errorFile)
 					<< ", line: " << x.getLineNumber() << ", column: " << x.getColumnNumber()
 					<< " (@" << x.getOffset() << ")" << std::endl
 					<< std::endl
 					<< "Trace:" << std::endl;
 			Makaron::RangeVector inputRanges = findInputRanges(offsetMap, processed.size());
 			for (Makaron::RangeVector::const_iterator it = inputRanges.begin(); it != inputRanges.end(); ++it) {
-				const std::string rangeFile(it->file->begin(), it->file->end());
+				const std::string rangeFile = narrowString(*it->file);
 				const std::map<std::string, std::string>::const_iterator loaded = loadedSources.find(rangeFile);
 				std::cerr << "File: " << rangeFile;
 				if (loaded != loadedSources.end()) {
@@ -225,7 +234,7 @@ int main(int argc, const char* argv[]) {
 					fileStream << ':' << (it->inputFrom + it->inputLength);
 				}
 				if (*it->file != inputFile) {																			// an included file is named, the input file is not
-					fileStream << ' ' << std::string(it->file->begin(), it->file->end());
+					fileStream << ' ' << narrowString(*it->file);
 				}
 				fileStream << std::endl;
 			}

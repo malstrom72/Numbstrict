@@ -27,11 +27,20 @@
 
 namespace Makaron {
 
+static std::string narrowString(const WideString& wide) {																// file names, which Makaron widens byte by byte
+	std::string narrow;
+	narrow.reserve(wide.size());
+	for (WideString::const_iterator it = wide.begin(); it != wide.end(); ++it) {
+		narrow += static_cast<Char>(*it);
+	}
+	return narrow;
+}
+
 const char* Exception::what() const throw() {
 	try {
 		if (errorWithLine.empty()) {
 			std::ostringstream ss;
-			ss << "Makaron error: " << error << " (" << std::string(file.begin(), file.end())
+			ss << "Makaron error: " << error << " (" << narrowString(file)
 					<< (file.empty() ? "line " : " line ") << line << ", column " << column << ")";
 			errorWithLine = ss.str();
 		}
@@ -320,7 +329,7 @@ static bool standardIncludeLoader(const WideString& fileName, String& contents) 
     fileStream.open(fileName.c_str(), std::ios::in | std::ios::binary);
 #else
     // Convert std::wstring to std::string (assuming UTF-8 encoding)
-    std::string narrowFilePath(fileName.begin(), fileName.end());
+    const std::string narrowFilePath = narrowString(fileName);
     fileStream.open(narrowFilePath.c_str(), std::ios::in | std::ios::binary);
 #endif
 
