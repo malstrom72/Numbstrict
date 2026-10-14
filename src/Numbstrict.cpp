@@ -253,7 +253,6 @@ template<typename C> String quoteString(const C* fromBegin, const C* fromEnd, bo
 	assert(quoteChar == '\"' || quoteChar == '\'');
 	if (preferUnquoted && areAllTextChars(fromBegin, fromEnd)) {
 		String unquoted;
-		unquoted.reserve(fromEnd - fromBegin);
 		appendNarrow(unquoted, fromBegin, fromEnd);
 		return unquoted;
 	} else {
