@@ -21,6 +21,11 @@ tar -xzf tests/fuzz/numbstrictCorpus.tar.gz -C output/fuzzReplay
 tar -xzf tests/fuzz/makaronCorpus.tar.gz -C output/fuzzReplay
 tar -xzf tests/fuzz/realConversionCorpus.tar.gz -C output/fuzzReplay
 
+# The power-of-five table in src/Numbstrict.cpp is generated data; a hand edited or stale table fails here
+mkdir -p output
+CPP_OPTIONS="$cpp_options" bash tools/BuildCpp.sh release native output/powersOfFive tools/powersOfFive.cpp
+output/powersOfFive src/Numbstrict.cpp --check
+
 for target in beta release; do
 	out_dir="output/$target"
 	mkdir -p "$out_dir"

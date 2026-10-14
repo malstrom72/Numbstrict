@@ -10,6 +10,12 @@ tar -xzf tests\fuzz\numbstrictCorpus.tar.gz -C output\fuzzReplay || GOTO error
 tar -xzf tests\fuzz\makaronCorpus.tar.gz -C output\fuzzReplay || GOTO error
 tar -xzf tests\fuzz\realConversionCorpus.tar.gz -C output\fuzzReplay || GOTO error
 
+REM The power-of-five table in src\Numbstrict.cpp is generated data; a hand edited or stale table fails here
+IF NOT EXIST output MKDIR output
+CALL tools\BuildCpp.cmd release x64 output\powersOfFive.exe tools\powersOfFive.cpp || GOTO error
+SET "CPP_OPTIONS="
+output\powersOfFive.exe src\Numbstrict.cpp --check || GOTO error
+
 FOR %%t IN (beta release) DO (
 	SET "outDir=output\%%t"
 	IF NOT EXIST "!outDir!" MKDIR "!outDir!"
