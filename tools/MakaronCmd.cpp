@@ -194,9 +194,8 @@ int main(int argc, const char* argv[]) {
 					, &offsetMap);
 		}
 		catch (const Makaron::Exception& x) {
-			const std::wstring errorFile = x.getFile();
 			std::cerr << "!!!! Makaron error: " << x.getError() << std::endl
-					<< "File: " << narrowString(errorFile)
+					<< "File: " << narrowString(x.getFile())
 					<< ", line: " << x.getLineNumber() << ", column: " << x.getColumnNumber()
 					<< " (@" << x.getOffset() << ")" << std::endl
 					<< std::endl

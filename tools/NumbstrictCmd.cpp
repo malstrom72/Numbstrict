@@ -39,16 +39,8 @@ static bool isIdentifier(const WideString& key) {
 	return true;
 }
 
-static String narrowString(const WideString& wide) {																	// identifiers and unquoted text, which are ASCII
-	String narrow;
-	for (WideString::const_iterator it = wide.begin(); it != wide.end(); ++it) {
-		narrow += static_cast<Char>(*it);
-	}
-	return narrow;
-}
-
 static String composeKey(const WideString& key) {
-	return (isIdentifier(key) ? narrowString(key) : compose(key));
+	return compose(key, isIdentifier(key));
 }
 
 static bool startsWith(const Element& element, const char* prefix) {
@@ -112,7 +104,7 @@ static String normalize(const Element& element, int indent, bool bracket) {
 		}
 		case Variant::TEXT: {																							// unquoted text stays as it was
 			const bool quoted = (startsWith(element, "\"") || startsWith(element, "'"));
-			return (quoted ? compose(v.text) : narrowString(v.text));
+			return (quoted ? compose(v.text) : element.to<String>());
 		}
 		case Variant::REAL: return compose(v.real);
 		case Variant::INTEGER: {

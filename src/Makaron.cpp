@@ -328,7 +328,6 @@ static bool standardIncludeLoader(const WideString& fileName, String& contents) 
     // Windows-specific code
     fileStream.open(fileName.c_str(), std::ios::in | std::ios::binary);
 #else
-    // Convert std::wstring to std::string (assuming UTF-8 encoding)
     const std::string narrowFilePath = narrowString(fileName);
     fileStream.open(narrowFilePath.c_str(), std::ios::in | std::ios::binary);
 #endif

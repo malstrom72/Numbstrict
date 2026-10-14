@@ -224,19 +224,13 @@ template<class T> String intToString(T i, int radix = 10, int minLength = 1) {
 	return String(p, buffer + sizeof (T) * 8 + 1);
 }
 
-template<typename C> void appendNarrow(String& to, const C* b, const C* e) {											// for text known to fit, so each character is cast
-	for (const C* p = b; p != e; ++p) {
-		to += static_cast<Char>(*p);
+template<typename C> void appendNarrow(String& to, const C* begin, const C* end) {										// text known to fit in a Char
+	for (const C* character = begin; character != end; ++character) {
+		to += static_cast<Char>(*character);
 	}
 }
 
-static void appendNarrow(String& to, const Char* b, const Char* e) { to.append(b, e); }
-
-template<typename C> String narrowString(const C* b, const C* e) {
-	String narrow;
-	appendNarrow(narrow, b, e);
-	return narrow;
-}
+static void appendNarrow(String& to, const Char* begin, const Char* end) { to.append(begin, end); }
 
 template<typename C> bool isTextChar(C c) {
 	switch (c) {
@@ -258,7 +252,10 @@ template<typename C> bool areAllTextChars(const C* b, const C* e) {
 template<typename C> String quoteString(const C* fromBegin, const C* fromEnd, bool preferUnquoted, Char quoteChar) {
 	assert(quoteChar == '\"' || quoteChar == '\'');
 	if (preferUnquoted && areAllTextChars(fromBegin, fromEnd)) {
-		return narrowString(fromBegin, fromEnd);
+		String unquoted;
+		unquoted.reserve(fromEnd - fromBegin);
+		appendNarrow(unquoted, fromBegin, fromEnd);
+		return unquoted;
 	} else {
 		String quoted(1, quoteChar);
 		const C* p = fromBegin;
@@ -1718,9 +1715,6 @@ String compose(const Array& array, bool multiLine, bool bracket) {
 	return string + (bracket ? "}" : "");
 }
 
-static const String& toCharString(const String& s) { return s; }
-static String toCharString(const WideString& s) { return narrowString(s.data(), s.data() + s.size()); }
-
 template<typename S> String composeStruct(const S& structure, bool multiLine, bool bracket) {
 	String string = (bracket ? (multiLine ? "{\n\t" : "{ ") : "");
 	for (typename S::const_iterator it = structure.begin(); it != structure.end(); ++it) {
@@ -1728,8 +1722,7 @@ template<typename S> String composeStruct(const S& structure, bool multiLine, bo
 			if (it != structure.begin()) {
 				string += (multiLine ? (bracket ? "\n\t" : "\n") : ", ");
 			}
-			string += (keyNeedsQuoting(it->first)
-					? quoteString(it->first, false, '\"') : toCharString(it->first));
+			string += quoteString(it->first, !keyNeedsQuoting(it->first), '\"');
 			string += ": ";
 			string += reindent(it->second.code(), multiLine && bracket ? 1 : 0);
 		}
