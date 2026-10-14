@@ -1714,6 +1714,13 @@ String compose(const Array& array, bool multiLine, bool bracket) {
 	return string + (bracket ? "}" : "");
 }
 
+static const String& toCharString(const String& s) { return s; }
+static String toCharString(const WideString& s) {
+	String narrow;
+	appendNarrow(narrow, s.data(), s.data() + s.size());
+	return narrow;
+}
+
 template<typename S> String composeStruct(const S& structure, bool multiLine, bool bracket) {
 	String string = (bracket ? (multiLine ? "{\n\t" : "{ ") : "");
 	for (typename S::const_iterator it = structure.begin(); it != structure.end(); ++it) {
@@ -1721,7 +1728,8 @@ template<typename S> String composeStruct(const S& structure, bool multiLine, bo
 			if (it != structure.begin()) {
 				string += (multiLine ? (bracket ? "\n\t" : "\n") : ", ");
 			}
-			string += quoteString(it->first, !keyNeedsQuoting(it->first), '\"');
+			string += (keyNeedsQuoting(it->first)
+					? quoteString(it->first, false, '\"') : toCharString(it->first));
 			string += ": ";
 			string += reindent(it->second.code(), multiLine && bracket ? 1 : 0);
 		}
