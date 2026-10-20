@@ -2198,13 +2198,14 @@ bool unitTest() {
 		assert(hexStringToUnsignedInt("0x1f", &next) == 0 && next == 1);												// no prefix: the x stops the scan
 		assert(hexStringToUnsignedInt("-1", &next) == 0 && next == 0);													// no sign
 		assert(hexStringToUnsignedInt("fffffffff", &next) == 0xffffffffU && next == 8);
-		assert(hexStringToUnsignedInt64("0123456789abcdef") == 0x0123456789abcdefULL);
+		assert(hexStringToUnsignedInt64("0123456789abcdef") == UINT64_C(0x0123456789abcdef));
 		assert(hexCharsToUnsignedInt64("ffffffffffffffff;", 0, &after) == std::numeric_limits<uint64_t>::max());
 		assert(*after == ';');
 		assert(hexCharsToUnsignedInt("g", 0, &after) == 0 && *after == 'g');
-		assert(unsignedInt64ToHexString(0x0123456789abcdefULL) == "0123456789abcdef");
+		assert(unsignedInt64ToHexString(UINT64_C(0x0123456789abcdef)) == "0123456789abcdef");
 		assert(unsignedInt64ToHexString(0, 1) == "0");
-		assert(hexStringToUnsignedInt64(unsignedInt64ToHexString(0xfedcba9876543210ULL)) == 0xfedcba9876543210ULL);
+		const uint64_t pattern = UINT64_C(0xfedcba9876543210);
+		assert(hexStringToUnsignedInt64(unsignedInt64ToHexString(pattern)) == pattern);
 		Char digits[17 + 1];
 		assert(unsignedInt64ToHexChars(std::numeric_limits<uint64_t>::max(), digits) == digits + 16 && digits[16] == 0);
 		assert(intToChars(-2147483647 - 1, digits) == digits + 11 && String(digits) == "-2147483648");
@@ -2215,7 +2216,7 @@ bool unitTest() {
 		assert(String(wide) == "18446744073709551615");
 		assert(unsignedIntToChars(4294967295U, wide) == wide + 10 && unsignedIntToHexChars(0xabU, wide, 1) == wide + 2);
 		assert(int64ToString(-1) == "-1" && unsignedIntToString(4294967295U) == "4294967295");
-		assert(unsignedInt64ToString(18446744073709551615ULL) == "18446744073709551615");
+		assert(unsignedInt64ToString(UINT64_C(18446744073709551615)) == "18446744073709551615");
 		const Char range[] = { '-', '7', '7' };
 		assert(charsToInt64(range, range + 2, &after) == -7 && after == range + 2);
 	}
@@ -2277,7 +2278,7 @@ bool unitTest() {
 			assert(stringToDouble("-nan", &next) == 0.0 && next == 0);													// nan takes no sign
 			assert(stringToFloat("+nan", &next) == 0.0f && next == 0);
 		}
-		assert(doubleToString(Traits<double>::fromBits(0xfff8000000000000ull)) == "nan");								// a nan's sign is not written
+		assert(doubleToString(Traits<double>::fromBits(UINT64_C(0xfff8000000000000))) == "nan");						// a nan's sign is not written
 		assert(floatToString(Traits<float>::fromBits(0xffc00000u)) == "nan");
 	}
 
@@ -2287,57 +2288,57 @@ bool unitTest() {
 			const char* expected;
 		};
 		static const FragileDoubleCase kFragileDoubleCases[] = {
-			{ 0x0000000000000000ull, "0.0" },
-			{ 0x0000000000000001ull, "5.0e-324" },
-			{ 0x0000000000000002ull, "1.0e-323" },
-			{ 0x000ffffffffffff8ull, "2.2250738585071974e-308" },
-			{ 0x000ffffffffffff9ull, "2.225073858507198e-308" },
-			{ 0x000ffffffffffffaull, "2.2250738585071984e-308" },
-			{ 0x000ffffffffffffbull, "2.225073858507199e-308" },
-			{ 0x000ffffffffffffcull, "2.2250738585071994e-308" },
-			{ 0x000ffffffffffffdull, "2.2250738585072e-308" },
-			{ 0x000ffffffffffffeull, "2.2250738585072004e-308" },
-			{ 0x000fffffffffffffull, "2.225073858507201e-308" },
-			{ 0x0010000000000000ull, "2.2250738585072014e-308" },
-			{ 0x0010000000000001ull, "2.225073858507202e-308" },
-			{ 0x0010000000000002ull, "2.2250738585072024e-308" },
-			{ 0x0010000000000003ull, "2.225073858507203e-308" },
-			{ 0x0010000000000004ull, "2.2250738585072034e-308" },
-			{ 0x0010000000000005ull, "2.225073858507204e-308" },
-			{ 0x0010000000000006ull, "2.2250738585072043e-308" },
-			{ 0x0010000000000007ull, "2.225073858507205e-308" },
-			{ 0x0010000000000008ull, "2.2250738585072053e-308" },
-			{ 0x3e7ad7f29abcaf47ull, "9.999999999999998e-8" },
-			{ 0x3e7ad7f29abcaf49ull, "1.0000000000000001e-7" },
-			{ 0x3eb0c6f7a0b5ed8cull, "9.999999999999997e-7" },
-			{ 0x3eb0c6f7a0b5ed8eull, "0.0000010000000000000002" },
-			{ 0x4202a05f1fffffffull, "9999999999.999998" },
-			{ 0x4202a05f20000001ull, "1.0000000000000002e+10" },
+			{ UINT64_C(0x0000000000000000), "0.0" },
+			{ UINT64_C(0x0000000000000001), "5.0e-324" },
+			{ UINT64_C(0x0000000000000002), "1.0e-323" },
+			{ UINT64_C(0x000ffffffffffff8), "2.2250738585071974e-308" },
+			{ UINT64_C(0x000ffffffffffff9), "2.225073858507198e-308" },
+			{ UINT64_C(0x000ffffffffffffa), "2.2250738585071984e-308" },
+			{ UINT64_C(0x000ffffffffffffb), "2.225073858507199e-308" },
+			{ UINT64_C(0x000ffffffffffffc), "2.2250738585071994e-308" },
+			{ UINT64_C(0x000ffffffffffffd), "2.2250738585072e-308" },
+			{ UINT64_C(0x000ffffffffffffe), "2.2250738585072004e-308" },
+			{ UINT64_C(0x000fffffffffffff), "2.225073858507201e-308" },
+			{ UINT64_C(0x0010000000000000), "2.2250738585072014e-308" },
+			{ UINT64_C(0x0010000000000001), "2.225073858507202e-308" },
+			{ UINT64_C(0x0010000000000002), "2.2250738585072024e-308" },
+			{ UINT64_C(0x0010000000000003), "2.225073858507203e-308" },
+			{ UINT64_C(0x0010000000000004), "2.2250738585072034e-308" },
+			{ UINT64_C(0x0010000000000005), "2.225073858507204e-308" },
+			{ UINT64_C(0x0010000000000006), "2.2250738585072043e-308" },
+			{ UINT64_C(0x0010000000000007), "2.225073858507205e-308" },
+			{ UINT64_C(0x0010000000000008), "2.2250738585072053e-308" },
+			{ UINT64_C(0x3e7ad7f29abcaf47), "9.999999999999998e-8" },
+			{ UINT64_C(0x3e7ad7f29abcaf49), "1.0000000000000001e-7" },
+			{ UINT64_C(0x3eb0c6f7a0b5ed8c), "9.999999999999997e-7" },
+			{ UINT64_C(0x3eb0c6f7a0b5ed8e), "0.0000010000000000000002" },
+			{ UINT64_C(0x4202a05f1fffffff), "9999999999.999998" },
+			{ UINT64_C(0x4202a05f20000001), "1.0000000000000002e+10" },
 			// Just below powers of two (rounding carry into exponent)
-			{ 0x3fffffffffffffffull, "1.9999999999999998" },
-			{ 0x400fffffffffffffull, "3.9999999999999996" },
-			{ 0x401fffffffffffffull, "7.999999999999999" },
-			{ 0x402fffffffffffffull, "15.999999999999998" },
-			{ 0x403fffffffffffffull, "31.999999999999996" },
-			{ 0x7feffffffffffffeull, "1.7976931348623155e+308" },
-			{ 0x7fefffffffffffffull, "1.7976931348623157e+308" },
-			{ 0x7ff0000000000000ull, "inf" },
-			{ 0x8000000000000001ull, "-5.0e-324" },
-			{ 0x8000000000000002ull, "-1.0e-323" },
-			{ 0x8009d1f053c113dcull, "-1.3656492814424367e-308" },
-			{ 0x800ffffffffffffeull, "-2.2250738585072004e-308" },
-			{ 0x800fffffffffffffull, "-2.225073858507201e-308" },
-			{ 0x8010000000000000ull, "-2.2250738585072014e-308" },
-			{ 0x8010000000000001ull, "-2.225073858507202e-308" },
-			{ 0xbe7ad7f29abcaf47ull, "-9.999999999999998e-8" },
-			{ 0xbe7ad7f29abcaf49ull, "-1.0000000000000001e-7" },
-			{ 0xbeb0c6f7a0b5ed8cull, "-9.999999999999997e-7" },
-			{ 0xbeb0c6f7a0b5ed8eull, "-0.0000010000000000000002" },
-			{ 0xc202a05f1fffffffull, "-9999999999.999998" },
-			{ 0xc202a05f20000001ull, "-1.0000000000000002e+10" },
-			{ 0xffeffffffffffffeull, "-1.7976931348623155e+308" },
-			{ 0xffefffffffffffffull, "-1.7976931348623157e+308" },
-			{ 0xfff0000000000000ull, "-inf" },
+			{ UINT64_C(0x3fffffffffffffff), "1.9999999999999998" },
+			{ UINT64_C(0x400fffffffffffff), "3.9999999999999996" },
+			{ UINT64_C(0x401fffffffffffff), "7.999999999999999" },
+			{ UINT64_C(0x402fffffffffffff), "15.999999999999998" },
+			{ UINT64_C(0x403fffffffffffff), "31.999999999999996" },
+			{ UINT64_C(0x7feffffffffffffe), "1.7976931348623155e+308" },
+			{ UINT64_C(0x7fefffffffffffff), "1.7976931348623157e+308" },
+			{ UINT64_C(0x7ff0000000000000), "inf" },
+			{ UINT64_C(0x8000000000000001), "-5.0e-324" },
+			{ UINT64_C(0x8000000000000002), "-1.0e-323" },
+			{ UINT64_C(0x8009d1f053c113dc), "-1.3656492814424367e-308" },
+			{ UINT64_C(0x800ffffffffffffe), "-2.2250738585072004e-308" },
+			{ UINT64_C(0x800fffffffffffff), "-2.225073858507201e-308" },
+			{ UINT64_C(0x8010000000000000), "-2.2250738585072014e-308" },
+			{ UINT64_C(0x8010000000000001), "-2.225073858507202e-308" },
+			{ UINT64_C(0xbe7ad7f29abcaf47), "-9.999999999999998e-8" },
+			{ UINT64_C(0xbe7ad7f29abcaf49), "-1.0000000000000001e-7" },
+			{ UINT64_C(0xbeb0c6f7a0b5ed8c), "-9.999999999999997e-7" },
+			{ UINT64_C(0xbeb0c6f7a0b5ed8e), "-0.0000010000000000000002" },
+			{ UINT64_C(0xc202a05f1fffffff), "-9999999999.999998" },
+			{ UINT64_C(0xc202a05f20000001), "-1.0000000000000002e+10" },
+			{ UINT64_C(0xffeffffffffffffe), "-1.7976931348623155e+308" },
+			{ UINT64_C(0xffefffffffffffff), "-1.7976931348623157e+308" },
+			{ UINT64_C(0xfff0000000000000), "-inf" },
 		};
 		for (const FragileDoubleCase& entry : kFragileDoubleCases) {
 			if (!SPECIAL_VALUES_SURVIVE && isSpecial<double>(entry.bits)) {
@@ -2578,9 +2579,9 @@ bool unitTest() {
 		assert(Parser(Element("2147483647")).tryToParse(i32) && i32 == 2147483647);
 		assert(Parser(Element("-2147483648")).tryToParse(i32) && i32 == -2147483647 - 1);
 		assert(Parser(Element("4294967295")).tryToParse(ui32) && ui32 == 4294967295U);
-		assert(Parser(Element("9223372036854775807")).tryToParse(i64) && i64 == 9223372036854775807LL);
-		assert(Parser(Element("-9223372036854775808")).tryToParse(i64) && i64 == -9223372036854775807LL - 1);
-		assert(Parser(Element("18446744073709551615")).tryToParse(ui64) && ui64 == 18446744073709551615ULL);
+		assert(Parser(Element("9223372036854775807")).tryToParse(i64) && i64 == INT64_C(9223372036854775807));
+		assert(Parser(Element("-9223372036854775808")).tryToParse(i64) && i64 == -INT64_C(9223372036854775807) - 1);
+		assert(Parser(Element("18446744073709551615")).tryToParse(ui64) && ui64 == UINT64_C(18446744073709551615));
 
 		assert(Parser(Element("0x7f")).tryToParse(i8) && i8 == 127);
 		assert(Parser(Element("-0x80")).tryToParse(i8) && i8 == -128);
@@ -2591,13 +2592,13 @@ bool unitTest() {
 		assert(Parser(Element("0x7fffffff")).tryToParse(i32) && i32 == 2147483647);
 		assert(Parser(Element("-0x80000000")).tryToParse(i32) && i32 == -2147483647 - 1);
 		assert(Parser(Element("0xffffffff")).tryToParse(ui32) && ui32 == 4294967295U);
-		assert(Parser(Element("0x7fffffffffffffff")).tryToParse(i64) && i64 == 9223372036854775807LL);
-		assert(Parser(Element("-0x8000000000000000")).tryToParse(i64) && i64 == -9223372036854775807LL - 1);
-		assert(Parser(Element("0xffffffffffffffff")).tryToParse(ui64) && ui64 == 18446744073709551615ULL);
+		assert(Parser(Element("0x7fffffffffffffff")).tryToParse(i64) && i64 == INT64_C(9223372036854775807));
+		assert(Parser(Element("-0x8000000000000000")).tryToParse(i64) && i64 == -INT64_C(9223372036854775807) - 1);
+		assert(Parser(Element("0xffffffffffffffff")).tryToParse(ui64) && ui64 == UINT64_C(18446744073709551615));
 
-		assert(Parser(Element("0x0000000000000001")).tryToParse(i64) && i64 == 1LL);
-		assert(Parser(Element("-0x0000000000000001")).tryToParse(i64) && i64 == -1LL);
-		assert(Parser(Element("0x0000000000000001")).tryToParse(ui64) && ui64 == 1ULL);
+		assert(Parser(Element("0x0000000000000001")).tryToParse(i64) && i64 == INT64_C(1));
+		assert(Parser(Element("-0x0000000000000001")).tryToParse(i64) && i64 == -INT64_C(1));
+		assert(Parser(Element("0x0000000000000001")).tryToParse(ui64) && ui64 == UINT64_C(1));
 
 		size_t failOffset = 0xffffffff;
 		
@@ -2816,10 +2817,10 @@ bool unitTest() {
 		assert(compose(static_cast<int32_t>(-0x7fffffff)) == "-2147483647");
 		assert(compose(static_cast<int32_t>(0x7fffffff)) == "2147483647");
 		assert(compose(static_cast<uint32_t>(0xffffffffu)) == "4294967295");
-		assert(compose(static_cast<int64_t>(-0x8000000000000000LL)) == "-9223372036854775808");
-		assert(compose(static_cast<int64_t>(-0x7fffffffffffffffLL)) == "-9223372036854775807");
-		assert(compose(static_cast<int64_t>(0x7fffffffffffffffLL)) == "9223372036854775807");
-		assert(compose(static_cast<uint64_t>(0xffffffffffffffffULL)) == "18446744073709551615");
+		assert(compose(static_cast<int64_t>(-INT64_C(0x8000000000000000))) == "-9223372036854775808");
+		assert(compose(static_cast<int64_t>(-INT64_C(0x7fffffffffffffff))) == "-9223372036854775807");
+		assert(compose(static_cast<int64_t>(INT64_C(0x7fffffffffffffff))) == "9223372036854775807");
+		assert(compose(static_cast<uint64_t>(UINT64_C(0xffffffffffffffff))) == "18446744073709551615");
 
 		assert(compose(static_cast<int8_t>(0), true) == "0x00");
 		assert(compose(static_cast<uint8_t>(0), true) == "0x00");
@@ -2841,10 +2842,10 @@ bool unitTest() {
 		assert(compose(static_cast<int32_t>(-0x7fffffff), true) == "-0x7fffffff");
 		assert(compose(static_cast<int32_t>(0x7fffffff), true) == "0x7fffffff");
 		assert(compose(static_cast<uint32_t>(0xffffffffu), true) == "0xffffffff");
-		assert(compose(static_cast<int64_t>(-0x8000000000000000LL), true) == "-0x8000000000000000");
-		assert(compose(static_cast<int64_t>(-0x7fffffffffffffffLL), true) == "-0x7fffffffffffffff");
-		assert(compose(static_cast<int64_t>(0x7fffffffffffffffLL), true) == "0x7fffffffffffffff");
-		assert(compose(static_cast<uint64_t>(0xffffffffffffffffULL), true) == "0xffffffffffffffff");
+		assert(compose(static_cast<int64_t>(-INT64_C(0x8000000000000000)), true) == "-0x8000000000000000");
+		assert(compose(static_cast<int64_t>(-INT64_C(0x7fffffffffffffff)), true) == "-0x7fffffffffffffff");
+		assert(compose(static_cast<int64_t>(INT64_C(0x7fffffffffffffff)), true) == "0x7fffffffffffffff");
+		assert(compose(static_cast<uint64_t>(UINT64_C(0xffffffffffffffff)), true) == "0xffffffffffffffff");
 	}
 	
 	{
@@ -2915,10 +2916,10 @@ bool unitTest() {
 		assert(w.type == Variant::INTEGER && w.integer == 12345678);
 
 		v.type = Variant::UNSIGNED_INTEGER;
-		v.unsignedInteger = 0xeac0bff359aefc59ULL;
+		v.unsignedInteger = UINT64_C(0xeac0bff359aefc59);
 		assert(compose(v) == "0xeac0bff359aefc59");
 		w = Element("0xeac0bff359aefc59").to<Variant>();
-		assert(w.type == Variant::UNSIGNED_INTEGER && w.unsignedInteger == 0xeac0bff359aefc59ULL);
+		assert(w.type == Variant::UNSIGNED_INTEGER && w.unsignedInteger == UINT64_C(0xeac0bff359aefc59));
 	}
 #endif
 

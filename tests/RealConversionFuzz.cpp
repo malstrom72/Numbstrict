@@ -1,6 +1,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cinttypes>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -254,7 +255,7 @@ static bool readDecimal(const std::string& s, bool& negative, Decimal& decimal) 
 		}
 		int64_t exponent = 0;
 		for (; i < s.size() && s[i] >= '0' && s[i] <= '9'; ++i) {
-			exponent = (exponent < 1000000000000ll ? exponent * 10 + (s[i] - '0') : exponent);
+			exponent = (exponent < INT64_C(1000000000000) ? exponent * 10 + (s[i] - '0') : exponent);
 		}
 		decimal.exponent += (negativeExponent ? -exponent : exponent);
 	}
@@ -263,8 +264,8 @@ static bool readDecimal(const std::string& s, bool& negative, Decimal& decimal) 
 
 template<typename T> static std::string describe(T value) {
 	char buffer[64];
-	snprintf(buffer, sizeof buffer, "%.17g (bits 0x%llx)", static_cast<double>(value)
-			, static_cast<unsigned long long>(bitsOf(value)));
+	snprintf(buffer, sizeof buffer, "%.17g (bits 0x%" PRIx64 ")", static_cast<double>(value)
+			, static_cast<uint64_t>(bitsOf(value)));
 	return buffer;
 }
 
