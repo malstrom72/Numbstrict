@@ -598,8 +598,8 @@ int main(int argc, const char* argv[]) {
 						size_t offset;
 						const std::string back = Numbstrict::unescape(escaped, &offset);
 						// std::cout << s << "=" << escaped << "=" << back << std::endl;
-			  			RC_ASSERT(back == s);
-			  			RC_ASSERT(offset == escaped.size());
+						RC_ASSERT(back == s);
+						RC_ASSERT(offset == escaped.size());
 					});
 
 			rc::check("random string -> unescaped",
@@ -607,7 +607,7 @@ int main(int argc, const char* argv[]) {
 						size_t offset;
 						const std::string back = Numbstrict::unescape(s, &offset);
 						RC_ASSERT(back.size() <= s.size());
-			  			RC_ASSERT(offset <= s.size());
+						RC_ASSERT(offset <= s.size());
 					});
 
 			rc::check("random wstring -> unescaped",
@@ -615,7 +615,7 @@ int main(int argc, const char* argv[]) {
 						size_t offset;
 						const std::wstring back = Numbstrict::unescapeWide(s, &offset);
 						RC_ASSERT(back.size() <= s.size());
-			  			RC_ASSERT(offset <= s.size());
+						RC_ASSERT(offset <= s.size());
 					});
 
 			rc::check("double -> string -> double",
@@ -624,8 +624,8 @@ int main(int argc, const char* argv[]) {
 						size_t offset;
 						//std::cout << s << std::endl;
 						const double back = Numbstrict::stringToDouble(s, &offset);
-			  			RC_ASSERT(back == value);
-			  			RC_ASSERT(offset == s.size());
+						RC_ASSERT(back == value);
+						RC_ASSERT(offset == s.size());
 					});
 
 			rc::check("float -> string -> float",
@@ -634,8 +634,8 @@ int main(int argc, const char* argv[]) {
 						size_t offset;
 						//std::cout << s << std::endl;
 						const float back = Numbstrict::stringToFloat(s, &offset);
-			  			RC_ASSERT(back == value);
-			  			RC_ASSERT(offset == s.size());
+						RC_ASSERT(back == value);
+						RC_ASSERT(offset == s.size());
 					});
 
 			rc::check("double of int64 -> string -> double",
@@ -650,8 +650,8 @@ int main(int argc, const char* argv[]) {
 						size_t offset;
 						const double back = Numbstrict::stringToDouble(s, &offset);
 						// std::cout << int64 << ", " << value << " = " << s << " = " << back << std::endl;
-			  			RC_ASSERT((back != back && value != value) || (back == value));
-			  			RC_ASSERT(offset == s.size());
+						RC_ASSERT((back != back && value != value) || (back == value));
+						RC_ASSERT(offset == s.size());
 					});
 
 			rc::check("float of int32 -> string -> float",
@@ -666,22 +666,22 @@ int main(int argc, const char* argv[]) {
 						size_t offset;
 						// std::cout << int32 << ", " << value << " = " << s << std::endl;
 						const float back = Numbstrict::stringToFloat(s, &offset);
-			  			RC_ASSERT((back != back && value != value) || (back == value));
-			  			RC_ASSERT(offset == s.size());
+						RC_ASSERT((back != back && value != value) || (back == value));
+						RC_ASSERT(offset == s.size());
 					});
 
 			rc::check("random string -> float",
 					[](const std::string& s) {
 						size_t offset;
 						const double back = Numbstrict::stringToFloat(s, &offset);
-			  			RC_ASSERT(offset <= s.size());
+						RC_ASSERT(offset <= s.size());
 					});
 
 			rc::check("random string -> double",
 					[](const std::string& s) {
 						size_t offset;
 						const double back = Numbstrict::stringToDouble(s, &offset);
-			  			RC_ASSERT(offset <= s.size());
+						RC_ASSERT(offset <= s.size());
 					});
 
 			rc::check("wstring -> escaped -> unescaped",
@@ -691,8 +691,8 @@ int main(int argc, const char* argv[]) {
 						size_t offset;
 						const std::wstring back = Numbstrict::unescapeWide(escaped, &offset);
 						// std::cout << escaped << std::endl;
-			  			RC_ASSERT(back == clean);
-			  			RC_ASSERT(offset == escaped.size());
+						RC_ASSERT(back == clean);
+						RC_ASSERT(offset == escaped.size());
 					});
 		}
 	#endif

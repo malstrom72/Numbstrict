@@ -322,22 +322,22 @@ void Context::parseArgumentList(std::vector<String>& arguments) {
 }
 
 static bool standardIncludeLoader(const WideString& fileName, String& contents) {
-    std::ifstream fileStream;
+	std::ifstream fileStream;
 
 #if defined(_WIN32) || defined(_WIN64)
-    // Windows-specific code
-    fileStream.open(fileName.c_str(), std::ios::in | std::ios::binary);
+	// Windows-specific code
+	fileStream.open(fileName.c_str(), std::ios::in | std::ios::binary);
 #else
-    const std::string narrowFilePath = narrowString(fileName);
-    fileStream.open(narrowFilePath.c_str(), std::ios::in | std::ios::binary);
+	const std::string narrowFilePath = narrowString(fileName);
+	fileStream.open(narrowFilePath.c_str(), std::ios::in | std::ios::binary);
 #endif
 
-    if (!fileStream.is_open()) {
-        return false;
-    }
-    fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
-    contents.assign(std::istreambuf_iterator<char>(fileStream), std::istreambuf_iterator<char>());
-    return true;
+	if (!fileStream.is_open()) {
+		return false;
+	}
+	fileStream.exceptions(std::ios_base::badbit | std::ios_base::failbit);
+	contents.assign(std::istreambuf_iterator<char>(fileStream), std::istreambuf_iterator<char>());
+	return true;
 }
 
 Context::Context(int depthLimiter, Context* parentContext)
