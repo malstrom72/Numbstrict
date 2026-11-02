@@ -35,10 +35,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-    - name: Install the 32-bit toolchain  # so that build.sh also builds and tests the x86 smoke binary
-      run: sudo apt-get update && sudo apt-get install -y gcc-multilib g++-multilib
+    - name: Install the 32-bit toolchain and Valgrind  # so that build.sh also builds and tests the x86 smoke binary
+      run: sudo apt-get update && sudo apt-get install -y gcc-multilib g++-multilib valgrind
     - name: Build & test
       shell: bash
       run: |
         bash build.sh 2>&1 | tee build.log
         grep -qF 'Build and tests completed' build.log
+    # The sanitizers don't see reads of uninitialized memory, which change results only when the stray bytes happen to
+    # matter. Valgrind reports every one. The replay builds are build.sh's plain beta ones, and the corpora are the ones
+    # it unpacked.
+    - name: Replay the fuzz corpora under Valgrind
+      shell: bash
+      run: |
+        valgrind="valgrind -q --error-exitcode=1"
+        $valgrind output/beta/NumbstrictFuzzReplay output/fuzzReplay/numbstrict > /dev/null
+        $valgrind output/beta/RealConversionFuzzReplay output/fuzzReplay/realConversion > /dev/null
+        $valgrind output/beta/MakaronFuzzReplay output/fuzzReplay/makaron tests/fuzz/makaronCrashes > /dev/null
