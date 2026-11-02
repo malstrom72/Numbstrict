@@ -1,6 +1,6 @@
 # Fuzzing
 
-Version: 2026-10-08
+Version: 2026-11-02
 
 How these projects fuzz with libFuzzer. Every copy of this file is identical apart from the "Local additions" section
 at the end, which holds a project's targets, scripts and exceptions.
@@ -116,6 +116,13 @@ Turn off CRT dialogs in `LLVMFuzzerInitialize`, or a failed assert hangs the wor
 - The normal build replays every past crash input, always. It also replays the corpus and the seeds as long as that
   takes no more than about 30 seconds per build configuration. A corpus over that budget is replayed by a separate
   script, run in CI and before every release or freeze, so the normal build stays fast and nothing ships unreplayed.
+- AddressSanitizer and UndefinedBehaviorSanitizer do not see reads of uninitialized memory, which change a result only
+  when the stray bytes happen to matter. CI therefore also replays the corpora through the plain replay build under
+  Valgrind on Linux (`valgrind -q --error-exitcode=1`), at about 25 times the normal replay time. MemorySanitizer
+  would be faster, but it needs every library, the C++ runtime included, built with it.
+- Where CI minutes cost money, run the fuzz builds and the replays in a workflow of their own, triggered only by
+  changes to what they compile or read. List the sources to skip rather than those to include, so that a new file
+  triggers it.
 - Commit the input of each fixed crash as a plain file in `tests/fuzz/<target>Crashes/`, outside the archives:
   `-merge=1` drops any input whose features others already cover, fixed crashes included. Mark these files `binary`
   in `.gitattributes`, so line-ending conversion cannot rewrite them.
@@ -143,3 +150,5 @@ Turn off CRT dialogs in `LLVMFuzzerInitialize`, or a failed assert hangs the wor
   `output/fuzzReplay/` and replay them through `tests/FuzzMain.cpp` in beta builds, on every push through CI; they
   fit the 30-second budget, so no separate replay script is needed.
 - `tests/fuzz/makaronCrashes/` holds Makaron's fixed crash inputs, which the beta builds replay too.
+- The Linux CI job also replays the corpora and the crash inputs through the beta replay builds under Valgrind,
+  in `.github/workflows/ci.yml`.
