@@ -42,7 +42,7 @@ class Exception : public std::exception {
 class Span {
 	friend class Context;
 	public:		Span(const String& sourceCode, const WideString& fileName);
-				Span(const Span& s, const StringIt& b, const StringIt& e) : source(s.source), file(s.file)
+				Span(const Span& s, const StringIt& b, const StringIt& e) : source(s.source), file(s.file)				// `b` and `e` within the source of `s`
 						, begin(b), end(e) {
 					assert(begin >= source->begin() && end <= source->end());
 				}
@@ -83,7 +83,7 @@ class Context {
 					Context* context;
 				};
 	
-	public:		typedef std::function<bool (const WideString& fileName, String& contents)> LoaderFunction;
+	public:		typedef std::function<bool (const WideString& fileName, String& contents)> LoaderFunction;				// `fileName` holds the @include name byte by byte, as U+0000 to U+00FF
 	
 				Context(int depthLimiter = DEFAULT_RECURSION_DEPTH_LIMIT,
 						Context* parentContext = 0);		/// init with depth limit and parent
@@ -154,7 +154,7 @@ typedef std::vector<InputRange> RangeVector;
 RangeVector findInputRanges(const std::vector<OffsetMapEntry>& offsetMap,
 				size_t outputOffset);	/// map output offset to input ranges
 
-std::pair<int, int> calculateLineAndColumn(const String& text, size_t offset);	/// get line and column for `offset`
+std::pair<int, int> calculateLineAndColumn(const String& text, size_t offset);											// 1-based; `offset` at most text.size()
 String process(const String& source, const WideString& fileName);	/// convenience wrapper using default context
 bool unitTest();	/// run built-in tests
 

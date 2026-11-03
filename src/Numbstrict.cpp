@@ -281,6 +281,7 @@ template<typename C> String quoteString(const C* fromBegin, const C* fromEnd, bo
 								}
 							}
 						}
+						assert((ui < 0xD800 || ui >= 0xE000) && ui < 0x110000 && ui != 0xFFFE && ui != 0xFFFF);
 						const Char* e = "\\U";
 						int n = 8;
 						if (ui < 0x100) {
@@ -1839,8 +1840,12 @@ template<typename T> std::basic_string<T> unescapeGeneric(const String& s, size_
 	const StringIt e = s.end();
 	p = skipWhite(p, e);
 	if (p != s.end() && (*p == '\"' || *p == '\'')) {
-		genericUnquoteString(p, e, unescaped);
-		p = skipWhite(p, e);
+		if (genericUnquoteString(p, e, unescaped)) {
+			p = skipWhite(p, e);
+		} else {
+			unescaped.clear();
+			p = s.begin();
+		}
 	} else if (!s.empty()) {
 		// recast because we assume iso8859-1 in source string
 		const unsigned char* recasted = reinterpret_cast<const unsigned char*>(s.data());
@@ -2105,6 +2110,22 @@ bool unitTest() {
 	assert(Numbstrict::unquoteString("\"'\"") == "'");
 	assert(Numbstrict::unquoteString("\"a\\n\\tbcdef\\rkoko\\\"\\\\'\\x23\\u0049\\U000000F2_end\"") == "a\n\tbcdef\rkoko\"\\'\x23\x49\xF2_end");
 	assert(Numbstrict::unquoteWideString("\"a\\n\\tbcdef\\rkoko\\\"\\\\'\\x23\\u4949\\U0000F232_end\"") == L"a\n\tbcdef\rkoko\"\\'\x23\u4949\uF232_end");
+	{
+		size_t nextOffset = 99;
+		assert(Numbstrict::unquoteString(" \"abc\" x", &nextOffset) == "abc" && nextOffset == 7);
+		assert(Numbstrict::unquoteString("abc", &nextOffset) == "abc" && nextOffset == 3);
+		const char* const UNDECODABLE[] = { " \"abc", "\"ab\\qcd\"", "\"ab\\x4\"", "\"ab\\u0100cd\"", "'a\tb'"
+				, "\"caf\xE9\"" };
+		for (size_t i = 0; i < sizeof (UNDECODABLE) / sizeof (*UNDECODABLE); ++i) {
+			nextOffset = 99;
+			assert(Numbstrict::unquoteString(UNDECODABLE[i], &nextOffset) == "" && nextOffset == 0);
+		}
+		nextOffset = 99;
+		assert(Numbstrict::unquoteWideString("\"x\\uD800y\"", &nextOffset) == L"" && nextOffset == 0);
+		nextOffset = 99;
+		assert(Numbstrict::unquoteWideString("\"x", &nextOffset) == L"" && nextOffset == 0);
+		(void)nextOffset;
+	}
 
 	// Quoted strings are ASCII whether char is signed or not; the build scripts run this with both.
 	const char* const HIGH_BYTES[] = { "\xE9", "\x80", "\xFF" };

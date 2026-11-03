@@ -87,8 +87,8 @@ class Element {
 				: s(std::make_shared<SourceAndFile>(code, filename)), b(s->first.begin()), e(s->first.end()) { }
 		Element(const Element& parent, const StringIt begin, const StringIt end) : s(parent.s), b(begin), e(end) { }
 		bool exists() const { return static_cast<bool>(s); }
-		StringIt begin() const { assert(exists()); return b; }
-		StringIt end() const { assert(exists()); return e; }
+		StringIt begin() const { assert(exists()); return b; }															// requires exists()
+		StringIt end() const { assert(exists()); return e; }															// requires exists()
 		template<typename T> T to() const;
 		template<typename T> T toOptional(const T& defaultValue = T()) const;
 		template<typename T> bool tryToParse(T& target) const;															// expects convertible to `T`; false on failure
@@ -96,9 +96,9 @@ class Element {
 		template<typename T> bool tryToParseBracketed(T& target) const;
 		String code() const { if (!exists()) { throw UndefinedElementError(); }; return String(b, e); }
 		String optionalCode(const String& defaultCode = String()) const { return (!exists() ? defaultCode : code()); }
-		String filename() const { assert(exists()); return s->second; }
-		size_t offset(const StringIt p) const { assert(exists()); return p - s->first.begin(); }						// `p` = source iterator
-		LineAndColumn lineAndColumn(StringIt p) const;																	// `p` = source iterator
+		String filename() const { assert(exists()); return s->second; }													// requires exists()
+		size_t offset(const StringIt p) const { assert(exists()); return p - s->first.begin(); }						// requires exists(); `p` in the whole source this Element is part of, its end included
+		LineAndColumn lineAndColumn(StringIt p) const;																	// requires exists(); `p` in the whole source this Element is part of, its end included
 	
 	protected:
 		std::shared_ptr<SourceAndFile> s;
@@ -302,26 +302,26 @@ inline std::basic_ostream<WideChar>& operator<<(std::basic_ostream<WideChar>& o,
 }
 
 String compose(bool fromBool);
-String compose(int8_t fromInt, bool hexFormat = false, int minHexLength = 2);
-String compose(uint8_t fromInt, bool hexFormat = false, int minHexLength = 2);
-String compose(int16_t fromInt, bool hexFormat = false, int minHexLength = 4);
-String compose(uint16_t fromInt, bool hexFormat = false, int minHexLength = 4);
-String compose(int32_t fromInt, bool hexFormat = false, int minHexLength = 8);
-String compose(uint32_t fromInt, bool hexFormat = false, int minHexLength = 8);
-String compose(int64_t fromInt, bool hexFormat = false, int minHexLength = 16);
-String compose(uint64_t fromInt, bool hexFormat = false, int minHexLength = 16);
+String compose(int8_t fromInt, bool hexFormat = false, int minHexLength = 2);											// `minHexLength` 0 to 8
+String compose(uint8_t fromInt, bool hexFormat = false, int minHexLength = 2);											// `minHexLength` 0 to 8
+String compose(int16_t fromInt, bool hexFormat = false, int minHexLength = 4);											// `minHexLength` 0 to 16
+String compose(uint16_t fromInt, bool hexFormat = false, int minHexLength = 4);											// `minHexLength` 0 to 16
+String compose(int32_t fromInt, bool hexFormat = false, int minHexLength = 8);											// `minHexLength` 0 to 32
+String compose(uint32_t fromInt, bool hexFormat = false, int minHexLength = 8);											// `minHexLength` 0 to 32
+String compose(int64_t fromInt, bool hexFormat = false, int minHexLength = 16);											// `minHexLength` 0 to 64
+String compose(uint64_t fromInt, bool hexFormat = false, int minHexLength = 16);										// `minHexLength` 0 to 64
 String compose(float fromFloat);																						// same as floatToString()
 String compose(double fromDouble);																						// same as doubleToString()
 String compose(const Char* fromString, bool preferUnquoted = false);
 String compose(const Char* begin, const Char* end, bool preferUnquoted = false);
 String compose(const String& fromString, bool preferUnquoted = false);
-String compose(const WideChar* fromString, bool preferUnquoted = false);
-String compose(const WideChar* begin, const WideChar* end, bool preferUnquoted = false);
-String compose(const WideString& fromString, bool preferUnquoted = false);
+String compose(const WideChar* fromString, bool preferUnquoted = false);												// `fromString` valid Unicode, as for quoteWideString
+String compose(const WideChar* begin, const WideChar* end, bool preferUnquoted = false);								// the text valid Unicode, as for quoteWideString
+String compose(const WideString& fromString, bool preferUnquoted = false);												// `fromString` valid Unicode, as for quoteWideString
 String compose(const Array& array, bool multiLine = false, bool bracket = true);
 String compose(const Struct& structure, bool multiLine = false, bool bracket = true);
-String compose(const WideStruct& structure, bool multiLine = false, bool bracket = true);
-String compose(const Variant& variant);
+String compose(const WideStruct& structure, bool multiLine = false, bool bracket = true);								// keys valid Unicode, as for quoteWideString
+String compose(const Variant& variant);																					// `variant.type` not INVALID; its text and keys valid Unicode, as for quoteWideString
 
 template<typename T> String compose(const std::vector<T>& vector, bool multiLine = false, bool bracket = true) {
 	Array elems;
@@ -361,16 +361,16 @@ String intToString(int32_t value);
 String int64ToString(int64_t value);
 String unsignedIntToString(uint32_t value);
 String unsignedInt64ToString(uint64_t value);
-String unsignedIntToHexString(uint32_t value, int minLength = 8);
-String unsignedInt64ToHexString(uint64_t value, int minLength = 16);
+String unsignedIntToHexString(uint32_t value, int minLength = 8);														// `minLength` 0 to 32
+String unsignedInt64ToHexString(uint64_t value, int minLength = 16);													// `minLength` 0 to 64
 String floatToString(float value);
 String doubleToString(double value);
 Char* intToChars(int32_t value, Char* destination);																		// writes at most 12 chars, the terminating zero included
 Char* int64ToChars(int64_t value, Char* destination);																	// at most 21 chars
 Char* unsignedIntToChars(uint32_t value, Char* destination);															// at most 11 chars
 Char* unsignedInt64ToChars(uint64_t value, Char* destination);															// at most 21 chars
-Char* unsignedIntToHexChars(uint32_t value, Char* destination, int minLength = 8);										// at most max(8, `minLength`) + 1 chars
-Char* unsignedInt64ToHexChars(uint64_t value, Char* destination, int minLength = 16);									// at most max(16, `minLength`) + 1 chars
+Char* unsignedIntToHexChars(uint32_t value, Char* destination, int minLength = 8);										// `minLength` 0 to 32; writes at most max(8, `minLength`) + 1 chars
+Char* unsignedInt64ToHexChars(uint64_t value, Char* destination, int minLength = 16);									// `minLength` 0 to 64; writes at most max(16, `minLength`) + 1 chars
 Char* floatToChars(float value, Char* destination);																		// at most 32 chars
 Char* doubleToChars(const double value, Char* destination);																// at most 32 chars
 
@@ -403,12 +403,20 @@ uint64_t hexStringToUnsignedInt64(const String& s, size_t* nextOffset = 0);
 uint32_t hexCharsToUnsignedInt(const Char* begin, const Char* end = 0, const Char** next = 0);
 uint64_t hexCharsToUnsignedInt64(const Char* begin, const Char* end = 0, const Char** next = 0);
 
-String quoteString(const String& s, Char quoteChar = '\"');
-String unquoteString(const String& s, size_t* nextOffset = 0);
-String quoteWideString(const WideString& s, Char quoteChar = '\"');
-String quoteString(const Char* begin, const Char* end, Char quoteChar = '\"');
-String quoteWideString(const WideChar* begin, const WideChar* end, Char quoteChar = '\"');
-WideString unquoteWideString(const String& s, size_t* nextOffset = 0);
+/*
+	Quoted strings outside a parse. quoteWideString takes valid Unicode, as the parser reads it back: no code point
+	above U+10FFFF, no U+FFFE or U+FFFF, and no surrogate except in a UTF-16 pair where WideChar is 16 bits.
+	unquoteString and unquoteWideString read one quoted string after white space, or take `s` whole as ISO 8859-1 when
+	it does not start with a quote; `nextOffset` is where the scan stopped, past trailing white space. A quoted string
+	that does not decode (unterminated, a bad escape, a raw character the grammar does not allow, or an escape above
+	U+00FF for unquoteString) gives an empty result and `nextOffset` 0.
+*/
+String quoteString(const String& s, Char quoteChar = '\"');																// `quoteChar` '"' or '\''
+String unquoteString(const String& s, size_t* nextOffset = 0);															// on failure empty, with `nextOffset` 0
+String quoteWideString(const WideString& s, Char quoteChar = '\"');														// `quoteChar` '"' or '\''; `s` valid Unicode (see above)
+String quoteString(const Char* begin, const Char* end, Char quoteChar = '\"');											// `quoteChar` '"' or '\''
+String quoteWideString(const WideChar* begin, const WideChar* end, Char quoteChar = '\"');								// `quoteChar` '"' or '\''; the text valid Unicode (see above)
+WideString unquoteWideString(const String& s, size_t* nextOffset = 0);													// on failure empty, with `nextOffset` 0
 
 bool unitTest();
 
