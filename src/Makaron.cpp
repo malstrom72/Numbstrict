@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <fstream>
 #include <cstring>
+#include <cstdint>
 #include "Makaron.h"
 
 /*
@@ -321,12 +322,59 @@ void Context::parseArgumentList(std::vector<String>& arguments) {
 	}
 }
 
+#if defined(_WIN32) || defined(_WIN64)
+/*
+	Windows opens files by UTF-16 name, so the bytes of an @include name need an encoding: UTF-8 when they are valid
+	UTF-8, otherwise ISO 8859-1, where each byte already is its code point.
+*/
+static WideString decodeFileName(const WideString& bytes) {
+	WideString decoded;
+	size_t i = 0;
+	while (i < bytes.size()) {
+		const uint32_t lead = bytes[i];
+		int length = 0;
+		if (lead < 0x80) {
+			length = 1;
+		} else if (lead >= 0xC2 && lead < 0xE0) {
+			length = 2;
+		} else if (lead >= 0xE0 && lead < 0xF0) {
+			length = 3;
+		} else if (lead >= 0xF0 && lead < 0xF5) {
+			length = 4;
+		}
+		if (length == 0 || bytes.size() - i < static_cast<size_t>(length)) {
+			return bytes;
+		}
+		uint32_t codePoint = (length == 1 ? lead : lead & (0x3F >> (length - 1)));
+		for (int j = 1; j < length; ++j) {
+			const uint32_t continuation = bytes[i + j];
+			if ((continuation & ~0x3Fu) != 0x80) {
+				return bytes;
+			}
+			codePoint = (codePoint << 6) | (continuation & 0x3F);
+		}
+		const uint32_t SHORTEST_FORM_MINIMUM[5] = { 0, 0, 0x80, 0x800, 0x10000 };
+		if (codePoint < SHORTEST_FORM_MINIMUM[length] || codePoint > 0x10FFFF
+				|| (codePoint >= 0xD800 && codePoint < 0xE000)) {
+			return bytes;
+		}
+		if (codePoint >= 0x10000) {																						// WideChar is UTF-16 on Windows
+			decoded += static_cast<WideChar>(0xD800 + ((codePoint - 0x10000) >> 10));
+			decoded += static_cast<WideChar>(0xDC00 + ((codePoint - 0x10000) & 0x3FF));
+		} else {
+			decoded += static_cast<WideChar>(codePoint);
+		}
+		i += length;
+	}
+	return decoded;
+}
+#endif
+
 static bool standardIncludeLoader(const WideString& fileName, String& contents) {
 	std::ifstream fileStream;
 
 #if defined(_WIN32) || defined(_WIN64)
-	// Windows-specific code
-	fileStream.open(fileName.c_str(), std::ios::in | std::ios::binary);
+	fileStream.open(decodeFileName(fileName).c_str(), std::ios::in | std::ios::binary);
 #else
 	const std::string narrowFilePath = narrowString(fileName);
 	fileStream.open(narrowFilePath.c_str(), std::ios::in | std::ios::binary);

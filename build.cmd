@@ -62,6 +62,10 @@ FOR %%t IN (beta release) DO (
 			tests\doubleFloatToString.cpp src\Numbstrict.cpp src\Makaron.cpp || GOTO error
 	SET "CPP_OPTIONS="
 	"!outDir!\doubleFloatToString.exe" >NUL || GOTO error
+	CALL tools\BuildCpp.cmd %%t x64 "!outDir!\includeNames.exe" /I src ^
+			tests\includeNames.cpp src\Makaron.cpp || GOTO error
+	SET "CPP_OPTIONS="
+	"!outDir!\includeNames.exe" "!outDir!" || GOTO error
 	REM Intentionally avoid /std:c++14 for older MSVC (v140)
 	CALL tools\BuildCpp.cmd %%t x64 "!outDir!\MakaronCmd.exe" /I src ^
 			tools\MakaronCmd.cpp src\Makaron.cpp || GOTO error
