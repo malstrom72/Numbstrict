@@ -1749,6 +1749,7 @@ String compose(double fromDouble) { return doubleToString(fromDouble); }
 
 template<typename T> String composeSignedInt(const T i, const bool hexFormat, int minHexLength) {
 	if (hexFormat) {
+		assert(minHexLength >= 1);																						// "0x" alone does not parse
 		typedef typename std::make_unsigned<T>::type UT;
 		const T MINI = std::numeric_limits<T>::min();
 		return (i < 0
@@ -1760,6 +1761,7 @@ template<typename T> String composeSignedInt(const T i, const bool hexFormat, in
 }
 
 template<typename T> String composeUnsignedInt(const T ui, const bool hexFormat, int minHexLength) {
+	assert(!hexFormat || minHexLength >= 1);																			// "0x" alone does not parse
 	return (hexFormat ? String("0x") + intToString<T>(ui, 16, minHexLength) : intToString<T>(ui, 10, 1));
 }
 

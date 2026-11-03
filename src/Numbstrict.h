@@ -302,14 +302,14 @@ inline std::basic_ostream<WideChar>& operator<<(std::basic_ostream<WideChar>& o,
 }
 
 String compose(bool fromBool);
-String compose(int8_t fromInt, bool hexFormat = false, int minHexLength = 2);											// `minHexLength` 0 to 8
-String compose(uint8_t fromInt, bool hexFormat = false, int minHexLength = 2);											// `minHexLength` 0 to 8
-String compose(int16_t fromInt, bool hexFormat = false, int minHexLength = 4);											// `minHexLength` 0 to 16
-String compose(uint16_t fromInt, bool hexFormat = false, int minHexLength = 4);											// `minHexLength` 0 to 16
-String compose(int32_t fromInt, bool hexFormat = false, int minHexLength = 8);											// `minHexLength` 0 to 32
-String compose(uint32_t fromInt, bool hexFormat = false, int minHexLength = 8);											// `minHexLength` 0 to 32
-String compose(int64_t fromInt, bool hexFormat = false, int minHexLength = 16);											// `minHexLength` 0 to 64
-String compose(uint64_t fromInt, bool hexFormat = false, int minHexLength = 16);										// `minHexLength` 0 to 64
+String compose(int8_t fromInt, bool hexFormat = false, int minHexLength = 2);											// `minHexLength` 1 to 8 when `hexFormat`
+String compose(uint8_t fromInt, bool hexFormat = false, int minHexLength = 2);											// `minHexLength` 1 to 8 when `hexFormat`
+String compose(int16_t fromInt, bool hexFormat = false, int minHexLength = 4);											// `minHexLength` 1 to 16 when `hexFormat`
+String compose(uint16_t fromInt, bool hexFormat = false, int minHexLength = 4);											// `minHexLength` 1 to 16 when `hexFormat`
+String compose(int32_t fromInt, bool hexFormat = false, int minHexLength = 8);											// `minHexLength` 1 to 32 when `hexFormat`
+String compose(uint32_t fromInt, bool hexFormat = false, int minHexLength = 8);											// `minHexLength` 1 to 32 when `hexFormat`
+String compose(int64_t fromInt, bool hexFormat = false, int minHexLength = 16);											// `minHexLength` 1 to 64 when `hexFormat`
+String compose(uint64_t fromInt, bool hexFormat = false, int minHexLength = 16);										// `minHexLength` 1 to 64 when `hexFormat`
 String compose(float fromFloat);																						// same as floatToString()
 String compose(double fromDouble);																						// same as doubleToString()
 String compose(const Char* fromString, bool preferUnquoted = false);
