@@ -36,6 +36,12 @@ FOR %%t IN (beta release) DO (
 				tests\smoke.cpp src\Numbstrict.cpp src\Makaron.cpp || GOTO error
 		SET "CPP_OPTIONS="
 		"!outDir!\smoke_fastmath.exe" >NUL || GOTO error
+		REM char is unsigned on ARM Linux and Android, which changes how bytes 128 to 255 compare
+		SET "CPP_OPTIONS=/J"
+		CALL tools\BuildCpp.cmd %%t x64 "!outDir!\smoke_unsignedchar.exe" /I src ^
+				tests\smoke.cpp src\Numbstrict.cpp src\Makaron.cpp || GOTO error
+		SET "CPP_OPTIONS="
+		"!outDir!\smoke_unsignedchar.exe" >NUL || GOTO error
 	)
 	IF "%%t"=="beta" (
 		CALL tools\BuildCpp.cmd %%t x64 "!outDir!\NumbstrictFuzzReplay.exe" ^

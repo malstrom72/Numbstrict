@@ -103,12 +103,7 @@ template<typename C> bool genericUnquoteString(StringIt& p, const StringIt e, st
 	++p;
 	StringIt b = p;
 	while (p != e && *p != quoteChar) {
-		if (*p < 0) {	// assume iso8859-1
-			string.insert(string.end(), b, p);
-			string.push_back(static_cast<unsigned char>(*p));
-			++p;
-			b = p;
-		} else if (*p == '\\') {
+		if (*p == '\\') {
 			string.insert(string.end(), b, p);
 			++p;
 			if (p == e) {
@@ -2110,6 +2105,22 @@ bool unitTest() {
 	assert(Numbstrict::unquoteString("\"'\"") == "'");
 	assert(Numbstrict::unquoteString("\"a\\n\\tbcdef\\rkoko\\\"\\\\'\\x23\\u0049\\U000000F2_end\"") == "a\n\tbcdef\rkoko\"\\'\x23\x49\xF2_end");
 	assert(Numbstrict::unquoteWideString("\"a\\n\\tbcdef\\rkoko\\\"\\\\'\\x23\\u4949\\U0000F232_end\"") == L"a\n\tbcdef\rkoko\"\\'\x23\u4949\uF232_end");
+
+	// Quoted strings are ASCII whether char is signed or not; the build scripts run this with both.
+	const char* const HIGH_BYTES[] = { "\xE9", "\x80", "\xFF" };
+	for (size_t i = 0; i < sizeof (HIGH_BYTES) / sizeof (*HIGH_BYTES); ++i) {
+		const String highByte = HIGH_BYTES[i];
+		String narrow;
+		WideString wide;
+		Struct structure;
+		assert(!Element("\"a" + highByte + "b\"").tryToParse(narrow));
+		assert(!Element("'a" + highByte + "b'").tryToParse(narrow));
+		assert(!Element("\"a" + highByte + "b\"").tryToParse(wide));
+		assert(!Element("{ \"a" + highByte + "b\": 1 }").tryToParse(structure));
+		assert(Element("{ name: \"a" + highByte + "b\" }").tryToParse(structure)
+				&& !structure["name"].tryToParse(narrow));																// values decode on demand
+	}
+	assert(Element("\"caf\\xE9\"").to<String>() == "caf\xE9" && Element("'caf\\xE9'").to<WideString>() == L"caf\xE9");
 
 	assert(intToString(0) == "0");
 	assert(stringToInt("0") == 0);

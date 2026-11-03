@@ -52,6 +52,11 @@ for target in beta release; do
 		CPP_OPTIONS="$cpp_options -ffast-math" bash tools/BuildCpp.sh "$target" native "$out_dir/smoke_fastmath" \
 			-I src tests/smoke.cpp src/Numbstrict.cpp src/Makaron.cpp
 		"$out_dir/smoke_fastmath" > /dev/null
+
+		# char is unsigned on ARM Linux and Android, which changes how bytes 128 to 255 compare
+		CPP_OPTIONS="$cpp_options -funsigned-char" bash tools/BuildCpp.sh "$target" native \
+			"$out_dir/smoke_unsignedchar" -I src tests/smoke.cpp src/Numbstrict.cpp src/Makaron.cpp
+		"$out_dir/smoke_unsignedchar" > /dev/null
 	fi
 
 	if [[ "$target" == beta ]]; then
