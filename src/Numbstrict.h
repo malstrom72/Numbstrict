@@ -97,8 +97,8 @@ class Element {
 		String code() const { if (!exists()) { throw UndefinedElementError(); }; return String(b, e); }
 		String optionalCode(const String& defaultCode = String()) const { return (!exists() ? defaultCode : code()); }
 		String filename() const { assert(exists()); return s->second; }													// requires exists()
-		size_t offset(const StringIt p) const { assert(exists()); return p - s->first.begin(); }						// requires exists(); `p` in the whole source this Element is part of, its end included
-		LineAndColumn lineAndColumn(StringIt p) const;																	// requires exists(); `p` in the whole source this Element is part of, its end included
+		size_t offset(const StringIt p) const { assert(exists()); return p - s->first.begin(); }						// requires exists(); `p` in this Element's source, its end included
+		LineAndColumn lineAndColumn(StringIt p) const;																	// requires exists(); `p` in this Element's source, its end included
 	
 	protected:
 		std::shared_ptr<SourceAndFile> s;
@@ -404,12 +404,10 @@ uint32_t hexCharsToUnsignedInt(const Char* begin, const Char* end = 0, const Cha
 uint64_t hexCharsToUnsignedInt64(const Char* begin, const Char* end = 0, const Char** next = 0);
 
 /*
-	Quoted strings outside a parse. quoteWideString takes valid Unicode, as the parser reads it back: no code point
-	above U+10FFFF, no U+FFFE or U+FFFF, and no surrogate except in a UTF-16 pair where WideChar is 16 bits.
+	Valid Unicode (quoteWideString): no code point above U+10FFFF, no U+FFFE or U+FFFF, and no surrogate outside a
+	UTF-16 pair, which needs a 16-bit WideChar.
 	unquoteString and unquoteWideString read one quoted string after white space, or take `s` whole as ISO 8859-1 when
-	it does not start with a quote; `nextOffset` is where the scan stopped, past trailing white space. A quoted string
-	that does not decode (unterminated, a bad escape, a raw character the grammar does not allow, or an escape above
-	U+00FF for unquoteString) gives an empty result and `nextOffset` 0.
+	it does not start with a quote; `nextOffset` ends past trailing white space.
 */
 String quoteString(const String& s, Char quoteChar = '\"');																// `quoteChar` '"' or '\''
 String unquoteString(const String& s, size_t* nextOffset = 0);															// on failure empty, with `nextOffset` 0

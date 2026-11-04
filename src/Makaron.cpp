@@ -332,10 +332,13 @@ static WideString decodeFileName(const WideString& bytes) {
 	size_t i = 0;
 	while (i < bytes.size()) {
 		const uint32_t lead = bytes[i];
-		int length = 0;
 		if (lead < 0x80) {
-			length = 1;
-		} else if (lead >= 0xC2 && lead < 0xE0) {
+			decoded += static_cast<WideChar>(lead);
+			++i;
+			continue;
+		}
+		int length = 0;
+		if (lead >= 0xC2 && lead < 0xE0) {
 			length = 2;
 		} else if (lead >= 0xE0 && lead < 0xF0) {
 			length = 3;
@@ -345,7 +348,7 @@ static WideString decodeFileName(const WideString& bytes) {
 		if (length == 0 || bytes.size() - i < static_cast<size_t>(length)) {
 			return bytes;
 		}
-		uint32_t codePoint = (length == 1 ? lead : lead & (0x3F >> (length - 1)));
+		uint32_t codePoint = lead & (0x3F >> (length - 1));
 		for (int j = 1; j < length; ++j) {
 			const uint32_t continuation = bytes[i + j];
 			if ((continuation & ~0x3Fu) != 0x80) {
@@ -353,7 +356,7 @@ static WideString decodeFileName(const WideString& bytes) {
 			}
 			codePoint = (codePoint << 6) | (continuation & 0x3F);
 		}
-		const uint32_t SHORTEST_FORM_MINIMUM[5] = { 0, 0, 0x80, 0x800, 0x10000 };
+		const uint32_t SHORTEST_FORM_MINIMUM[5] = { 0, 0, 0, 0x800, 0x10000 };
 		if (codePoint < SHORTEST_FORM_MINIMUM[length] || codePoint > 0x10FFFF
 				|| (codePoint >= 0xD800 && codePoint < 0xE000)) {
 			return bytes;
