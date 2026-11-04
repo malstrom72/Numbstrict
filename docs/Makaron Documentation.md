@@ -170,8 +170,7 @@ Syntax:
 
 - `<name>`: the name of the file to include
 
-The default loader passes the name's bytes to the file system as they are. On Windows, which names files in UTF-16,
-it reads them as UTF-8 when they are valid UTF-8 and as ISO 8859-1 otherwise.
+The name is ISO 8859-1, each byte one character, as in Numbstrict strings.
 
 Example:
 

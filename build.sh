@@ -75,10 +75,6 @@ for target in beta release; do
 		-I src tests/doubleFloatToString.cpp src/Numbstrict.cpp src/Makaron.cpp
 	"$out_dir/doubleFloatToString" > /dev/null
 
-	CPP_OPTIONS="$cpp_options" bash tools/BuildCpp.sh "$target" native "$out_dir/includeNames" \
-		-I src tests/includeNames.cpp src/Makaron.cpp
-	"$out_dir/includeNames" "$out_dir"
-
 	CPP_OPTIONS="$cpp_options" bash tools/BuildCpp.sh "$target" native "$out_dir/MakaronCmd" \
 		-I src tools/MakaronCmd.cpp src/Makaron.cpp
 

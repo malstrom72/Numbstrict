@@ -83,7 +83,7 @@ class Context {
 					Context* context;
 				};
 	
-	public:		typedef std::function<bool (const WideString& fileName, String& contents)> LoaderFunction;				// `fileName` holds the @include name byte by byte, as U+0000 to U+00FF
+	public:		typedef std::function<bool (const WideString& fileName, String& contents)> LoaderFunction;				// `fileName` holds the @include name as ISO 8859-1, each byte one character, as in Numbstrict strings
 	
 				Context(int depthLimiter = DEFAULT_RECURSION_DEPTH_LIMIT,
 						Context* parentContext = 0);		/// init with depth limit and parent
