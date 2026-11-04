@@ -170,6 +170,8 @@ Syntax:
 
 - `<name>`: the name of the file to include
 
+The name is ISO 8859-1, each byte one character, as in Numbstrict strings.
+
 Example:
 
 	@include anotherFile.makaron

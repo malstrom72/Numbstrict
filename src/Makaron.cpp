@@ -587,7 +587,8 @@ static const char* INSTRUCTIONS[6] = {
 void Context::includeFile() {
 	skipWhite();
 	const String fileName = parseExpression("\n\r");
-	const WideString wideFileName = std::wstring(fileName.begin(), fileName.end());
+	const unsigned char* const nameBytes = reinterpret_cast<const unsigned char*>(fileName.data());
+	const WideString wideFileName(nameBytes, nameBytes + fileName.size());												// a signed char would widen 0xE9 to U+FFE9
 	optionalLineBreak();
 	String source;
 	if (!loader(wideFileName, source)) {
@@ -1114,6 +1115,18 @@ bool unitTest() {
 		}
 		assert(traced);
 		(void)traced;
+	}
+	{
+		Context context;
+		WideString loaded;
+		context.setIncludeLoader([&loaded](const WideString& fileName, String& contents) {
+			loaded = fileName;
+			contents = "";
+			return true;
+		});
+		String output;
+		context.process(Span("@include caf\xE9.makaron\n", L"main.makaron"), output, 0);
+		assert(loaded == L"caf\xE9.makaron");
 	}
 	return true;
 }
