@@ -1,6 +1,6 @@
 # Coding Style and Design Principles
 
-Version: 2026-11-03
+Version: 2026-11-06
 
 The coding style and design principles shared across these projects: the basis for both humans and agents, and held to
 in review. Each project adds its own operational notes (directory layout, build and test gates, dependencies) in that
@@ -270,6 +270,13 @@ These are the most important principles in the codebase. Get them wrong and the 
   glance are fine: a byte copy `*d++ = *s++`, a buffer write `*p++ = c`, a stack push `*++sp = v`. An atomic counter
   that must increment and read in one operation (`if (instanceCount++ == 0)`) is required, not a style choice. When in
   doubt, write it out.
+- **A `for` condition tests only its counter** (`i < n`, `i > 0`). To stop on data, such as a terminator or a found
+  flag, compute the count first or write a `while`.
+- **Calls go outside loops when their result does not change**: `const int n = s->GetLength();` before
+  `for (int i = 0; i < n; ++i)`, not `i < s->GetLength()` in the condition. A function call can have any side effect,
+  so it should stand out where it runs once, and a debug build does not optimize the repeated call away.
+- **Operator overloading only where operators are the point of the class** (numbers, vectors, iterators). Elsewhere a
+  named method, so every call looks like a call.
 
 ## 10. Integer types
 
