@@ -81,18 +81,20 @@ class Context {
 					std::vector<String> params;
 					Span span;
 					Context* context;
+					Char prefix;																						// the body was written with it, whoever calls the macro
 				};
+				enum DefinitionKind { DEFINE_NEW, REDEFINE_EXISTING, DEFINE_IF_MISSING };
 	
 	public:		typedef std::function<bool (const WideString& fileName, String& contents)> LoaderFunction;				// `fileName` holds the @include name as ISO 8859-1, each byte one character, as in Numbstrict strings
 	
 				Context(int depthLimiter = DEFAULT_RECURSION_DEPTH_LIMIT,
 						Context* parentContext = 0);		/// init with depth limit and parent
 				bool defineMacro(const String& name, const std::vector<String>& parameterNames,
-						const Span& span, Context* context);		/// register macro; false if name exists
+						const Span& span, Context* context, Char macroPrefix = '@');									// `macroPrefix` valid as for process(); false if name exists
 				bool defineString(const String& name, const String& definiton);		/// define string constant; false if name used
-				bool redefineString(const String& name, const String& definiton);		/// replace string; false if missing
-				void process(const Span& input, String& output,
-						std::vector<OffsetMapEntry>* offsetMap);		/// expand input; fill offsets if provided
+				bool redefineString(const String& name, const String& definition);										// replaces the nearest definition in scope; false if undefined or a @begin macro
+				void process(const Span& input, String& output, std::vector<OffsetMapEntry>* offsetMap
+						, Char macroPrefix = '@');																		// `macroPrefix` stands in for @; throws unless one of @#%&*+-./:;?^`|~
 				void setIncludeLoader(const LoaderFunction& loaderFunction);		/// set loader used by @include
 	
 	protected:	static bool isWhite(const Char c);		/// true if `c` is whitespace
@@ -105,21 +107,26 @@ class Context {
 				void optionalLineBreak();		/// skip optional line break
 				void skipBracketsAndStrings(int depth);		/// skip bracketed or quoted blocks
 				bool parseToken(const char* token);		/// consume token if present
+				bool parseDirective(const char* name);																	// `prefix` followed by the token `name`
+				bool parseDoublePrefix();
 				String parseIdentifier();		/// read identifier; empty if none
 				String parseSymbol();		/// read identifier or `(expr)`
 				StringIt skipNested(const char* open, const char* close,
 						bool skipLeadingWhite);		/// skip nested pair and return end
 				Span parseNested(const char* open, const char* close,
 						bool skipLeadingWhite);		/// span inside nested pair
+				Span scanExpression(const char* terminators);
 				String parseExpression(const char* terminators);		/// parse expression until terminator
 				void parseArgumentList(std::vector<String>& arguments);		/// parse comma-separated args
 				void parseParameterNames(std::vector<String>& parameterNames);		/// parse comma-separated names
-				void stringDefinition(bool redefine);		/// handle string @define/@redefine
+				bool findDefinition(const String& name, Macro*& macro, String*& string);								// nearest in this context or an enclosing one
+				void stringDefinition(DefinitionKind kind);
 				void macroDefinition();		/// parse and store macro
 				bool testCondition();		/// evaluate @if/@elif expression
 				void ifStatement();		/// process @if...@endif
 				void invokeMacro();		/// expand macro or string
 				void includeFile();		/// handle @include directive
+				void errorStatement();
 				void produce(const StringIt& b, const StringIt& e);		/// append source slice to output
 				void spend(size_t byteCount);		// counts output toward the shared limit; throws when it is reached
 
@@ -131,6 +138,7 @@ class Context {
 				std::map<String, Macro> macros;
 				std::map<String, String> strings;
 				Span processing;
+				Char prefix;																							// of the run in progress
 				String* processed;
 				std::vector<OffsetMapEntry>* offsets;
 				StringIt p;
