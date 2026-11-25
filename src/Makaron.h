@@ -90,11 +90,11 @@ class Context {
 				Context(int depthLimiter = DEFAULT_RECURSION_DEPTH_LIMIT,
 						Context* parentContext = 0);		/// init with depth limit and parent
 				bool defineMacro(const String& name, const std::vector<String>& parameterNames,
-						const Span& span, Context* context, Char macroPrefix = '@');									// `macroPrefix` valid as for process(); false if name exists
+						const Span& span, Context* context, Char macroPrefix = '@');									// `macroPrefix` passes isMacroPrefix(); false if name exists
 				bool defineString(const String& name, const String& definiton);		/// define string constant; false if name used
 				bool redefineString(const String& name, const String& definition);										// replaces the nearest definition in scope; false if undefined or a @begin macro
 				void process(const Span& input, String& output, std::vector<OffsetMapEntry>* offsetMap
-						, Char macroPrefix = '@');																		// `macroPrefix` stands in for @ (included files use @); throws unless one of @#%&*+-./:;?^`|~
+						, Char macroPrefix = '@');																		// `macroPrefix` stands in for @ (included files use @) and passes isMacroPrefix()
 				void setIncludeLoader(const LoaderFunction& loaderFunction);		/// set loader used by @include
 	
 	protected:	static bool isWhite(const Char c);		/// true if `c` is whitespace
@@ -162,6 +162,7 @@ typedef std::vector<InputRange> RangeVector;
 RangeVector findInputRanges(const std::vector<OffsetMapEntry>& offsetMap,
 				size_t outputOffset);	/// map output offset to input ranges
 
+bool isMacroPrefix(Char c);																								// whether `c` can stand in for @ in Context::process
 std::pair<int, int> calculateLineAndColumn(const String& text, size_t offset);											// 1-based; `offset` at most text.size()
 String process(const String& source, const WideString& fileName, Char prefix = '@');									// a default Context; `prefix` as for Context::process
 bool unitTest();	/// run built-in tests
