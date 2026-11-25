@@ -93,7 +93,7 @@ bool Context::isIdentifierChar(const Char c) {
 	return isLeadingIdentifierChar(c) || (c >= '0' && c <= '9');
 }
 
-static bool isPrefix(const Char c) {																					// every other printable character is a name character, a bracket, a quote, a terminator or the < > of raw values
+static bool isPrefix(const Char c) {																					// every other printable character is a name character, a bracket, a quote, a string escape, a terminator or the < > of raw values
 	return (c != 0 && strchr("@#%&*+-./:;?^`|~", c) != 0);
 }
 
@@ -408,9 +408,9 @@ void Context::stringDefinition(DefinitionKind kind) {
 	}
 	++p;
 	skipHorizontalWhite();
-	Macro* macro;
-	String* string;
-	const bool found = findDefinition(name, macro, string);
+	Macro* macro = 0;
+	String* string = 0;
+	const bool found = (kind != DEFINE_NEW && findDefinition(name, macro, string));
 	if (kind == DEFINE_IF_MISSING && found) {
 		scanExpression("\n\r");																							// unexpanded, so a default that names a missing macro fails only when it is needed
 		optionalLineBreak();
@@ -617,11 +617,10 @@ static const char* DIRECTIVES[INVOKE_MACRO] = {																			// indexed by 
 	0, "begin", "define", "redefine", "default", "if", "include", "error"
 };
 
-void Context::errorStatement() {
+void Context::errorStatement(const StringIt statementBegin) {
 	skipHorizontalWhite();
-	const StringIt messageBegin = p;
 	const String message = parseExpression("\n\r");
-	p = messageBegin;
+	p = statementBegin;
 	error(message.empty() ? std::string("Missing error message") : message);
 }
 
@@ -638,19 +637,22 @@ void Context::includeFile() {
 
 	const Span previousProcessing = processing;
 	const StringIt previousP = p;
+	const Char previousPrefix = prefix;
 	--depthLimiter;
 	try {
-		process(Span(source, wideFileName), *processed, offsets, prefix);
+		process(Span(source, wideFileName), *processed, offsets);														// a file is written with @, whatever prefix the including text uses
 	}
 	catch (...) {
 		++depthLimiter;
 		p = previousP;
 		processing = previousProcessing;
+		prefix = previousPrefix;
 		throw;
 	}
 	++depthLimiter;
 	p = previousP;
 	processing = previousProcessing;
+	prefix = previousPrefix;
 }
 
 void Context::process(const Span& input, String& output, std::vector<OffsetMapEntry>* offsetMap, Char macroPrefix) {
@@ -719,7 +721,7 @@ void Context::process(const Span& input, String& output, std::vector<OffsetMapEn
 					case IF_STATEMENT: ifStatement(); break;
 					case INVOKE_MACRO: ++p; invokeMacro(); break;
 					case INCLUDE_STATEMENT: includeFile(); break;
-					case ERROR_STATEMENT: errorStatement(); break;
+					case ERROR_STATEMENT: errorStatement(instructionBegin); break;
 				}
 			}
 			catch (const Exception&) {	 // we want the offsetMap to be as complete as possible
@@ -744,9 +746,9 @@ void Context::process(const Span& input, String& output, std::vector<OffsetMapEn
 
 void Context::setIncludeLoader(const LoaderFunction& loaderFunction) { loader = loaderFunction; }
 
-String process(const String& source, const WideString& fileName) {
+String process(const String& source, const WideString& fileName, Char prefix) {
 	String output;
-	Context(DEFAULT_RECURSION_DEPTH_LIMIT).process(Span(source, fileName), output, 0);
+	Context(DEFAULT_RECURSION_DEPTH_LIMIT).process(Span(source, fileName), output, 0, prefix);
 	return output;
 }
 
@@ -1187,12 +1189,22 @@ bool unitTest() {
 	assert(checkExpected("@begin f(v) @default v = none\n[@v] @end@f(given)", "[given]"));
 	assert(checkError("@default a = @missing", "\"missing\" is undefined", 21, 1, 22));
 	assert(checkError("@default a 2", "Expected =", 11, 1, 12));
-	assert(checkError("@define default = 1", "Illegal use of \"default\"", 15, 1, 16));
+	{
+		const char* const KEYWORDS[] = { "begin", "default", "define", "end", "endif", "elif", "else", "error", "if", "redefine" };
+		for (size_t i = 0; i < sizeof (KEYWORDS) / sizeof (*KEYWORDS); ++i) {
+			const std::string keyword(KEYWORDS[i]);
+			const size_t end = 8 + keyword.size();
+			assert(checkError(("@define " + keyword + " = 1").c_str(), ("Illegal use of \"" + keyword + "\"").c_str(), end, 1
+					, static_cast<int>(end) + 1));
+			assert(checkExpected(("@define " + keyword + "s = 1\n@" + keyword + "s").c_str(), "1"));
+			assert(checkExpected(("@define x" + keyword + " = 2\n@x" + keyword).c_str(), "2"));
+		}
+	}
 	assert(checkError("@begin knob(bounds, default) @end", "Illegal use of \"default\"", 27, 1, 28));
 
-	assert(checkError("a\n@error Skin too old\nb", "Skin too old", 9, 2, 8));
-	assert(checkError("@define v = 3\n@error needs version @v\n", "needs version 3", 21, 2, 8));
-	assert(checkError("@error\n", "Missing error message", 6, 1, 7));
+	assert(checkError("a\n@error Skin too old\nb", "Skin too old", 2, 2, 1));
+	assert(checkError("@define v = 3\n  @error needs version @v\n", "needs version 3", 16, 2, 3));
+	assert(checkError("@error\n", "Missing error message", 0, 1, 1));
 	assert(checkError("@define error = 1", "Illegal use of \"error\"", 13, 1, 14));
 	assert(checkExpected("@if (1 == 0) @error no @endif ok", "ok"));
 
@@ -1238,8 +1250,18 @@ bool unitTest() {
 			return fileName == L"inner";
 		});
 		String output;
-		context.process(Span("%include inner\n%v", L"unit test"), output, 0, '%');
-		assert(output == "1");
+		context.process(Span("%include inner\n", L"unit test"), output, 0, '%');
+		assert(output == "%define v = 1\n");
+	}
+	{																													// an included file is written with @, as a color scheme is
+		Context context;
+		context.setIncludeLoader([](const WideString& fileName, String& contents) {
+			contents = "@define pen = #FF2244\n";
+			return fileName == L"colorScheme";
+		});
+		String output;
+		context.process(Span("%include colorScheme\n[%pen] @@", L"cell"), output, 0, '%');
+		assert(output == "[#FF2244] @@");
 	}
 	for (const char* p = "a0$_ (){}[]<>\"',=!\\\n"; *p != 0; ++p) {
 		Context context;

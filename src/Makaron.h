@@ -94,7 +94,7 @@ class Context {
 				bool defineString(const String& name, const String& definiton);		/// define string constant; false if name used
 				bool redefineString(const String& name, const String& definition);										// replaces the nearest definition in scope; false if undefined or a @begin macro
 				void process(const Span& input, String& output, std::vector<OffsetMapEntry>* offsetMap
-						, Char macroPrefix = '@');																		// `macroPrefix` stands in for @; throws unless one of @#%&*+-./:;?^`|~
+						, Char macroPrefix = '@');																		// `macroPrefix` stands in for @ (included files use @); throws unless one of @#%&*+-./:;?^`|~
 				void setIncludeLoader(const LoaderFunction& loaderFunction);		/// set loader used by @include
 	
 	protected:	static bool isWhite(const Char c);		/// true if `c` is whitespace
@@ -126,7 +126,7 @@ class Context {
 				void ifStatement();		/// process @if...@endif
 				void invokeMacro();		/// expand macro or string
 				void includeFile();		/// handle @include directive
-				void errorStatement();
+				void errorStatement(const StringIt statementBegin);
 				void produce(const StringIt& b, const StringIt& e);		/// append source slice to output
 				void spend(size_t byteCount);		// counts output toward the shared limit; throws when it is reached
 
@@ -163,7 +163,7 @@ RangeVector findInputRanges(const std::vector<OffsetMapEntry>& offsetMap,
 				size_t outputOffset);	/// map output offset to input ranges
 
 std::pair<int, int> calculateLineAndColumn(const String& text, size_t offset);											// 1-based; `offset` at most text.size()
-String process(const String& source, const WideString& fileName);	/// convenience wrapper using default context
+String process(const String& source, const WideString& fileName, Char prefix = '@');									// a default Context; `prefix` as for Context::process
 bool unitTest();	/// run built-in tests
 
 } // namespace Makaron

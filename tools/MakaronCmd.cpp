@@ -99,6 +99,7 @@ int main(int argc, const char* argv[]) {
 		std::string mapPath;
 		std::string dependencyPath;
 		bool checkOnly = false;
+		Makaron::Char prefix = '@';
 		int argi = 1;
 		while (argi < argc) {
 			if (strcmp(argv[argi], "-c") == 0) {
@@ -108,6 +109,16 @@ int main(int argc, const char* argv[]) {
 				++argi;
 				if (argi < argc) {
 					dependencyPath = argv[argi];
+					++argi;
+				}
+			} else if (strcmp(argv[argi], "-p") == 0) {
+				++argi;
+				if (argi < argc) {
+					if (strlen(argv[argi]) != 1) {
+						std::cerr << "-p takes a single character" << std::endl;
+						return 1;
+					}
+					prefix = argv[argi][0];
 					++argi;
 				}
 			} else if (strcmp(argv[argi], "-m") == 0) {
@@ -152,9 +163,11 @@ int main(int argc, const char* argv[]) {
 		}
 		
 		if (argi >= argc) {
-			std::cerr << "Makaron [-c] [-m <map file>] [-M <dependency file>] [-d <name>=<value> ...]"
+			std::cerr << "Makaron [-c] [-p <prefix>] [-m <map file>] [-M <dependency file>] [-d <name>=<value> ...]"
 					<< " [-i <additional include path>] <input file>|- [<output file>|-]" << std::endl;
 			std::cerr << "-c checks only and writes no output; -M lists the input and every included file, one per line"
+					<< std::endl
+					<< "-p sets the character that starts statements in the input instead of @ (included files use @)"
 					<< std::endl
 					<< "map lines: <output start>:<output end> (<input start>+|<span begin>:<span end>)"
 					<< "[ <file, when not the input file>]" << std::endl;
@@ -191,7 +204,7 @@ int main(int argc, const char* argv[]) {
 			
 			loadedSources[fileName] = source;
 			context.process(Makaron::Span(source, Makaron::WideString(fileName.begin(), fileName.end())), processed
-					, &offsetMap);
+					, &offsetMap, prefix);
 		}
 		catch (const Makaron::Exception& x) {
 			std::cerr << "!!!! Makaron error: " << x.getError() << std::endl

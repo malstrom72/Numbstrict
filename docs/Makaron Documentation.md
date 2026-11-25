@@ -37,7 +37,7 @@ Example:
 
 Any instance of `@color` will thereafter expand to `red`.
 
-Macro names can begin with `a` to `z`, `$` or `_,` but the rest may also contain `0` to `9`. You should not start the name with `@`. The names of the statements (`begin`, `default`, `define`, `elif`, `else`, `end`, `endif`, `error`, `if` and `redefine`) cannot be used for macros or parameters. It is an error to define a macro with the same name twice. Use [`@redefine`](#redefine) if you want to reassign the value of a macro.
+Macro names can begin with `a` to `z`, `$` or `_,` but the rest may also contain `0` to `9`. You should not start the name with `@`. The names of the statements (`begin`, `default`, `define`, `elif`, `else`, `end`, `endif`, `error`, `if` and `redefine`) cannot be defined as macros or parameters. It is an error to define a macro with the same name twice. Use [`@redefine`](#redefine) if you want to reassign the value of a macro.
 
 The `<value>` definition will include everything until the end of the line unless you use a [_raw value_](#raw-value) (`@<` `@>`). This can lead to unexpected results if you have a comment at the end of the line. For example, suppose we define `viewWidth` like this: 
 
@@ -331,4 +331,4 @@ The application that processes a file can choose another character than `@` to s
 
 This helps with text that is processed more than once, such as a template that the application runs through _Makaron_ again later. Rather than writing `@@index` so that it survives the first pass as `@index`, the template can use `%index`, which the first pass leaves alone, and the application processes it with `%` as the prefix.
 
-A _parametric macro_ always expands with the prefix it was defined with. A macro defined in an `@` file can therefore be called as `%macro(...)` from a `%` pass, and its body still uses `@`.
+A _parametric macro_ always expands with the prefix it was defined with. A macro defined in an `@` file can therefore be called as `%macro(...)` from a `%` pass, and its body still uses `@`. In the same way, a file included with [`%include`](#include) is written with `@`, like any other _Makaron_ file, whatever the prefix of the text that includes it.
