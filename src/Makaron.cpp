@@ -159,17 +159,18 @@ bool Context::parseDoublePrefix() {
 	node QuickHashGenCLI.node.js --no-zero-termination --seed 1
 */
 static int findReservedKeyword(size_t n /* string length */, const Char* s /* string (zero termination not required) */) {
-	static const char* STRINGS[10] = {
-		"begin", "default", "define", "end", "endif", "elif", "else", "error", "if", "redefine"
+	static const char* STRINGS[11] = {
+		"begin", "default", "define", "end", "endif", "elif", "else", "error", "if", "include", "redefine"
 	};
-	static const int HASH_TABLE[16] = {
-		1, -1, 3, 0, 4, -1, -1, 9, -1, -1, 7, -1, 5, 8, 6, 2
+	static const int HASH_TABLE[32] = {
+		-1, 0, -1, -1, 4, -1, -1, -1, -1, -1, 2, -1, -1, 6, -1, -1,
+		8, -1, 1, -1, 3, 9, 7, 5, -1, -1, -1, -1, 10, -1, -1, -1
 	};
 	if (n < 2 || n > 8) {
 		return -1;
 	}
 	const unsigned char* const bytes = reinterpret_cast<const unsigned char*>(s);
-	const int stringIndex = HASH_TABLE[((2 < n ? bytes[2] : 0) * 5u + 91u + n) & 15u];
+	const int stringIndex = HASH_TABLE[((n << 3) - (2 < n ? bytes[2] : 0)) & 31u];
 	return (stringIndex >= 0 && strncmp(s, STRINGS[stringIndex], n) == 0
 			&& STRINGS[stringIndex][n] == 0) ? stringIndex : -1;
 }
@@ -1188,7 +1189,9 @@ bool unitTest() {
 	assert(checkError("@default a = @missing", "\"missing\" is undefined", 21, 1, 22));
 	assert(checkError("@default a 2", "Expected =", 11, 1, 12));
 	{
-		const char* const KEYWORDS[] = { "begin", "default", "define", "end", "endif", "elif", "else", "error", "if", "redefine" };
+		const char* const KEYWORDS[] = {
+			"begin", "default", "define", "end", "endif", "elif", "else", "error", "if", "include", "redefine"
+		};
 		for (size_t i = 0; i < sizeof (KEYWORDS) / sizeof (*KEYWORDS); ++i) {
 			const std::string keyword(KEYWORDS[i]);
 			const size_t end = 8 + keyword.size();
@@ -1199,6 +1202,7 @@ bool unitTest() {
 		}
 	}
 	assert(checkError("@begin knob(bounds, default) @end", "Illegal use of \"default\"", 27, 1, 28));
+	assert(checkError("@begin m(include) @end", "Illegal use of \"include\"", 16, 1, 17));
 
 	assert(checkError("a\n@error Skin too old\nb", "Skin too old", 2, 2, 1));
 	assert(checkError("@define v = 3\n  @error needs version @v\n", "needs version 3", 16, 2, 3));

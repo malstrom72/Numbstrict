@@ -37,7 +37,7 @@ Example:
 
 Any instance of `@color` will thereafter expand to `red`.
 
-Macro names can begin with `a` to `z`, `$` or `_,` but the rest may also contain `0` to `9`. You should not start the name with `@`. The names of the statements (`begin`, `default`, `define`, `elif`, `else`, `end`, `endif`, `error`, `if` and `redefine`) cannot be defined as macros or parameters. It is an error to define a macro with the same name twice. Use [`@redefine`](#redefine) if you want to reassign the value of a macro.
+Macro names can begin with `a` to `z`, `$` or `_,` but the rest may also contain `0` to `9`. You should not start the name with `@`. The names of the statements (`begin`, `default`, `define`, `elif`, `else`, `end`, `endif`, `error`, `if`, `include` and `redefine`) cannot be defined as macros or parameters. It is an error to define a macro with the same name twice. Use [`@redefine`](#redefine) if you want to reassign the value of a macro.
 
 The `<value>` definition will include everything until the end of the line unless you use a [_raw value_](#raw-value) (`@<` `@>`). This can lead to unexpected results if you have a comment at the end of the line. For example, suppose we define `viewWidth` like this: 
 

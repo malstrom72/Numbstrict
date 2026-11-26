@@ -32,8 +32,8 @@ argumentList    <-  '(' _lf_ argumentExpr (_lf_ ',' _lf_ argumentExpr)* _lf_ ')'
 argumentExpr    <-  raw / !'@<' (![,)] balanced)*
 
 identifier      <-  !reserved [a-zA-Z$_] identifierChar*
-reserved        <-  ('define' / 'default' / 'begin' / 'endif' / 'end' / 'if' / 'elif' / 'else' / 'error' / 'redefine')
-                    !identifierChar
+reserved        <-  ('define' / 'default' / 'begin' / 'endif' / 'end' / 'if' / 'elif' / 'else' / 'error' / 'redefine'
+                    / 'include') !identifierChar
 identifierChar  <-  [a-zA-Z0-9$_]
 
 raw             <-  '@<' (raw / '@@' / !'@>' .)* '@>'
