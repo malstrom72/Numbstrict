@@ -93,7 +93,7 @@ bool Context::isIdentifierChar(const Char c) {
 	return isLeadingIdentifierChar(c) || (c >= '0' && c <= '9');
 }
 
-bool isMacroPrefix(const Char c) {																						// every other printable character is a name character, a bracket, a quote, a string escape, a terminator or the < > of raw values
+bool isValidMacroPrefix(const Char c) {																					// every other printable character is a name character, a bracket, a quote, a string escape, a terminator or the < > of raw values
 	return (c != 0 && strchr("@#%&*+-./:;?^`|~", c) != 0);
 }
 
@@ -556,7 +556,7 @@ void Context::invokeMacro() {
 
 bool Context::defineMacro(const String& name, const std::vector<String>& parameterNames, const Span& span, Context* context
 		, Char macroPrefix) {
-	assert(isMacroPrefix(macroPrefix));
+	assert(isValidMacroPrefix(macroPrefix));
 	if (strings.find(name) != strings.end()) {
 		return false;
 	} else {
@@ -662,7 +662,7 @@ void Context::process(const Span& input, String& output, std::vector<OffsetMapEn
 	offsets = offsetMap;
 	p = input.begin;
 
-	assert(isMacroPrefix(macroPrefix));
+	assert(isValidMacroPrefix(macroPrefix));
 	prefix = macroPrefix;
 	if (depthLimiter == 0) {
 		error("Recursion depth limit reached");
@@ -1266,11 +1266,11 @@ bool unitTest() {
 		assert(output == "[#FF2244] @@");
 	}
 	for (const char* p = "a0$_ (){}[]<>\"',=!\\\n"; *p != 0; ++p) {
-		assert(!isMacroPrefix(*p));
+		assert(!isValidMacroPrefix(*p));
 	}
-	assert(!isMacroPrefix(0) && !isMacroPrefix(static_cast<Char>(0xA7)));
+	assert(!isValidMacroPrefix(0) && !isValidMacroPrefix(static_cast<Char>(0xA7)));
 	for (const char* p = "@#%&*+-./:;?^`|~"; *p != 0; ++p) {
-		assert(isMacroPrefix(*p));
+		assert(isValidMacroPrefix(*p));
 	}
 	{
 		Context context;

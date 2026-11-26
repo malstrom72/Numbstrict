@@ -114,7 +114,7 @@ int main(int argc, const char* argv[]) {
 			} else if (strcmp(argv[argi], "-p") == 0) {
 				++argi;
 				if (argi < argc) {
-					if (strlen(argv[argi]) != 1 || !Makaron::isMacroPrefix(argv[argi][0])) {
+					if (strlen(argv[argi]) != 1 || !Makaron::isValidMacroPrefix(argv[argi][0])) {
 						std::cerr << "-p takes a single character that Makaron accepts as a prefix, such as %"
 								<< std::endl;
 						return 1;
