@@ -195,16 +195,21 @@ name with “@” in the text.</p>
 data-cites="define">@define</span></a></li>
 <li><a href="#redefine"><span class="citation"
 data-cites="redefine">@redefine</span></a></li>
+<li><a href="#default"><span class="citation"
+data-cites="default">@default</span></a></li>
 <li><a href="#begin"><span class="citation"
 data-cites="begin">@begin</span></a></li>
 <li><a href="#if"><span class="citation"
 data-cites="if">@if</span></a></li>
 <li><a href="#include"><span class="citation"
 data-cites="include">@include</span></a></li>
+<li><a href="#error"><span class="citation"
+data-cites="error">@error</span></a></li>
 <li><a href="#invocation">invocation</a></li>
 <li><a href="#indirect-invocation">indirect invocation</a></li>
 <li><a href="#literal">literal @</a></li>
 <li><a href="#raw-value">raw value</a></li>
+<li><a href="#macro-prefix">macro prefix</a></li>
 </ul>
 <h2 id="define"><span class="citation"
 data-cites="define">@define</span></h2>
@@ -223,9 +228,13 @@ string</li>
 <p>Macro names can begin with <code>a</code> to <code>z</code>,
 <code>$</code> or <code>_,</code> but the rest may also contain
 <code>0</code> to <code>9</code>. You should not start the name with
-<code>@</code>. It is an error to define a macro with the same name
-twice. Use <a href="#redefine"><code>@redefine</code></a> if you want to
-reassign the value of a macro.</p>
+<code>@</code>. The names of the statements (<code>begin</code>,
+<code>default</code>, <code>define</code>, <code>elif</code>,
+<code>else</code>, <code>end</code>, <code>endif</code>,
+<code>error</code>, <code>if</code>, <code>include</code> and
+<code>redefine</code>) cannot be defined as macros or parameters. It is
+an error to define a macro with the same name twice. Use <a href="#redefine"><code>@redefine</code></a>
+if you want to reassign the value of a macro.</p>
 <p>The <code>&lt;value&gt;</code> definition will include everything
 until the end of the line unless you use a <a href="#raw-value"><em>raw
 value</em></a> (<code>@&lt;</code> <code>@&gt;</code>). This can lead to
@@ -256,6 +265,26 @@ Furthermore, it is only possible to redefine <em>string macros</em>
 defined with <a href="#define"><code>@define</code></a>. It is not
 possible to redefine a <em>parametric macro</em> that you have defined
 with <a href="#begin"><code>@begin</code></a>.</p>
+<h2 id="default"><span class="citation"
+data-cites="default">@default</span></h2>
+<p>Define a macro only if it is not already defined.</p>
+<p>Syntax:</p>
+<pre><code>@default &lt;macro&gt; = &lt;value&gt;</code></pre>
+<ul>
+<li><code>&lt;macro&gt;</code>: name of the macro to define</li>
+<li><code>&lt;value&gt;</code>: the macro will expand to this string,
+unless it is already defined</li>
+</ul>
+<p>Example:</p>
+<pre><code>@default MAIN_FRAME_COLOR = @MAIN_PEN_COLOR</code></pre>
+<p>If a macro, or a parameter of the macro being expanded, already has
+the name <code>&lt;macro&gt;</code>, <code>@default</code> does nothing
+and does not even expand <code>&lt;value&gt;</code>, so a macro that
+<code>&lt;value&gt;</code> refers to only needs to exist when the
+default is used. Otherwise it works exactly like <a
+href="#define"><code>@define</code></a>. This lets a file give defaults
+for macros that an included file, such as a color scheme, may or may not
+define.</p>
 <h2 id="begin"><span class="citation"
 data-cites="begin">@begin</span></h2>
 <p>Defines a <em>parametric macro</em>.</p>
@@ -347,6 +376,18 @@ are false</li>
 <p>Comparison always compares strings, character by character. E.g.,
 <code>5.0</code> and <code>5</code> are <em>not</em> considered
 equal.</p>
+<p>Macros you define inside a branch, with <a
+href="#define"><code>@define</code></a>, <a
+href="#default"><code>@default</code></a> or <a
+href="#begin"><code>@begin</code></a>, only exist until the end of that
+branch, as do macros defined inside the body of a <em>parametric
+macro</em>. To set a macro depending on a condition, define it before
+the <code>@if</code> and change it with <a
+href="#redefine"><code>@redefine</code></a> inside:</p>
+<pre><code>@define pen = #888888
+@if (@color == red)
+    @redefine pen = #FF2244
+@endif</code></pre>
 <p>Don’t forget to prefix <em>Makaron variables</em> and
 <em>parameters</em> with <code>@</code> inside the condition. Also,
 remember that literal strings in <em>Makaron</em> are not enclosed in
@@ -369,6 +410,21 @@ hosting application. Notice that you specify <code>&lt;name&gt;</code>
 using a regular <em>Makaron value</em>. This means you do not enclose it
 in quotes, but you are allowed to use <a href="#raw-value"><em>raw
 value</em></a> syntax (<code>@&lt;</code> <code>@&gt;</code>).</p>
+<h2 id="error"><span class="citation"
+data-cites="error">@error</span></h2>
+<p>Stop processing with an error message.</p>
+<p>Syntax:</p>
+<pre><code>@error &lt;message&gt;</code></pre>
+<ul>
+<li><code>&lt;message&gt;</code>: the error message, up to the end of
+the line</li>
+</ul>
+<p>Example:</p>
+<pre><code>@if (@SKIN_VERSION == 1)
+    @error This layout needs a version 2 skin
+@endif</code></pre>
+<p>Macros in <code>&lt;message&gt;</code> are expanded, so the message
+can include their values.</p>
 <h2 id="invocation">invocation</h2>
 <p>Call on a macro and include its output.</p>
 <p>Syntax:</p>
@@ -445,5 +501,30 @@ value</em>.</p>
 <p>Notice that macro expansion is still performed inside <em>raw
 values</em>. To include <em>at characters</em>, you need to use
 <code>@@</code> just like everywhere else.</p>
+<h2 id="macro-prefix">macro prefix</h2>
+<p>The application that processes a file can choose another character
+than <code>@</code> to start <em>Makaron</em> statements: one of
+<code>#</code>, <code>%</code>, <code>&amp;</code>, <code>*</code>,
+<code>+</code>, <code>-</code>, <code>.</code>, <code>/</code>,
+<code>:</code>, <code>;</code>, <code>?</code>, <code>^</code>,
+<code>`</code>, <code>|</code> or <code>~</code>. With <code>%</code>,
+for example, every statement starts with <code>%</code> instead
+(<code>%define</code>, <code>%if</code>, <code>%name</code>),
+<code>%%</code> outputs one <code>%</code>, a <em>raw value</em> is
+written <code>%&lt;</code> … <code>%&gt;</code>, and <code>@</code> is
+ordinary text.</p>
+<p>This helps with text that is processed more than once, such as a
+template that the application runs through <em>Makaron</em> again later.
+Rather than writing <code>@@index</code> so that it survives the first
+pass as <code>@index</code>, the template can use <code>%index</code>,
+which the first pass leaves alone, and the application processes it with
+<code>%</code> as the prefix.</p>
+<p>A <em>parametric macro</em> always expands with the prefix it was
+defined with. A macro defined in an <code>@</code> file can therefore be
+called as <code>%macro(...)</code> from a <code>%</code> pass, and its
+body still uses <code>@</code>. In the same way, a file included with <a
+href="#include"><code>%include</code></a> is written with
+<code>@</code>, like any other <em>Makaron</em> file, whatever the
+prefix of the text that includes it.</p>
 </body>
 </html>

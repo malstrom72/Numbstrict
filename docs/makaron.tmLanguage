@@ -51,6 +51,10 @@
 				</dict>
 				<dict>
 					<key>include</key>
+					<string>#errorStatement</string>
+				</dict>
+				<dict>
+					<key>include</key>
 					<string>#invokeMacro</string>
 				</dict>
 			</array>			
@@ -266,7 +270,7 @@
 			<key>name</key>
 			<string>meta.define.makaron</string>
 			<key>begin</key>
-			<string>(@(?:re)?define)\b\s+([a-zA-Z$_][a-zA-Z0-9$_]*)(\s*\=)</string>
+			<string>(@(?:(?:re)?define|default))\b\s+([a-zA-Z$_][a-zA-Z0-9$_]*)(\s*\=)</string>
 			<key>end</key>
 			<string>(?=[\n])</string>
 			<key>beginCaptures</key>
@@ -473,6 +477,38 @@
 				<dict>
 					<key>name</key>
 					<string>keyword.control.include.makaron</string>
+				</dict>
+			</dict>
+			<key>endCaptures</key>
+			<dict>
+				<key>0</key>
+				<dict>
+					<key>name</key>
+					<string>keyword.terminator.statement.makaron</string>
+				</dict>
+			</dict>
+			<key>patterns</key>
+			<array>
+				<dict>
+					<key>include</key>
+					<string>#expression</string>
+				</dict>
+			</array>
+		</dict>
+		<key>errorStatement</key>
+		<dict>
+			<key>name</key>
+			<string>meta.error.makaron</string>
+			<key>begin</key>
+			<string>(@error\b)</string>
+			<key>end</key>
+			<string>(?=[\n])</string>
+			<key>beginCaptures</key>
+			<dict>
+				<key>1</key>
+				<dict>
+					<key>name</key>
+					<string>keyword.control.error.makaron</string>
 				</dict>
 			</dict>
 			<key>endCaptures</key>

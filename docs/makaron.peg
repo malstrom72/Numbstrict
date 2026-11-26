@@ -1,15 +1,21 @@
+# '@' stands for the prefix the run was given (see "macro prefix" in Makaron Documentation.md); an included file is
+# always read with '@'.
+
 root            <-  text
 
 text            <-  (instruction / literalText)*
 literalText     <-  !(_ '@') .
 
-instruction     <-  defMacro / defString / redefString / ifElse / include / expand / literalAt
+instruction     <-  defMacro / defString / redefString / defaultString / ifElse / include / error / expand
+                    / literalAt
 
 literalAt       <-  _ '@@'
 
 defString       <-  DEFINE identifier _ '=' _ valueExpr _eol?
 redefString     <-  REDEFINE identifier _ '=' _ valueExpr _eol?
+defaultString   <-  DEFAULT identifier _ '=' _ valueExpr _eol?
 include			<-	INCLUDE _ valueExpr _eol?
+error           <-  ERROR valueExpr _eol?
 valueExpr       <-  raw / !'@<' (!_eol balanced)*
 
 defMacro        <-  BEGIN identifier (!'(' / paramsList) _eol? nestedMacros END
@@ -28,7 +34,8 @@ argumentList    <-  '(' _lf_ argumentExpr (_lf_ ',' _lf_ argumentExpr)* _lf_ ')'
 argumentExpr    <-  raw / !'@<' (![,)] balanced)*
 
 identifier      <-  !reserved [a-zA-Z$_] identifierChar*
-reserved        <-  ('define' / 'begin' / 'endif' / 'end' / 'if' / 'elif' / 'else' / 'redefine' / 'include') !identifierChar
+reserved        <-  ('define' / 'default' / 'begin' / 'endif' / 'end' / 'if' / 'elif' / 'else' / 'error' / 'redefine'
+                    / 'include') !identifierChar
 identifierChar  <-  [a-zA-Z0-9$_]
 
 raw             <-  '@<' (raw / '@@' / !'@>' .)* '@>'
@@ -46,10 +53,12 @@ _               <-  [ \t]*
 
 DEFINE          <-  _ '@define' !identifierChar _lf_
 REDEFINE        <-  _ '@redefine' !identifierChar _lf_
+DEFAULT         <-  _ '@default' !identifierChar _lf_
 BEGIN           <-  _ '@begin' !identifierChar _lf_
 END             <-  _ '@end' !identifierChar _eol?
 IF              <-  _ '@if' !identifierChar _lf_
 ELIF            <-  _ '@elif' !identifierChar _lf_
 ELSE            <-  _ '@else' !identifierChar _lf_
 ENDIF           <-  _ '@endif' !identifierChar _eol?
+ERROR           <-  _ '@error' !identifierChar _
 INCLUDE         <-  _ '@include' !identifierChar _lf_
