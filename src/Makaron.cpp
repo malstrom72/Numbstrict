@@ -134,7 +134,7 @@ bool Context::parseToken(const char* token) {
 	return false;
 }
 
-bool Context::parseDirective(const char* name) {
+bool Context::parseInstruction(const char* name) {
 	if (eof() || *p != prefix) {
 		return false;
 	}
@@ -252,9 +252,9 @@ StringIt Context::skipNested(const char* open, const char* close, bool skipLeadi
 				break;
 			}
 		}
-		if (parseDirective(open)) {
+		if (parseInstruction(open)) {
 			++blockCount;
-		} else if (parseDirective(close)) {
+		} else if (parseInstruction(close)) {
 			--blockCount;
 		} else if (!parseDoublePrefix()) {
 			assert(!eof());
@@ -312,7 +312,7 @@ void Context::skipBracketsAndStrings(int depth) {
 }
 
 Span Context::scanExpression(const char* terminators) {
-	if (parseDirective("<")) {
+	if (parseInstruction("<")) {
 		return parseNested("<", ">", false);
 	}
 	const size_t terminatorCount = strlen(terminators);
@@ -478,12 +478,12 @@ void Context::ifStatement() {
 	bool gotElse = false;
 	Span span(processing, p, p);
 	skipHorizontalWhite();
-	while (!parseDirective("endif")) {
+	while (!parseInstruction("endif")) {
 		if (eof()) {
 			error(std::string("Missing ") + prefix + "endif");
-		} else if (parseDirective("if")) {
+		} else if (parseInstruction("if")) {
 			skipNested("if", "endif", true);
-		} else if (parseDirective("elif")) {
+		} else if (parseInstruction("elif")) {
 			if (gotElse) {
 				error("Illegal use of \"elif\"");
 			}
@@ -493,7 +493,7 @@ void Context::ifStatement() {
 			} else {
 				finishedSpan = true;
 			}
-		} else if (parseDirective("else")) {
+		} else if (parseInstruction("else")) {
 			gotElse = true;
 			if (!success) {
 				optionalLineBreak();
@@ -613,7 +613,7 @@ enum Instruction {
 	, ERROR_STATEMENT, INVOKE_MACRO
 };
 
-static const char* DIRECTIVES[INVOKE_MACRO] = {																			// indexed by Instruction
+static const char* INSTRUCTIONS[INVOKE_MACRO] = {																		// indexed by Instruction
 	0, "begin", "define", "redefine", "default", "if", "include", "error"
 };
 
@@ -688,7 +688,7 @@ void Context::process(const Span& input, String& output, std::vector<OffsetMapEn
 			Instruction instruction = LITERAL_PREFIX;
 			if (!parseDoublePrefix()) {
 				instruction = DEFINE_MACRO;
-				while (instruction < INVOKE_MACRO && !parseDirective(DIRECTIVES[instruction])) {
+				while (instruction < INVOKE_MACRO && !parseInstruction(INSTRUCTIONS[instruction])) {
 					instruction = static_cast<Instruction>(instruction + 1);
 				}
 			}

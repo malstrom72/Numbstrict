@@ -107,7 +107,7 @@ class Context {
 				void optionalLineBreak();		/// skip optional line break
 				void skipBracketsAndStrings(int depth);		/// skip bracketed or quoted blocks
 				bool parseToken(const char* token);		/// consume token if present
-				bool parseDirective(const char* name);																	// `prefix` followed by the token `name`
+				bool parseInstruction(const char* name);																// `prefix` followed by the token `name`
 				bool parseDoublePrefix();
 				String parseIdentifier();		/// read identifier; empty if none
 				String parseSymbol();		/// read identifier or `(expr)`
