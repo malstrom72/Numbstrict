@@ -1199,6 +1199,7 @@ bool unitTest() {
 					, static_cast<int>(end) + 1));
 			assert(checkExpected(("@define " + keyword + "s = 1\n@" + keyword + "s").c_str(), "1"));
 			assert(checkExpected(("@define x" + keyword + " = 2\n@x" + keyword).c_str(), "2"));
+			(void)end;
 		}
 	}
 	assert(checkError("@begin knob(bounds, default) @end", "Illegal use of \"default\"", 27, 1, 28));
